@@ -43,6 +43,52 @@ init_states = [{'id': 0, } for _ in range(settings.number_of_nodes)]  # add keys
 # Available models #
 ####################
 
+class BigMarketModel(BaseNetworkAgent):
+    def __init__(self, environment=None, agent_id=0, state=()):
+        super().__init__(environment=environment, agent_id=agent_id, state=state)
+        self.time_awareness = 0
+        networkStatus[self.id][self.env.now]=0
+        if self.id == 0:            #Empresa 1
+            self.state['id']=0
+            self.tweet_probability_1 = settings.tweet_probability_1
+        elif self.id == 1:          #Empresa 2
+            self.state['id']=1
+            self.tweet_probability_2 = settings.tweet_probability_2
+        else:                       #Usuarios normales
+            self.state['id']=2
+            self.tweet_probability_users = settings.tweet_probability_users
+            self.tweet_probability_about = settings.tweet_probability_about
+            self.sentiment_about = settings.sentiment_about
+
+    def run(self):
+        while True:
+            aware_neighbors_1_time_step=[]
+            #Outside effects
+            if random.random() < settings.innovation_prob:
+                if self.state['id'] == 0:
+                    self.state['id'] = 1
+                    myList.append(self.id)
+                    networkStatus[self.id][self.env.now]=1
+                    self.time_awareness = self.env.now #Para saber cuando se han contagiado
+                    yield self.env.timeout(settings.timeout)
+                else:
+                    yield self.env.timeout(settings.timeout)
+
+            #Imitation effects
+            if self.state['id'] == 0:
+                aware_neighbors = self.get_neighboring_agents(state_id=1)
+                for x in aware_neighbors:
+                    if x.time_awareness == (self.env.now-1):
+                        aware_neighbors_1_time_step.append(x)
+                num_neighbors_aware = len(aware_neighbors_1_time_step)
+                if random.random() < (settings.imitation_prob*num_neighbors_aware):
+                    myList.append(self.id)
+                    self.state['id'] = 1
+                    networkStatus[self.id][self.env.now]=1
+                    yield self.env.timeout(settings.timeout)
+                else:
+                    yield self.env.timeout(settings.timeout)
+
 class SentimentCorrelationModel(BaseNetworkAgent):
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
