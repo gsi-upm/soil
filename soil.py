@@ -50,18 +50,37 @@ class BigMarketModel(BaseNetworkAgent):
         networkStatus[self.id][self.env.now]=0
         if self.id == 0:            #Empresa 1
             self.state['id']=0
-            self.tweet_probability_1 = settings.tweet_probability_1
+            self.tweet_probability = settings.tweet_probability_1
         elif self.id == 1:          #Empresa 2
             self.state['id']=1
-            self.tweet_probability_2 = settings.tweet_probability_2
+            self.tweet_probability = settings.tweet_probability_2
         else:                       #Usuarios normales
             self.state['id']=2
-            self.tweet_probability_users = settings.tweet_probability_users
-            self.tweet_probability_about = settings.tweet_probability_about
-            self.sentiment_about = settings.sentiment_about
+            self.tweet_probability = settings.tweet_probability_users
+            self.tweet_relevant_probability = settings.tweet_relevant_probability
+            self.tweet_probability_about = settings.tweet_probability_about #Lista
+            self.sentiment_about = settings.sentiment_about #Lista
 
     def run(self):
         while True:
+
+            ##Usuario
+
+            if random.random() < self.tweet_probability: #Twittea
+                if random.random() < self.tweet_relevant_probability: #Twittea algo relevante
+                    #Probabilidad de tweet para cada empresa
+                    for i in range(len(self.tweet_probability_about)):
+                        if random.random() < self.tweet_probability_about[i]:
+                            #Se ha cumplido la condicion, evaluo los sentimientos hacia esa empresa
+                            if self.sentiment_about[i] < 0:
+                                #NEGATIVO
+                            elif self.sentiment_about[i] == 0:
+                                #NEUTRO
+                            else:
+                                #POSITIVO
+
+
+
             aware_neighbors_1_time_step=[]
             #Outside effects
             if random.random() < settings.innovation_prob:
