@@ -29,8 +29,10 @@ if settings.network_type == 2:
 
 myList=[] # List just for debugging
 networkStatus=[] # This list will contain the status of every node of the network
+emotionStatus=[]
 for x in range(0, settings.number_of_nodes):
     networkStatus.append({'id':x})
+    emotionStatus.append({'id':x})
 
 # Initialize agent states. Let's assume everyone is normal.
 init_states = [{'id': 0, } for _ in range(settings.number_of_nodes)]  # add keys as as necessary, but "id" must always refer to that state category
@@ -47,66 +49,79 @@ class BigMarketModel(BaseNetworkAgent):
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
         self.time_awareness = 0
-        networkStatus[self.id][self.env.now]=0
+        self.type = ""
+
         if self.id == 0:            #Empresa 1
             self.state['id']=0
-            self.tweet_probability = settings.tweet_probability_1
+            self.type="Enterprise"
+            self.tweet_probability = settings.tweet_probability_enterprises[0]
+
         elif self.id == 1:          #Empresa 2
             self.state['id']=1
-            self.tweet_probability = settings.tweet_probability_2
+            self.type="Enterprise"
+            self.tweet_probability = settings.tweet_probability_enterprises[1]
         else:                       #Usuarios normales
             self.state['id']=2
+            self.type="User"
             self.tweet_probability = settings.tweet_probability_users
             self.tweet_relevant_probability = settings.tweet_relevant_probability
             self.tweet_probability_about = settings.tweet_probability_about #Lista
             self.sentiment_about = settings.sentiment_about #Lista
 
+        networkStatus[self.id][self.env.now]=self.state['id']
+        emotionStatus[self.id][self.env.now]=0
+
     def run(self):
         while True:
+            if(self.id == 0 or self.id == 1):
+                # Empresa
+                print("He entrado a empresa")
+                self.enterpriseBehaviour()
 
-            ##Usuario
+            else:
+                # Usuario
+                print("He entrado a usuario")
+                self.userBehaviour()
+            yield self.env.timeout(settings.timeout)
 
-            if random.random() < self.tweet_probability: #Twittea
+
+
+    def enterpriseBehaviour(self):
+
+        if random.random()< self.tweet_probability: #Twittea
+                aware_neighbors = self.get_neighboring_agents(state_id=2)
+                for x in aware_neighbors:
+                    x.sentiment_about[0] += 0.01 #Aumenta para empresa 0
+                    emotionStatus[x.id][self.env.now]=x.sentiment_about[0]
+
+
+
+
+    def userBehaviour(self):
+
+        if random.random() < self.tweet_probability: #Twittea
                 if random.random() < self.tweet_relevant_probability: #Twittea algo relevante
                     #Probabilidad de tweet para cada empresa
                     for i in range(len(self.tweet_probability_about)):
-                        if random.random() < self.tweet_probability_about[i]:
+                        random_num = random.random()
+                        if random_num < self.tweet_probability_about[i]:
                             #Se ha cumplido la condicion, evaluo los sentimientos hacia esa empresa
                             if self.sentiment_about[i] < 0:
                                 #NEGATIVO
+                                print("Sentimiento negativo")
                             elif self.sentiment_about[i] == 0:
                                 #NEUTRO
+                                print("Sentimiento neutro")
                             else:
                                 #POSITIVO
+                                print("Sentimiento positivo")
 
 
 
-            aware_neighbors_1_time_step=[]
-            #Outside effects
-            if random.random() < settings.innovation_prob:
-                if self.state['id'] == 0:
-                    self.state['id'] = 1
-                    myList.append(self.id)
-                    networkStatus[self.id][self.env.now]=1
-                    self.time_awareness = self.env.now #Para saber cuando se han contagiado
-                    yield self.env.timeout(settings.timeout)
-                else:
-                    yield self.env.timeout(settings.timeout)
 
-            #Imitation effects
-            if self.state['id'] == 0:
-                aware_neighbors = self.get_neighboring_agents(state_id=1)
-                for x in aware_neighbors:
-                    if x.time_awareness == (self.env.now-1):
-                        aware_neighbors_1_time_step.append(x)
-                num_neighbors_aware = len(aware_neighbors_1_time_step)
-                if random.random() < (settings.imitation_prob*num_neighbors_aware):
-                    myList.append(self.id)
-                    self.state['id'] = 1
-                    networkStatus[self.id][self.env.now]=1
-                    yield self.env.timeout(settings.timeout)
-                else:
-                    yield self.env.timeout(settings.timeout)
+
+################################################
+
 
 class SentimentCorrelationModel(BaseNetworkAgent):
     def __init__(self, environment=None, agent_id=0, state=()):
@@ -320,7 +335,7 @@ class ZombieOutbreak(BaseNetworkAgent):
 # Simulation #
 ##############
 
-sim = NetworkSimulation(topology=G, states=init_states, agent_type=SentimentCorrelationModel,
+sim = NetworkSimulation(topology=G, states=init_states, agent_type=BigMarketModel,
                         max_time=settings.max_time, num_trials=settings.num_trials, logging_interval=1.0)
 
 
@@ -341,14 +356,21 @@ status_census = [sum([1 for node_id, state in g.items() if state['id'] == 1]) fo
 # Visualization #
 #################
 
+for x in range(0, settings.number_of_nodes):
+    emotionStatusAux=[]
+    for tiempo in emotionStatus[x]:
+        if tiempo != 'id':
+            emotionStatusAux.append((emotionStatus[x][tiempo],tiempo,None))
+    G.add_node(x, emotion= emotionStatusAux)
+
 #lista = nx.nodes(G)
 #print('Nodos: ' + str(lista))
-for x in range(0, settings.number_of_nodes):
-    networkStatusAux=[]
-    for tiempo in networkStatus[x]:
-        if tiempo != 'id':
-	        networkStatusAux.append((networkStatus[x][tiempo],tiempo,None))
-    G.add_node(x, status= networkStatusAux)
+# for x in range(0, settings.number_of_nodes):
+#     networkStatusAux=[]
+#     for tiempo in networkStatus[x]:
+#         if tiempo != 'id':
+#             networkStatusAux.append((networkStatus[x][tiempo],tiempo,None))
+#     G.add_node(x, status= networkStatusAux)
 #print(networkStatus)
 
 

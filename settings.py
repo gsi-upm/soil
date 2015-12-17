@@ -14,6 +14,11 @@ def init():
     global joy_prob
     global sadness_prob
     global disgust_prob
+    global tweet_probability_users
+    global tweet_relevant_probability
+    global tweet_probability_about
+    global sentiment_about
+    global tweet_probability_enterprises
 
     network_type=1
     number_of_nodes=200
@@ -29,9 +34,19 @@ def init():
     innovation_prob=0.01
     imitation_prob=0.01
 
-    #SentimentCorrelation model
+    #Sentiment Correlation model
     outside_effects_prob = 0.2
     anger_prob = 0.08
     joy_prob = 0.05
     sadness_prob = 0.02
     disgust_prob = 0.02
+
+    #Big Market model
+    ##Users
+    tweet_probability_users = 0.44
+    tweet_relevant_probability = 0.25
+    tweet_probability_about = [0.25, 0.25]
+    sentiment_about = [0, 0]
+    ##Enterprises
+    tweet_probability_enterprises = [0.5, 0.5]
+
