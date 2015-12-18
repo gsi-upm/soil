@@ -7,6 +7,7 @@ import random
 import numpy as np
 import networkx as nx
 import settings
+import math
 
 settings.init() # Loads all the data from settings
 
@@ -73,14 +74,9 @@ class BigMarketModel(BaseNetworkAgent):
 
     def run(self):
         while True:
-            if(self.id == 0 or self.id == 1):
-                # Empresa
-                print("He entrado a empresa")
+            if(self.id < 2): # Empresa
                 self.enterpriseBehaviour()
-
-            else:
-                # Usuario
-                print("He entrado a usuario")
+            else:  # Usuario
                 self.userBehaviour()
             yield self.env.timeout(settings.timeout)
 
@@ -89,10 +85,19 @@ class BigMarketModel(BaseNetworkAgent):
     def enterpriseBehaviour(self):
 
         if random.random()< self.tweet_probability: #Twittea
-                aware_neighbors = self.get_neighboring_agents(state_id=2)
+                aware_neighbors = self.get_neighboring_agents(state_id=2) #Nodos vecinos usuarios
                 for x in aware_neighbors:
-                    x.sentiment_about[0] += 0.01 #Aumenta para empresa 0
-                    emotionStatus[x.id][self.env.now]=x.sentiment_about[0]
+                    if random.uniform(0,10) < 5:
+                        x.sentiment_about[self.id] += 0.01 #Aumenta para empresa
+                    else:
+                        x.sentiment_about[self.id] -= 0.01 #Reduce para empresa
+                    # Establecemos limites
+                    if x.sentiment_about[self.id] > 1:
+                        x.sentiment_about[self.id] = 1
+                    if x.sentiment_about[self.id] < -1:
+                        x.sentiment_about[self.id] = -1
+                    #Guardamos estado para visualizacion
+                    emotionStatus[x.id][self.env.now]=x.sentiment_about[self.id]
 
 
 
@@ -101,6 +106,7 @@ class BigMarketModel(BaseNetworkAgent):
 
         if random.random() < self.tweet_probability: #Twittea
                 if random.random() < self.tweet_relevant_probability: #Twittea algo relevante
+
                     #Probabilidad de tweet para cada empresa
                     for i in range(len(self.tweet_probability_about)):
                         random_num = random.random()
@@ -108,13 +114,23 @@ class BigMarketModel(BaseNetworkAgent):
                             #Se ha cumplido la condicion, evaluo los sentimientos hacia esa empresa
                             if self.sentiment_about[i] < 0:
                                 #NEGATIVO
-                                print("Sentimiento negativo")
+                                self.userTweets("negative",i)
                             elif self.sentiment_about[i] == 0:
                                 #NEUTRO
-                                print("Sentimiento neutro")
+                                pass
                             else:
                                 #POSITIVO
-                                print("Sentimiento positivo")
+                                self.userTweets("positive",i)
+
+    def userTweets(self,sentiment,enterprise):
+        aware_neighbors = self.get_neighboring_agents(state_id=2) #Nodos vecinos usuarios
+        for x in aware_neighbors:
+            if sentiment == "positive":
+                x.sentiment_about[enterprise] +=0
+            elif sentiment == "negative":
+                x.sentiment_about[enterprise] -=0
+            else:
+                pass
 
 
 
@@ -360,7 +376,9 @@ for x in range(0, settings.number_of_nodes):
     emotionStatusAux=[]
     for tiempo in emotionStatus[x]:
         if tiempo != 'id':
-            emotionStatusAux.append((emotionStatus[x][tiempo],tiempo,None))
+            prec = 2
+            output = math.floor(emotionStatus[x][tiempo] * (10 ** prec)) / (10 ** prec) #Para tener 2 decimales solo
+            emotionStatusAux.append((output,tiempo,None))
     G.add_node(x, emotion= emotionStatusAux)
 
 #lista = nx.nodes(G)
