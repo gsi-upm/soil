@@ -31,9 +31,14 @@ if settings.network_type == 2:
 myList=[] # List just for debugging
 networkStatus=[] # This list will contain the status of every node of the network
 emotionStatus=[]
+enterprise1Status=[]
+enterprise2Status=[]
 for x in range(0, settings.number_of_nodes):
     networkStatus.append({'id':x})
     emotionStatus.append({'id':x})
+    enterprise1Status.append({'id':x})
+    enterprise2Status.append({'id':x})
+
 
 # Initialize agent states. Let's assume everyone is normal.
 init_states = [{'id': 0, } for _ in range(settings.number_of_nodes)]  # add keys as as necessary, but "id" must always refer to that state category
@@ -69,15 +74,16 @@ class BigMarketModel(BaseNetworkAgent):
             self.tweet_probability_about = settings.tweet_probability_about #Lista
             self.sentiment_about = settings.sentiment_about #Lista
 
-        networkStatus[self.id][self.env.now]=self.state['id']
-        emotionStatus[self.id][self.env.now]=0
+        #networkStatus[self.id][self.env.now]=self.state['id']
+        #emotionStatus[self.id][self.env.now]=0
 
     def run(self):
         while True:
             if(self.id < 2): # Empresa
                 self.enterpriseBehaviour()
             else:  # Usuario
-                self.userBehaviour()
+                #self.userBehaviour()
+                pass
             yield self.env.timeout(settings.timeout)
 
 
@@ -85,19 +91,24 @@ class BigMarketModel(BaseNetworkAgent):
     def enterpriseBehaviour(self):
 
         if random.random()< self.tweet_probability: #Twittea
-                aware_neighbors = self.get_neighboring_agents(state_id=2) #Nodos vecinos usuarios
-                for x in aware_neighbors:
-                    if random.uniform(0,10) < 5:
-                        x.sentiment_about[self.id] += 0.01 #Aumenta para empresa
-                    else:
-                        x.sentiment_about[self.id] -= 0.01 #Reduce para empresa
-                    # Establecemos limites
-                    if x.sentiment_about[self.id] > 1:
-                        x.sentiment_about[self.id] = 1
-                    if x.sentiment_about[self.id] < -1:
-                        x.sentiment_about[self.id] = -1
-                    #Guardamos estado para visualizacion
-                    emotionStatus[x.id][self.env.now]=x.sentiment_about[self.id]
+            aware_neighbors = self.get_neighboring_agents(state_id=2) #Nodos vecinos usuarios
+            for x in aware_neighbors:
+                if random.uniform(0,10) < 5:
+                    x.sentiment_about[self.id] += 0.1 #Aumenta para empresa
+                else:
+                    x.sentiment_about[self.id] -= 0.1 #Reduce para empresa
+
+                # Establecemos limites
+                if x.sentiment_about[self.id] > 1:
+                    x.sentiment_about[self.id] = 1
+                if x.sentiment_about[self.id] < -1:
+                    x.sentiment_about[self.id] = -1
+
+                #Visualización
+                if self.id == 0:
+                    enterprise1Status[x.id][self.env.now]=x.sentiment_about[self.id]
+                if self.id == 1:
+                    enterprise2Status[x.id][self.env.now]=x.sentiment_about[self.id]
 
 
 
@@ -105,32 +116,52 @@ class BigMarketModel(BaseNetworkAgent):
     def userBehaviour(self):
 
         if random.random() < self.tweet_probability: #Twittea
-                if random.random() < self.tweet_relevant_probability: #Twittea algo relevante
+            if random.random() < self.tweet_relevant_probability: #Twittea algo relevante
+                #Probabilidad de tweet para cada empresa
+                for i in range(len(self.tweet_probability_about)):
+                    random_num = random.random()
+                    if random_num < self.tweet_probability_about[i]:
+                        #Se ha cumplido la condicion, evaluo los sentimientos hacia esa empresa
+                        if self.sentiment_about[i] < 0:
+                            #NEGATIVO
+                            self.userTweets("negative",i)
+                        elif self.sentiment_about[i] == 0:
+                            #NEUTRO
+                            pass
+                        else:
+                            #POSITIVO
+                            self.userTweets("positive",i)
 
-                    #Probabilidad de tweet para cada empresa
-                    for i in range(len(self.tweet_probability_about)):
-                        random_num = random.random()
-                        if random_num < self.tweet_probability_about[i]:
-                            #Se ha cumplido la condicion, evaluo los sentimientos hacia esa empresa
-                            if self.sentiment_about[i] < 0:
-                                #NEGATIVO
-                                self.userTweets("negative",i)
-                            elif self.sentiment_about[i] == 0:
-                                #NEUTRO
-                                pass
-                            else:
-                                #POSITIVO
-                                self.userTweets("positive",i)
 
     def userTweets(self,sentiment,enterprise):
         aware_neighbors = self.get_neighboring_agents(state_id=2) #Nodos vecinos usuarios
         for x in aware_neighbors:
             if sentiment == "positive":
-                x.sentiment_about[enterprise] +=0
+                x.sentiment_about[enterprise] +=0.003
             elif sentiment == "negative":
-                x.sentiment_about[enterprise] -=0
+                x.sentiment_about[enterprise] -=0.003
             else:
                 pass
+
+            # Establecemos limites
+            if x.sentiment_about[enterprise] > 1:
+                x.sentiment_about[enterprise] = 1
+            if x.sentiment_about[enterprise] < -1:
+                x.sentiment_about[enterprise] = -1
+
+            #Visualización
+            if enterprise == 0:
+                enterprise1Status[x.id][self.env.now]=x.sentiment_about[enterprise]
+            if enterprise == 1:
+                enterprise2Status[x.id][self.env.now]=x.sentiment_about[enterprise]
+
+
+    def checkLimits(sentimentValue):
+        if sentimentValue > 1:
+            return 1
+        if sentimentValue < -1:
+            return -1
+
 
 
 
@@ -372,14 +403,37 @@ status_census = [sum([1 for node_id, state in g.items() if state['id'] == 1]) fo
 # Visualization #
 #################
 
+print("Empresa1")
+print (enterprise1Status)
+print("Empresa2")
+print (enterprise2Status)
+
 for x in range(0, settings.number_of_nodes):
     emotionStatusAux=[]
-    for tiempo in emotionStatus[x]:
+
+    # for tiempo in emotionStatus[x]:
+    #     if tiempo != 'id':
+    #         prec = 2
+    #         output = math.floor(emotionStatus[x][tiempo] * (10 ** prec)) / (10 ** prec) #Para tener 2 decimales solo
+    #         emotionStatusAux.append((output,tiempo,None))
+    # G.add_node(x, emotion= emotionStatusAux)
+    # del emotionStatusAux[:]
+    for tiempo in enterprise1Status[x]:
         if tiempo != 'id':
             prec = 2
-            output = math.floor(emotionStatus[x][tiempo] * (10 ** prec)) / (10 ** prec) #Para tener 2 decimales solo
+            output = math.floor(enterprise1Status[x][tiempo] * (10 ** prec)) / (10 ** prec) #Para tener 2 decimales solo
             emotionStatusAux.append((output,tiempo,None))
-    G.add_node(x, emotion= emotionStatusAux)
+    G.add_node(x, enterprise1emotion= emotionStatusAux)
+
+for x in range(0, settings.number_of_nodes):
+    emotionStatusAux2=[]
+    for tiempo in enterprise2Status[x]:
+        if tiempo != 'id':
+            prec = 2
+            output = math.floor(enterprise2Status[x][tiempo] * (10 ** prec)) / (10 ** prec) #Para tener 2 decimales solo
+            emotionStatusAux2.append((output,tiempo,None))
+    G.add_node(x, enterprise2emotion= emotionStatusAux2)
+
 
 #lista = nx.nodes(G)
 #print('Nodos: ' + str(lista))

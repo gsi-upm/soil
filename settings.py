@@ -21,7 +21,7 @@ def init():
     global tweet_probability_enterprises
 
     network_type=1
-    number_of_nodes=200
+    number_of_nodes=50
     max_time=1000
     num_trials=1
     timeout=10
@@ -45,8 +45,8 @@ def init():
     ##Users
     tweet_probability_users = 0.44
     tweet_relevant_probability = 0.25
-    tweet_probability_about = [0, 0]
+    tweet_probability_about = [0.25, 0.25]
     sentiment_about = [0, 0] #Valores por defecto
     ##Enterprises
-    tweet_probability_enterprises = [0.5, 0.5]
+    tweet_probability_enterprises = [0.3, 0.3]
 
