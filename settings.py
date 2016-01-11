@@ -22,7 +22,7 @@ def init():
 
     network_type=1
     number_of_nodes=50
-    max_time=1000
+    max_time=10000
     num_trials=1
     timeout=10
 

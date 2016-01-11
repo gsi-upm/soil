@@ -82,8 +82,8 @@ class BigMarketModel(BaseNetworkAgent):
             if(self.id < 2): # Empresa
                 self.enterpriseBehaviour()
             else:  # Usuario
-                #self.userBehaviour()
-                pass
+                self.userBehaviour()
+
             yield self.env.timeout(settings.timeout)
 
 
@@ -109,6 +109,7 @@ class BigMarketModel(BaseNetworkAgent):
                     enterprise1Status[x.id][self.env.now]=x.sentiment_about[self.id]
                 if self.id == 1:
                     enterprise2Status[x.id][self.env.now]=x.sentiment_about[self.id]
+
 
 
 
@@ -403,21 +404,13 @@ status_census = [sum([1 for node_id, state in g.items() if state['id'] == 1]) fo
 # Visualization #
 #################
 
-print("Empresa1")
-print (enterprise1Status)
-print("Empresa2")
-print (enterprise2Status)
+# print("Empresa1")
+# print (enterprise1Status)
+# print("Empresa2")
+# print (enterprise2Status)
 
 for x in range(0, settings.number_of_nodes):
     emotionStatusAux=[]
-
-    # for tiempo in emotionStatus[x]:
-    #     if tiempo != 'id':
-    #         prec = 2
-    #         output = math.floor(emotionStatus[x][tiempo] * (10 ** prec)) / (10 ** prec) #Para tener 2 decimales solo
-    #         emotionStatusAux.append((output,tiempo,None))
-    # G.add_node(x, emotion= emotionStatusAux)
-    # del emotionStatusAux[:]
     for tiempo in enterprise1Status[x]:
         if tiempo != 'id':
             prec = 2
@@ -434,6 +427,7 @@ for x in range(0, settings.number_of_nodes):
             emotionStatusAux2.append((output,tiempo,None))
     G.add_node(x, enterprise2emotion= emotionStatusAux2)
 
+print("Done!")
 
 #lista = nx.nodes(G)
 #print('Nodos: ' + str(lista))
