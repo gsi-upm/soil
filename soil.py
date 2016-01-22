@@ -52,22 +52,19 @@ init_states = [{'id': 0, } for _ in range(settings.number_of_nodes)]  # add keys
 ####################
 
 class BigMarketModel(BaseNetworkAgent):
+    number_of_enterprises = 0
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
         self.time_awareness = 0
         self.type = ""
+        number_of_enterprises = len(settings.tweet_probability_about)
 
-        if self.id == 0:            #Empresa 1
-            self.state['id']=0
+        if self.id < number_of_enterprises: #Empresas
+            self.state['id']=self.id
             self.type="Enterprise"
-            self.tweet_probability = settings.tweet_probability_enterprises[0]
-
-        elif self.id == 1:          #Empresa 2
-            self.state['id']=1
-            self.type="Enterprise"
-            self.tweet_probability = settings.tweet_probability_enterprises[1]
+            self.tweet_probability = settings.tweet_probability_enterprises[self.id]
         else:                       #Usuarios normales
-            self.state['id']=2
+            self.state['id']=number_of_enterprises
             self.type="User"
             self.tweet_probability = settings.tweet_probability_users
             self.tweet_relevant_probability = settings.tweet_relevant_probability
@@ -79,7 +76,7 @@ class BigMarketModel(BaseNetworkAgent):
 
     def run(self):
         while True:
-            if(self.id < 2): # Empresa
+            if(self.id < number_of_enterprises): # Empresa
                 self.enterpriseBehaviour()
             else:  # Usuario
                 self.userBehaviour()
@@ -91,7 +88,7 @@ class BigMarketModel(BaseNetworkAgent):
     def enterpriseBehaviour(self):
 
         if random.random()< self.tweet_probability: #Twittea
-            aware_neighbors = self.get_neighboring_agents(state_id=2) #Nodos vecinos usuarios
+            aware_neighbors = self.get_neighboring_agents(state_id=number_of_enterprises) #Nodos vecinos usuarios
             for x in aware_neighbors:
                 if random.uniform(0,10) < 5:
                     x.sentiment_about[self.id] += 0.1 #Aumenta para empresa
@@ -104,7 +101,10 @@ class BigMarketModel(BaseNetworkAgent):
                 if x.sentiment_about[self.id] < -1:
                     x.sentiment_about[self.id] = -1
 
+
                 #Visualización
+                #if self.id < number_of_enterprises:
+
                 if self.id == 0:
                     enterprise1Status[x.id][self.env.now]=x.sentiment_about[self.id]
                 if self.id == 1:
