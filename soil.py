@@ -8,6 +8,7 @@ import numpy as np
 import networkx as nx
 import settings
 import math
+import json
 
 settings.init() # Loads all the data from settings
 
@@ -33,12 +34,20 @@ networkStatus=[] # This list will contain the status of every node of the networ
 emotionStatus=[]
 enterprise1Status=[]
 enterprise2Status=[]
+allEnterprisesEmotionList = {}
 for x in range(0, settings.number_of_nodes):
     networkStatus.append({'id':x})
     emotionStatus.append({'id':x})
     enterprise1Status.append({'id':x})
     enterprise2Status.append({'id':x})
 
+for enterpriseIndex in range(0,len(settings.tweet_probability_about)):
+    allEnterprisesEmotionList['enterprise'+str(enterpriseIndex)] = enterprise1Status
+    # for node in range(0, settings.number_of_nodes):
+
+    #     allEnterprisesEmotionList['enterprise'+str(enterpriseIndex)].update({'id':node})
+
+#print(allEnterprisesEmotionList)
 
 # Initialize agent states. Let's assume everyone is normal.
 init_states = [{'id': 0, } for _ in range(settings.number_of_nodes)]  # add keys as as necessary, but "id" must always refer to that state category
@@ -53,30 +62,35 @@ init_states = [{'id': 0, } for _ in range(settings.number_of_nodes)]  # add keys
 
 class BigMarketModel(BaseNetworkAgent):
     number_of_enterprises = 0
+
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
         self.time_awareness = 0
         self.type = ""
-        number_of_enterprises = len(settings.tweet_probability_about)
+        self.number_of_enterprises = len(settings.tweet_probability_about)
 
-        if self.id < number_of_enterprises: #Empresas
+        if self.id < self.number_of_enterprises: #Empresas
             self.state['id']=self.id
             self.type="Enterprise"
             self.tweet_probability = settings.tweet_probability_enterprises[self.id]
         else:                       #Usuarios normales
-            self.state['id']=number_of_enterprises
+            self.state['id']=self.number_of_enterprises
             self.type="User"
             self.tweet_probability = settings.tweet_probability_users
             self.tweet_relevant_probability = settings.tweet_relevant_probability
             self.tweet_probability_about = settings.tweet_probability_about #Lista
             self.sentiment_about = settings.sentiment_about #Lista
+            #Inicializacion de visualizacion
+            for enterpriseIndex in range(0,len(settings.tweet_probability_about)):
+                allEnterprisesEmotionList['enterprise'+str(enterpriseIndex)][self.id].update({0:self.sentiment_about[enterpriseIndex]})
+            #print(allEnterprisesEmotionList)
 
         #networkStatus[self.id][self.env.now]=self.state['id']
         #emotionStatus[self.id][self.env.now]=0
 
     def run(self):
         while True:
-            if(self.id < number_of_enterprises): # Empresa
+            if(self.id < self.number_of_enterprises): # Empresa
                 self.enterpriseBehaviour()
             else:  # Usuario
                 self.userBehaviour()
@@ -88,7 +102,7 @@ class BigMarketModel(BaseNetworkAgent):
     def enterpriseBehaviour(self):
 
         if random.random()< self.tweet_probability: #Twittea
-            aware_neighbors = self.get_neighboring_agents(state_id=number_of_enterprises) #Nodos vecinos usuarios
+            aware_neighbors = self.get_neighboring_agents(state_id=self.number_of_enterprises) #Nodos vecinos usuarios
             for x in aware_neighbors:
                 if random.uniform(0,10) < 5:
                     x.sentiment_about[self.id] += 0.1 #Aumenta para empresa
@@ -103,12 +117,23 @@ class BigMarketModel(BaseNetworkAgent):
 
 
                 #Visualización
-                #if self.id < number_of_enterprises:
+                enterpriseEmotion=[]
+                if self.id < self.number_of_enterprises:
+                    #try:
+                    #enterpriseEmotion = allEnterprisesEmotionList[self.id] #Cogemos la lista si ya ha sido creada
+                    #print (enterpriseEmotion)
+                    #except IndexError:  # Si no existe la inicializamos
+                    #    for y in range(0, settings.number_of_nodes):
+                    #        enterpriseEmotion.append({'id':y})
+                    #enterpriseEmotion[x.id][self.env.now]=x.sentiment_about[self.id]
+                    #allEnterprisesEmotionList.insert(self.id,enterpriseEmotion) #Guardamos el valor
+                    #enterpriseEmotion[:] = [] #Vaciamos la lista
+                    allEnterprisesEmotionList['enterprise'+str(self.id)][x.id].update({self.env.now:x.sentiment_about[self.id]})
 
-                if self.id == 0:
-                    enterprise1Status[x.id][self.env.now]=x.sentiment_about[self.id]
-                if self.id == 1:
-                    enterprise2Status[x.id][self.env.now]=x.sentiment_about[self.id]
+                #if self.id == 0:
+                #    enterprise1Status[x.id][self.env.now]=x.sentiment_about[self.id]
+                #if self.id == 1:
+                #    enterprise2Status[x.id][self.env.now]=x.sentiment_about[self.id]
 
 
 
@@ -151,10 +176,21 @@ class BigMarketModel(BaseNetworkAgent):
                 x.sentiment_about[enterprise] = -1
 
             #Visualización
-            if enterprise == 0:
-                enterprise1Status[x.id][self.env.now]=x.sentiment_about[enterprise]
-            if enterprise == 1:
-                enterprise2Status[x.id][self.env.now]=x.sentiment_about[enterprise]
+            # enterpriseEmotion=[]
+            # try:
+            #     enterpriseEmotion = allEnterprisesEmotionList[self.id] #Cogemos la lista si ya ha sido creada
+            # except IndexError:  # Si no existe la inicializamos
+            #     for y in range(0, settings.number_of_nodes):
+            #         enterpriseEmotion.append({'id':y})
+            # enterpriseEmotion[x.id][self.env.now]=x.sentiment_about[enterprise]
+            # allEnterprisesEmotionList.insert(enterprise,enterpriseEmotion) #Guardamos el valor
+            # enterpriseEmotion[:] = [] #Vaciamos la lista
+            #if enterprise == 0:
+            #    enterprise1Status[x.id][self.env.now]=x.sentiment_about[enterprise]
+            #if enterprise == 1:
+            #    enterprise2Status[x.id][self.env.now]=x.sentiment_about[enterprise]
+
+            allEnterprisesEmotionList['enterprise'+str(enterprise)][x.id].update({self.env.now:x.sentiment_about[enterprise]})
 
 
     def checkLimits(sentimentValue):
@@ -408,24 +444,26 @@ status_census = [sum([1 for node_id, state in g.items() if state['id'] == 1]) fo
 # print (enterprise1Status)
 # print("Empresa2")
 # print (enterprise2Status)
+for y in allEnterprisesEmotionList:
+    for x in range(0, settings.number_of_nodes):
+        emotionStatusAux=[]
+        enterpriseStatus = allEnterprisesEmotionList[y]
+        for tiempo in enterpriseStatus[x]:
+            if tiempo != 'id':
+                prec = 2
+                output = math.floor(enterpriseStatus[x][tiempo] * (10 ** prec)) / (10 ** prec) #Para tener 2 decimales solo
+                emotionStatusAux.append((output,tiempo,None))
+        keyword = 'enterprise'+str(y)+'Emotion'
+        G.add_node(x, keyword = emotionStatusAux)
 
-for x in range(0, settings.number_of_nodes):
-    emotionStatusAux=[]
-    for tiempo in enterprise1Status[x]:
-        if tiempo != 'id':
-            prec = 2
-            output = math.floor(enterprise1Status[x][tiempo] * (10 ** prec)) / (10 ** prec) #Para tener 2 decimales solo
-            emotionStatusAux.append((output,tiempo,None))
-    G.add_node(x, enterprise1emotion= emotionStatusAux)
-
-for x in range(0, settings.number_of_nodes):
-    emotionStatusAux2=[]
-    for tiempo in enterprise2Status[x]:
-        if tiempo != 'id':
-            prec = 2
-            output = math.floor(enterprise2Status[x][tiempo] * (10 ** prec)) / (10 ** prec) #Para tener 2 decimales solo
-            emotionStatusAux2.append((output,tiempo,None))
-    G.add_node(x, enterprise2emotion= emotionStatusAux2)
+# for x in range(0, settings.number_of_nodes):
+#     emotionStatusAux2=[]
+#     for tiempo in enterprise2Status[x]:
+#         if tiempo != 'id':
+#             prec = 2
+#             output = math.floor(enterprise2Status[x][tiempo] * (10 ** prec)) / (10 ** prec) #Para tener 2 decimales solo
+#             emotionStatusAux2.append((output,tiempo,None))
+#     G.add_node(x, enterprise2emotion= emotionStatusAux2)
 
 print("Done!")
 
@@ -439,6 +477,9 @@ print("Done!")
 #     G.add_node(x, status= networkStatusAux)
 #print(networkStatus)
 
+print(allEnterprisesEmotionList)
+with open('data.txt', 'w') as outfile:
+    json.dump(allEnterprisesEmotionList, outfile)
 
 nx.write_gexf(G,"test.gexf", version="1.2draft")
 plt.plot(status_census)

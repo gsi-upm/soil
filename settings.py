@@ -21,8 +21,8 @@ def init():
     global tweet_probability_enterprises
 
     network_type=1
-    number_of_nodes=50
-    max_time=10000
+    number_of_nodes=20
+    max_time=1000
     num_trials=1
     timeout=10
 
