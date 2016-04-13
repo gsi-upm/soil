@@ -11,23 +11,10 @@ import settings
 
 settings.init()
 
-####################
-# Network creation #
-####################
-
-if settings.network_type == 0:
-    G = nx.complete_graph(settings.number_of_nodes)
-if settings.network_type == 1:
-    G = nx.barabasi_albert_graph(settings.number_of_nodes,3)
-if settings.network_type == 2:
-    G = nx.margulis_gabber_galil_graph(settings.number_of_nodes, None)
-# More types of networks can be added here
-
 ##############################
 # Variables initializitation #
 ##############################
 def init():
-
     global networkStatus
     networkStatus={} # Dict that will contain the status of every agent in the network
 
