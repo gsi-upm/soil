@@ -1,10 +1,6 @@
-#from clase_base import *
 from models import *
 from nxsim import NetworkSimulation
-from nxsim import BaseNetworkAgent
 from nxsim import BaseLoggingAgent
-import random
-import numpy as np
 import networkx as nx
 import settings
 import models

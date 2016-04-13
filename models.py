@@ -1,12 +1,5 @@
-from nxsim import NetworkSimulation
 from nxsim import BaseNetworkAgent
-from nxsim import BaseLoggingAgent
-from random import randint
-from pprint import pprint
-from matplotlib import pyplot as plt
 import random
-import numpy as np
-import networkx as nx
 import settings
 
 settings.init()
@@ -16,7 +9,7 @@ settings.init()
 ##############################
 def init():
     global networkStatus
-    networkStatus={} # Dict that will contain the status of every agent in the network
+    networkStatus = {}  # Dict that will contain the status of every agent in the network
 
 sentimentCorrelationNodeArray=[]
 for x in range(0, settings.number_of_nodes):
@@ -223,12 +216,10 @@ class SentimentCorrelationModel(ComportamientoBase):
 
         if(num<anger_prob):
 
-
             self.state['id'] = 1
             sentimentCorrelationNodeArray[self.id][self.env.now]=1
             self.time_awareness[self.state['id']-1] = self.env.now
         elif (num<joy_prob+anger_prob and num>anger_prob):
-
 
             self.state['id'] = 2
             sentimentCorrelationNodeArray[self.id][self.env.now]=2
