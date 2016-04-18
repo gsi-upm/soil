@@ -1,4 +1,5 @@
 from nxsim import BaseNetworkAgent
+import numpy as np
 import random
 import settings
 
@@ -55,6 +56,73 @@ class ComportamientoBase(BaseNetworkAgent):
                 final[a][stamp] = attrs[a]
         return final
 
+class SISaModel(ComportamientoBase):
+    def __init__(self, environment=None, agent_id=0, state=()):
+        super().__init__(environment=environment, agent_id=agent_id, state=state)
+
+        self.neutral_discontent_spon_prob = np.random.normal(settings.neutral_discontent_spon_prob, settings.standard_variance)
+        self.neutral_discontent_infected_prob = np.random.normal(settings.neutral_discontent_infected_prob,settings.standard_variance)
+        self.neutral_content_spon_prob = np.random.normal(settings.neutral_content_spon_prob,settings.standard_variance)
+        self.neutral_content_infected_prob = np.random.normal(settings.neutral_content_infected_prob,settings.standard_variance)
+
+        self.discontent_neutral = np.random.normal(settings.discontent_neutral,settings.standard_variance)
+        self.discontent_content = np.random.normal(settings.discontent_content,settings.variance_d_c)
+
+        self.content_discontent = np.random.normal(settings.content_discontent,settings.variance_c_d)
+        self.content_neutral = np.random.normal(settings.content_neutral,settings.standard_variance)
+
+    def step(self, now):
+
+        if self.state['id'] == 0:
+            self.neutral_behaviour()
+        if self.state['id'] == 1:
+            self.discontent_behaviour()
+        if self.state['id'] == 2:
+            self.content_behaviour()
+
+        self.attrs['status'] = self.state['id']
+        super().step(now)
+
+
+    def neutral_behaviour(self):
+
+        #Spontaneus effects
+        if random.random() < self.neutral_discontent_spon_prob:
+            self.state['id'] = 1
+        if random.random() < self.neutral_content_spon_prob:
+            self.state['id'] = 2
+
+        #Infected
+        discontent_neighbors = self.get_neighboring_agents(state_id=1)
+        if random.random() < len(discontent_neighbors)*self.neutral_discontent_infected_prob:
+            self.state['id'] = 1
+        content_neighbors = self.get_neighboring_agents(state_id=2)
+        if random.random() < len(content_neighbors)*self.neutral_content_infected_prob:
+            self.state['id'] = 2
+
+    def discontent_behaviour(self):
+
+        #Healing
+        if random.random() < self.discontent_neutral:
+            self.state['id'] = 0
+
+        #Superinfected
+        content_neighbors = self.get_neighboring_agents(state_id=2)
+        if random.random() < len(content_neighbors)*self.discontent_content:
+            self.state['id'] = 2
+
+    def content_behaviour(self):
+
+        #Healing
+        if random.random() < self.content_neutral:
+            self.state['id'] = 0
+
+        #Superinfected
+        discontent_neighbors = self.get_neighboring_agents(state_id=1)
+        if random.random() < len(discontent_neighbors)*self.content_discontent:
+            self.state['id'] = 1
+
+
 class BigMarketModel(ComportamientoBase):
 
     def __init__(self, environment=None, agent_id=0, state=()):
@@ -81,6 +149,8 @@ class BigMarketModel(ComportamientoBase):
             self.enterpriseBehaviour()
         else:  # Usuario
             self.userBehaviour()
+            for i in range(self.number_of_enterprises):       # Para que nunca este a 0 si no ha habido cambios(logs)
+                self.attrs['sentiment_enterprise_%s'% self.enterprises[i]] = self.sentiment_about[i]
 
         super().step(now)
 

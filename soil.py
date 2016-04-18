@@ -1,6 +1,7 @@
 from models import *
 from nxsim import NetworkSimulation
-from nxsim import BaseLoggingAgent
+import numpy
+from matplotlib import pyplot as plt
 import networkx as nx
 import settings
 import models
@@ -26,7 +27,7 @@ if settings.network_type == 2:
 # Simulation #
 ##############
 
-sim = NetworkSimulation(topology=G, states=init_states, agent_type=BigMarketModel,
+sim = NetworkSimulation(topology=G, states=init_states, agent_type=SISaModel,
                         max_time=settings.max_time, num_trials=settings.num_trials, logging_interval=1.0)
 
 
@@ -35,10 +36,22 @@ sim.run_simulation()
 ###########
 # Results #
 ###########
+x_values = []
+y_values = []
 
+for time in range(0, settings.max_time):
+    value = settings.sentiment_about[0]
+    real_time = time * settings.timeout
+    for x in range(0, settings.number_of_nodes):
+        if "sentiment_enterprise_BBVA" in models.networkStatus["agente_%s" % x]:
+            if real_time in models.networkStatus["agente_%s" % x]["sentiment_enterprise_BBVA"]:
+                value += models.networkStatus["agente_%s" % x]["sentiment_enterprise_BBVA"][real_time]
 
-trial = BaseLoggingAgent.open_trial_state_history(dir_path='sim_01', trial_id=0)
-status_census = [sum([1 for node_id, state in g.items() if state['id'] == 1]) for t,g in trial.items()]
+    x_values.append(real_time)
+    y_values.append(value)
+
+plt.plot(x_values,y_values)
+#plt.show()
 
 
 #################

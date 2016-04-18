@@ -20,12 +20,23 @@ def init():
     global sentiment_about
     global tweet_probability_enterprises
     global enterprises
+    global neutral_discontent_spon_prob
+    global neutral_discontent_infected_prob
+    global neutral_content_spon_prob
+    global neutral_content_infected_prob
+    global discontent_content
+    global discontent_neutral
+    global content_discontent
+    global content_neutral
+    global variance_d_c
+    global variance_c_d
+    global standard_variance
 
     network_type=1
     number_of_nodes=50
     max_time=500
     num_trials=1
-    timeout=1
+    timeout=20
 
     #Zombie model
     bite_prob=0.01 # 0-1
@@ -52,4 +63,20 @@ def init():
     sentiment_about = [0, 0, 0] #Valores por defecto
     ##Enterprises
     tweet_probability_enterprises = [0.3, 0.3, 0.3]
+
+    #SISa
+    neutral_discontent_spon_prob = 0.04
+    neutral_discontent_infected_prob = 0.04
+    neutral_content_spon_prob = 0.18
+    neutral_content_infected_prob = 0.02
+
+    discontent_neutral = 0.13
+    discontent_content = 0.07
+    variance_d_c = 0.02
+
+    content_discontent = 0.009
+    variance_c_d = 0.003
+    content_neutral = 0.088
+
+    standard_variance = 0.02
 
