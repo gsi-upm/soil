@@ -56,6 +56,86 @@ class ComportamientoBase(BaseNetworkAgent):
                 final[a][stamp] = attrs[a]
         return final
 
+class SpreadModelM2(ComportamientoBase):
+    def __init__(self, environment=None, agent_id=0, state=()):
+        super().__init__(environment=environment, agent_id=agent_id, state=state)
+
+        self.prob_neutral_making_denier = np.random.normal(settings.prob_neutral_making_denier, settings.standard_variance)
+
+        self.prob_infect = np.random.normal(settings.prob_infect, settings.standard_variance)
+
+        self.prob_cured_healing_infected = np.random.normal(settings.prob_cured_healing_infected, settings.standard_variance)
+        self.prob_cured_vaccinate_neutral = np.random.normal(settings.prob_cured_vaccinate_neutral, settings.standard_variance)
+
+        self.prob_vaccinated_healing_infected = np.random.normal(settings.prob_vaccinated_healing_infected, settings.standard_variance)
+        self.prob_vaccinated_vaccinate_neutral = np.random.normal(settings.prob_vaccinated_vaccinate_neutral, settings.standard_variance)
+        self.prob_generate_anti_rumor = np.random.normal(settings.prob_generate_anti_rumor, settings.standard_variance)
+
+    def step(self, now):
+
+        if self.state['id'] == 0:  #Neutral
+            self.neutral_behaviour()
+        if self.state['id'] == 1:  #Infected
+            self.infected_behaviour()
+        if self.state['id'] == 2:  #Cured
+            self.cured_behaviour()
+        if self.state['id'] == 3:  #Vaccinated
+            self.vaccinated_behaviour()
+
+        self.attrs['status'] = self.state['id']
+        super().step(now)
+
+
+    def neutral_behaviour(self):
+
+        # Infected
+        infected_neighbors = self.get_neighboring_agents(state_id=1)
+        if len(infected_neighbors)>0:
+            if random.random() < self.prob_neutral_making_denier:
+                self.state['id'] = 3   # Vaccinated making denier
+
+    def infected_behaviour(self):
+
+        # Neutral
+        neutral_neighbors = self.get_neighboring_agents(state_id=0)
+        for neighbor in neutral_neighbors:
+            if random.random() < self.prob_infect:
+                neighbor.state['id'] = 1  # Infected
+
+    def cured_behaviour(self):
+
+        # Vaccinate
+        neutral_neighbors = self.get_neighboring_agents(state_id=0)
+        for neighbor in neutral_neighbors:
+            if random.random() < self.prob_cured_vaccinate_neutral:
+                neighbor.state['id'] = 3  # Vaccinated
+
+        # Cure
+        infected_neighbors = self.get_neighboring_agents(state_id=1)
+        for neighbor in infected_neighbors:
+            if random.random() < self.prob_cured_healing_infected:
+                neighbor.state['id'] = 2  # Cured
+
+    def vaccinated_behaviour(self):
+
+        # Cure
+        infected_neighbors = self.get_neighboring_agents(state_id=1)
+        for neighbor in infected_neighbors:
+            if random.random() < self.prob_cured_healing_infected:
+                neighbor.state['id'] = 2  # Cured
+
+        # Vaccinate
+        neutral_neighbors = self.get_neighboring_agents(state_id=0)
+        for neighbor in neutral_neighbors:
+            if random.random() < self.prob_cured_vaccinate_neutral:
+                neighbor.state['id'] = 3  # Vaccinated
+
+        # Generate anti-rumor
+        for neighbor in infected_neighbors:
+            if random.random() < self.prob_generate_anti_rumor:
+                neighbor.state['id'] = 2  # Cured
+
+
 class SISaModel(ComportamientoBase):
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
