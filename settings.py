@@ -31,9 +31,16 @@ def init():
     global variance_d_c
     global variance_c_d
     global standard_variance
+    global prob_neutral_making_denier
+    global prob_infect
+    global prob_cured_healing_infected
+    global prob_cured_vaccinate_neutral
+    global prob_vaccinated_healing_infected
+    global prob_vaccinated_vaccinate_neutral
+    global prob_generate_anti_rumor
 
     network_type=1
-    number_of_nodes=50
+    number_of_nodes=1000
     max_time=500
     num_trials=1
     timeout=20
@@ -78,5 +85,19 @@ def init():
     variance_c_d = 0.003
     content_neutral = 0.088
 
-    standard_variance = 0.02
+    standard_variance = 0.055
+
+    #Spread Model M2
+    prob_neutral_making_denier = 0.055
+
+    prob_infect = 0.1
+
+    prob_cured_healing_infected = 0.055
+    prob_cured_vaccinate_neutral = 0.055
+
+    prob_vaccinated_healing_infected = 0.055
+    prob_vaccinated_vaccinate_neutral = 0.055
+    prob_generate_anti_rumor = 0.055
+
+
 

@@ -18,7 +18,7 @@ models.init() # Loads the models and network variables
 if settings.network_type == 0:
     G = nx.complete_graph(settings.number_of_nodes)
 if settings.network_type == 1:
-    G = nx.barabasi_albert_graph(settings.number_of_nodes,3)
+    G = nx.barabasi_albert_graph(settings.number_of_nodes,10)
 if settings.network_type == 2:
     G = nx.margulis_gabber_galil_graph(settings.number_of_nodes, None)
 # More types of networks can be added here
@@ -27,7 +27,7 @@ if settings.network_type == 2:
 # Simulation #
 ##############
 
-sim = NetworkSimulation(topology=G, states=init_states, agent_type=SISaModel,
+sim = NetworkSimulation(topology=G, states=init_states, agent_type=SpreadModelM2,
                         max_time=settings.max_time, num_trials=settings.num_trials, logging_interval=1.0)
 
 
@@ -39,19 +39,25 @@ sim.run_simulation()
 x_values = []
 y_values = []
 
+attribute_plot = 'status'
 for time in range(0, settings.max_time):
     value = settings.sentiment_about[0]
     real_time = time * settings.timeout
+    activity= False
     for x in range(0, settings.number_of_nodes):
-        if "sentiment_enterprise_BBVA" in models.networkStatus["agente_%s" % x]:
-            if real_time in models.networkStatus["agente_%s" % x]["sentiment_enterprise_BBVA"]:
-                value += models.networkStatus["agente_%s" % x]["sentiment_enterprise_BBVA"][real_time]
+        if attribute_plot in models.networkStatus["agente_%s" % x]:
+            if real_time in models.networkStatus["agente_%s" % x][attribute_plot]:
+                if models.networkStatus["agente_%s" % x][attribute_plot][real_time] == 1: ##Representar infectados
+                    value += 1
+                    activity = True
 
-    x_values.append(real_time)
-    y_values.append(value)
+    if activity:
+        x_values.append(real_time)
+        y_values.append(value)
+        activity=False
 
 plt.plot(x_values,y_values)
-#plt.show()
+plt.show()
 
 
 #################
