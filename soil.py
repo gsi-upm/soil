@@ -37,26 +37,48 @@ sim.run_simulation()
 # Results #
 ###########
 x_values = []
-y_values = []
+infected_values = []
+neutral_values = []
+cured_values = []
+vaccinated_values = []
 
 attribute_plot = 'status'
 for time in range(0, settings.max_time):
-    value = settings.sentiment_about[0]
+    value_infectados = 0
+    value_neutral = 0
+    value_cured = 0
+    value_vaccinated = 0
     real_time = time * settings.timeout
     activity= False
     for x in range(0, settings.number_of_nodes):
         if attribute_plot in models.networkStatus["agente_%s" % x]:
             if real_time in models.networkStatus["agente_%s" % x][attribute_plot]:
                 if models.networkStatus["agente_%s" % x][attribute_plot][real_time] == 1: ##Representar infectados
-                    value += 1
+                    value_infectados += 1
+                    activity = True
+                if models.networkStatus["agente_%s" % x][attribute_plot][real_time] == 0:  ##Representar neutrales
+                    value_neutral += 1
+                    activity = True
+                if models.networkStatus["agente_%s" % x][attribute_plot][real_time] == 2:  ##Representar cured
+                    value_cured += 1
+                    activity = True
+                if models.networkStatus["agente_%s" % x][attribute_plot][real_time] == 3:  ##Representar vaccinated
+                    value_vaccinated += 1
                     activity = True
 
     if activity:
         x_values.append(real_time)
-        y_values.append(value)
+        infected_values.append(value_infectados)
+        neutral_values.append(value_neutral)
+        cured_values.append(value_cured)
+        vaccinated_values.append(value_vaccinated)
         activity=False
 
-plt.plot(x_values,y_values)
+infected_line = plt.plot(x_values,infected_values,label='Infected')
+neutral_line = plt.plot(x_values,neutral_values, label='Neutral')
+cured_line = plt.plot(x_values,cured_values, label='Cured')
+vaccinated_line = plt.plot(x_values,vaccinated_values, label='Vaccinated')
+plt.legend()
 plt.show()
 
 

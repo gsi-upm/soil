@@ -40,7 +40,7 @@ def init():
     global prob_generate_anti_rumor
 
     network_type=1
-    number_of_nodes=1000
+    number_of_nodes=100
     max_time=500
     num_trials=1
     timeout=20
@@ -88,16 +88,16 @@ def init():
     standard_variance = 0.055
 
     #Spread Model M2
-    prob_neutral_making_denier = 0.055
+    prob_neutral_making_denier = 0.035
 
-    prob_infect = 0.1
+    prob_infect = 0.075
 
-    prob_cured_healing_infected = 0.055
-    prob_cured_vaccinate_neutral = 0.055
+    prob_cured_healing_infected = 0.035
+    prob_cured_vaccinate_neutral = 0.035
 
-    prob_vaccinated_healing_infected = 0.055
-    prob_vaccinated_vaccinate_neutral = 0.055
-    prob_generate_anti_rumor = 0.055
+    prob_vaccinated_healing_infected = 0.035
+    prob_vaccinated_vaccinate_neutral = 0.035
+    prob_generate_anti_rumor = 0.035
 
 
 
