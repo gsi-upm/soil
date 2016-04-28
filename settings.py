@@ -40,10 +40,10 @@ def init():
     global prob_generate_anti_rumor
 
     network_type=1
-    number_of_nodes=100
-    max_time=500
+    number_of_nodes=20
+    max_time=50
     num_trials=1
-    timeout=20
+    timeout=1
 
     #Zombie model
     bite_prob=0.01 # 0-1

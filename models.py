@@ -59,7 +59,6 @@ class ComportamientoBase(BaseNetworkAgent):
 class SpreadModelM2(ComportamientoBase):
     init_states[random.randint(0,settings.number_of_nodes)] = {'id':1}
     init_states[random.randint(0,settings.number_of_nodes)] = {'id':1}
-    init_states[random.randint(0,settings.number_of_nodes)] = {'id': 1}
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
 
@@ -78,11 +77,11 @@ class SpreadModelM2(ComportamientoBase):
 
         if self.state['id'] == 0:  #Neutral
             self.neutral_behaviour()
-        if self.state['id'] == 1:  #Infected
+        elif self.state['id'] == 1:  #Infected
             self.infected_behaviour()
-        if self.state['id'] == 2:  #Cured
+        elif self.state['id'] == 2:  #Cured
             self.cured_behaviour()
-        if self.state['id'] == 3:  #Vaccinated
+        elif self.state['id'] == 3:  #Vaccinated
             self.vaccinated_behaviour()
 
         self.attrs['status'] = self.state['id']
@@ -119,6 +118,7 @@ class SpreadModelM2(ComportamientoBase):
             if random.random() < self.prob_cured_healing_infected:
                 neighbor.state['id'] = 2  # Cured
 
+
     def vaccinated_behaviour(self):
 
         # Cure
@@ -126,7 +126,7 @@ class SpreadModelM2(ComportamientoBase):
         for neighbor in infected_neighbors:
             if random.random() < self.prob_cured_healing_infected:
                 neighbor.state['id'] = 2  # Cured
-                return
+
 
         # Vaccinate
         neutral_neighbors = self.get_neighboring_agents(state_id=0)
@@ -135,11 +135,10 @@ class SpreadModelM2(ComportamientoBase):
                 neighbor.state['id'] = 3  # Vaccinated
 
         # Generate anti-rumor
-        infected_neighbors = self.get_neighboring_agents(state_id=1)
-        for neighbor in infected_neighbors:
+        infected_neighbors_2 = self.get_neighboring_agents(state_id=1)
+        for neighbor in infected_neighbors_2:
             if random.random() < self.prob_generate_anti_rumor:
                 neighbor.state['id'] = 2  # Cured
-                return
 
 
 class SISaModel(ComportamientoBase):
