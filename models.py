@@ -156,10 +156,20 @@ class ControlModelM2(ComportamientoBase):
 
     def beacon_on_behaviour(self):
 
+        # Cure (M2 feature added)
         infected_neighbors = self.get_neighboring_agents(state_id=1)
         for neighbor in infected_neighbors:
             if random.random() < self.prob_generate_anti_rumor:
                 neighbor.state['id'] = 2  # Cured
+            neutral_neighbors_infected = neighbor.get_neighboring_agents(state_id=0)
+            for neighbor in neutral_neighbors_infected:
+                if random.random() < self.prob_generate_anti_rumor:
+                    neighbor.state['id'] = 3  # Vaccinated
+            infected_neighbors_infected = neighbor.get_neighboring_agents(state_id=1)
+            for neighbor in infected_neighbors_infected:
+                if random.random() < self.prob_generate_anti_rumor:
+                    neighbor.state['id'] = 2  # Cured
+
 
         # Vaccinate
         neutral_neighbors = self.get_neighboring_agents(state_id=0)

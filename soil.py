@@ -27,7 +27,7 @@ if settings.network_type == 2:
 # Simulation #
 ##############
 
-sim = NetworkSimulation(topology=G, states=init_states, agent_type=SpreadModelM2,
+sim = NetworkSimulation(topology=G, states=init_states, agent_type=ControlModelM2,
                         max_time=settings.max_time, num_trials=settings.num_trials, logging_interval=1.0)
 
 
@@ -79,7 +79,7 @@ neutral_line = plt.plot(x_values,neutral_values, label='Neutral')
 cured_line = plt.plot(x_values,cured_values, label='Cured')
 vaccinated_line = plt.plot(x_values,vaccinated_values, label='Vaccinated')
 plt.legend()
-plt.savefig('spread_model.png')
+plt.savefig('control_model.png')
 #plt.show()
 
 
