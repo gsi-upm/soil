@@ -79,7 +79,8 @@ neutral_line = plt.plot(x_values,neutral_values, label='Neutral')
 cured_line = plt.plot(x_values,cured_values, label='Cured')
 vaccinated_line = plt.plot(x_values,vaccinated_values, label='Vaccinated')
 plt.legend()
-plt.show()
+plt.savefig('spread_model.png')
+#plt.show()
 
 
 #################

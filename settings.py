@@ -40,10 +40,10 @@ def init():
     global prob_generate_anti_rumor
 
     network_type=1
-    number_of_nodes=20
+    number_of_nodes=1000
     max_time=50
     num_trials=1
-    timeout=1
+    timeout=2
 
     #Zombie model
     bite_prob=0.01 # 0-1
@@ -87,7 +87,7 @@ def init():
 
     standard_variance = 0.055
 
-    #Spread Model M2
+    #Spread Model M2 and Control Model M2
     prob_neutral_making_denier = 0.035
 
     prob_infect = 0.075
