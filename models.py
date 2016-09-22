@@ -23,7 +23,7 @@ init_states = [{'id': 0, } for _ in range(settings.number_of_nodes)]  # add keys
 # Available models #
 ####################
 
-class ComportamientoBase(BaseNetworkAgent):
+class BaseBehaviour(BaseNetworkAgent):
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
         self._attrs = {}
@@ -45,9 +45,9 @@ class ComportamientoBase(BaseNetworkAgent):
             yield self.env.timeout(settings.timeout)
 
     def step(self, now):
-        networkStatus['agente_%s'% self.id] = self.a_json()
+        networkStatus['agent_%s'% self.id] = self.to_json()
 
-    def a_json(self):
+    def to_json(self):
         final = {}
         for stamp, attrs in self._attrs.items():
             for a in attrs:
@@ -56,7 +56,7 @@ class ComportamientoBase(BaseNetworkAgent):
                 final[a][stamp] = attrs[a]
         return final
 
-class ControlModelM2(ComportamientoBase):
+class ControlModelM2(BaseBehaviour):
     #Init infected
     init_states[random.randint(0,settings.number_of_nodes-1)] = {'id':1}
     init_states[random.randint(0,settings.number_of_nodes-1)] = {'id':1}
@@ -178,7 +178,7 @@ class ControlModelM2(ComportamientoBase):
                 neighbor.state['id'] = 3  # Vaccinated
 
 
-class SpreadModelM2(ComportamientoBase):
+class SpreadModelM2(BaseBehaviour):
     init_states[random.randint(0,settings.number_of_nodes)] = {'id':1}
     init_states[random.randint(0,settings.number_of_nodes)] = {'id':1}
     def __init__(self, environment=None, agent_id=0, state=()):
@@ -263,7 +263,7 @@ class SpreadModelM2(ComportamientoBase):
                 neighbor.state['id'] = 2  # Cured
 
 
-class SISaModel(ComportamientoBase):
+class SISaModel(BaseBehaviour):
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
 
@@ -330,7 +330,7 @@ class SISaModel(ComportamientoBase):
             self.state['id'] = 1
 
 
-class BigMarketModel(ComportamientoBase):
+class BigMarketModel(BaseBehaviour):
 
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
@@ -417,7 +417,7 @@ class BigMarketModel(ComportamientoBase):
 
             x.attrs['sentiment_enterprise_%s'% self.enterprises[enterprise]] = x.sentiment_about[enterprise]
 
-class SentimentCorrelationModel(ComportamientoBase):
+class SentimentCorrelationModel(BaseBehaviour):
 
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
@@ -517,7 +517,7 @@ class SentimentCorrelationModel(ComportamientoBase):
         self.attrs['sentiment'] = self.state['id']
 
 
-class BassModel(ComportamientoBase):
+class BassModel(BaseBehaviour):
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
         self.innovation_prob = settings.innovation_prob
@@ -553,7 +553,7 @@ class BassModel(ComportamientoBase):
             self.attrs['status'] = self.state['id']
 
 
-class IndependentCascadeModel(ComportamientoBase):
+class IndependentCascadeModel(BaseBehaviour):
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
         self.innovation_prob = settings.innovation_prob
