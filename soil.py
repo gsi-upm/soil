@@ -51,18 +51,18 @@ for time in range(0, settings.max_time):
     real_time = time * settings.timeout
     activity= False
     for x in range(0, settings.number_of_nodes):
-        if attribute_plot in models.networkStatus["agente_%s" % x]:
-            if real_time in models.networkStatus["agente_%s" % x][attribute_plot]:
-                if models.networkStatus["agente_%s" % x][attribute_plot][real_time] == 1: ##Representar infectados
+        if attribute_plot in models.networkStatus["agent_%s" % x]:
+            if real_time in models.networkStatus["agent_%s" % x][attribute_plot]:
+                if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 1: ##Infected
                     value_infectados += 1
                     activity = True
-                if models.networkStatus["agente_%s" % x][attribute_plot][real_time] == 0:  ##Representar neutrales
+                if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 0:  ##Neutral
                     value_neutral += 1
                     activity = True
-                if models.networkStatus["agente_%s" % x][attribute_plot][real_time] == 2:  ##Representar cured
+                if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 2:  ##Cured
                     value_cured += 1
                     activity = True
-                if models.networkStatus["agente_%s" % x][attribute_plot][real_time] == 3:  ##Representar vaccinated
+                if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 3:  ##Vaccinated
                     value_vaccinated += 1
                     activity = True
 
@@ -89,14 +89,14 @@ plt.savefig('control_model.png')
 
 
 for x in range(0, settings.number_of_nodes):
-    for empresa in models.networkStatus["agente_%s"%x]:
+    for attribute in models.networkStatus["agent_%s"%x]:
         emotionStatusAux=[]
-        for tiempo in models.networkStatus["agente_%s"%x][empresa]:
+        for t_step in models.networkStatus["agent_%s"%x][attribute]:
             prec = 2
-            output = math.floor(models.networkStatus["agente_%s"%x][empresa][tiempo] * (10 ** prec)) / (10 ** prec) #Para tener 2 decimales solo
-            emotionStatusAux.append((output,tiempo,None))
+            output = math.floor(models.networkStatus["agent_%s"%x][attribute][t_step] * (10 ** prec)) / (10 ** prec) #2 decimals
+            emotionStatusAux.append((output,t_step,None))
         attributes = {}
-        attributes[empresa] = emotionStatusAux
+        attributes[attribute] = emotionStatusAux
         G.add_node(x, attributes)
 
 

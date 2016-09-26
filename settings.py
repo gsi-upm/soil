@@ -67,7 +67,7 @@ def init():
     tweet_probability_users = 0.44
     tweet_relevant_probability = 0.25
     tweet_probability_about = [0.15, 0.15, 0.15]
-    sentiment_about = [0, 0, 0] #Valores por defecto
+    sentiment_about = [0, 0, 0] #Default values
     ##Enterprises
     tweet_probability_enterprises = [0.3, 0.3, 0.3]
 
