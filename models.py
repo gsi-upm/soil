@@ -347,8 +347,8 @@ class BigMarketModel(BaseBehaviour):
             self.type="User"
             self.tweet_probability = settings.tweet_probability_users
             self.tweet_relevant_probability = settings.tweet_relevant_probability
-            self.tweet_probability_about = settings.tweet_probability_about #Lista
-            self.sentiment_about = settings.sentiment_about #Lista
+            self.tweet_probability_about = settings.tweet_probability_about #List
+            self.sentiment_about = settings.sentiment_about #List
 
     def step(self, now):
 
@@ -356,15 +356,15 @@ class BigMarketModel(BaseBehaviour):
             self.enterpriseBehaviour()
         else:  # Usuario
             self.userBehaviour()
-            for i in range(self.number_of_enterprises):       # Para que nunca este a 0 si no ha habido cambios(logs)
+            for i in range(self.number_of_enterprises):       # So that it never is set to 0 if there are not changes (logs)
                 self.attrs['sentiment_enterprise_%s'% self.enterprises[i]] = self.sentiment_about[i]
 
         super().step(now)
 
     def enterpriseBehaviour(self):
 
-        if random.random()< self.tweet_probability: #Twittea
-            aware_neighbors = self.get_neighboring_agents(state_id=self.number_of_enterprises) #Nodos vecinos usuarios
+        if random.random()< self.tweet_probability: #Tweets
+            aware_neighbors = self.get_neighboring_agents(state_id=self.number_of_enterprises) #Nodes neighbour users
             for x in aware_neighbors:
                 if random.uniform(0,10) < 5:
                     x.sentiment_about[self.id] += 0.1 #Aumenta para empresa
@@ -400,7 +400,7 @@ class BigMarketModel(BaseBehaviour):
                             self.userTweets("positive",i)
 
     def userTweets(self,sentiment,enterprise):
-        aware_neighbors = self.get_neighboring_agents(state_id=self.number_of_enterprises) #Nodos vecinos usuarios
+        aware_neighbors = self.get_neighboring_agents(state_id=self.number_of_enterprises) #Nodes neighbours users
         for x in aware_neighbors:
             if sentiment == "positive":
                 x.sentiment_about[enterprise] +=0.003
@@ -427,7 +427,7 @@ class SentimentCorrelationModel(BaseBehaviour):
         self.sadness_prob = settings.sadness_prob
         self.disgust_prob = settings.disgust_prob
         self.time_awareness=[]
-        for i in range(4):  #En este modelo tenemos 4 sentimientos
+        for i in range(4):  #In this model we have 4 sentiments
             self.time_awareness.append(0)     #0-> Anger, 1-> joy, 2->sadness, 3 -> disgust
         sentimentCorrelationNodeArray[self.id][self.env.now]=0
 
@@ -485,7 +485,7 @@ class SentimentCorrelationModel(BaseBehaviour):
         if(num<outside_effects_prob):
             self.state['id'] = random.randint(1,4)
 
-            sentimentCorrelationNodeArray[self.id][self.env.now]=self.state['id'] #Almaceno cuando se ha infectado para la red dinamica
+            sentimentCorrelationNodeArray[self.id][self.env.now]=self.state['id'] #It is stored when it has been infected for the dynamic network
             self.time_awareness[self.state['id']-1] = self.env.now
             self.attrs['sentiment'] = self.state['id']
 
