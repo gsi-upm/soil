@@ -338,11 +338,11 @@ class BigMarketModel(BaseBehaviour):
         self.type = ""
         self.number_of_enterprises = len(settings.enterprises)
 
-        if self.id < self.number_of_enterprises: #Empresas
+        if self.id < self.number_of_enterprises: #Enterprises
             self.state['id']=self.id
             self.type="Enterprise"
             self.tweet_probability = settings.tweet_probability_enterprises[self.id]
-        else:                       #Usuarios normales
+        else:                       #normal users
             self.state['id']=self.number_of_enterprises
             self.type="User"
             self.tweet_probability = settings.tweet_probability_users
@@ -352,7 +352,7 @@ class BigMarketModel(BaseBehaviour):
 
     def step(self, now):
 
-        if(self.id < self.number_of_enterprises): # Empresa
+        if(self.id < self.number_of_enterprises): # Ennterprise
             self.enterpriseBehaviour()
         else:  # Usuario
             self.userBehaviour()
@@ -367,9 +367,9 @@ class BigMarketModel(BaseBehaviour):
             aware_neighbors = self.get_neighboring_agents(state_id=self.number_of_enterprises) #Nodes neighbour users
             for x in aware_neighbors:
                 if random.uniform(0,10) < 5:
-                    x.sentiment_about[self.id] += 0.1 #Aumenta para empresa
+                    x.sentiment_about[self.id] += 0.1 #Increments for enterprise
                 else:
-                    x.sentiment_about[self.id] -= 0.1 #Reduce para empresa
+                    x.sentiment_about[self.id] -= 0.1 #Decrements for enterprise
 
                 # Establecemos limites
                 if x.sentiment_about[self.id] > 1:
@@ -382,13 +382,13 @@ class BigMarketModel(BaseBehaviour):
 
     def userBehaviour(self):
 
-        if random.random() < self.tweet_probability: #Twittea
-            if random.random() < self.tweet_relevant_probability: #Twittea algo relevante
-                #Probabilidad de tweet para cada empresa
+        if random.random() < self.tweet_probability: #Tweets
+            if random.random() < self.tweet_relevant_probability: #Tweets something relevant
+                #Tweet probability per enterprise
                 for i in range(self.number_of_enterprises):
                     random_num = random.random()
                     if random_num < self.tweet_probability_about[i]:
-                        #Se ha cumplido la condicion, evaluo los sentimientos hacia esa empresa
+                        #The condition is fulfilled, sentiments are evaluated towards that enterprise
                         if self.sentiment_about[i] < 0:
                             #NEGATIVO
                             self.userTweets("negative",i)
@@ -572,8 +572,7 @@ class IndependentCascadeModel(BaseBehaviour):
             if self.state['id'] == 0:
                 self.state['id'] = 1
                 sentimentCorrelationNodeArray[self.id][self.env.now]=1
-                self.time_awareness = self.env.now #Para saber cuando se han contagiado
-
+                self.time_awareness = self.env.now #To know when they have been infected
             else:
                 pass
 
