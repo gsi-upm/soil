@@ -6,7 +6,7 @@ import settings
 settings.init()
 
 ##############################
-# Variables initializitation #
+# Variables initialization #
 ##############################
 def init():
     global networkStatus
