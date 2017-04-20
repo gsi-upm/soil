@@ -1,0 +1,109 @@
+import settings
+import random
+from ..BaseBehaviour import *
+from .. import sentimentCorrelationNodeArray
+
+settings.init()
+
+
+class SentimentCorrelationModel(BaseBehaviour):
+    """
+    Settings:
+        outside_effects_prob
+        
+        anger_prob
+        
+        joy_prob
+        
+        sadness_prob
+        
+        disgust_prob
+    """
+
+    def __init__(self, environment=None, agent_id=0, state=()):
+        super().__init__(environment=environment, agent_id=agent_id, state=state)
+        self.outside_effects_prob = settings.outside_effects_prob
+        self.anger_prob = settings.anger_prob
+        self.joy_prob = settings.joy_prob
+        self.sadness_prob = settings.sadness_prob
+        self.disgust_prob = settings.disgust_prob
+        self.time_awareness=[]
+        for i in range(4):  #In this model we have 4 sentiments
+            self.time_awareness.append(0)     #0-> Anger, 1-> joy, 2->sadness, 3 -> disgust
+        sentimentCorrelationNodeArray[self.id][self.env.now]=0
+
+    def step(self, now):
+        self.behaviour()
+        super().step(now)
+
+    def behaviour(self):
+
+        angry_neighbors_1_time_step=[]
+        joyful_neighbors_1_time_step=[]
+        sad_neighbors_1_time_step=[]
+        disgusted_neighbors_1_time_step=[]
+
+        angry_neighbors = self.get_neighboring_agents(state_id=1)
+        for x in angry_neighbors:
+            if x.time_awareness[0] > (self.env.now-500):
+                angry_neighbors_1_time_step.append(x)
+        num_neighbors_angry = len(angry_neighbors_1_time_step)
+
+        joyful_neighbors = self.get_neighboring_agents(state_id=2)
+        for x in joyful_neighbors:
+            if x.time_awareness[1] > (self.env.now-500):
+                joyful_neighbors_1_time_step.append(x)
+        num_neighbors_joyful = len(joyful_neighbors_1_time_step)
+
+        sad_neighbors = self.get_neighboring_agents(state_id=3)
+        for x in sad_neighbors:
+            if x.time_awareness[2] > (self.env.now-500):
+                sad_neighbors_1_time_step.append(x)
+        num_neighbors_sad = len(sad_neighbors_1_time_step)
+
+        disgusted_neighbors = self.get_neighboring_agents(state_id=4)
+        for x in disgusted_neighbors:
+            if x.time_awareness[3] > (self.env.now-500):
+                disgusted_neighbors_1_time_step.append(x)
+        num_neighbors_disgusted = len(disgusted_neighbors_1_time_step)
+
+        anger_prob= settings.anger_prob+(len(angry_neighbors_1_time_step)*settings.anger_prob)
+        joy_prob= settings.joy_prob+(len(joyful_neighbors_1_time_step)*settings.joy_prob)
+        sadness_prob = settings.sadness_prob+(len(sad_neighbors_1_time_step)*settings.sadness_prob)
+        disgust_prob = settings.disgust_prob+(len(disgusted_neighbors_1_time_step)*settings.disgust_prob)
+        outside_effects_prob= settings.outside_effects_prob
+
+        num = random.random()
+
+        if(num<outside_effects_prob):
+            self.state['id'] = random.randint(1,4)
+
+            sentimentCorrelationNodeArray[self.id][self.env.now]=self.state['id'] #It is stored when it has been infected for the dynamic network
+            self.time_awareness[self.state['id']-1] = self.env.now
+            self.attrs['sentiment'] = self.state['id']
+
+
+        if(num<anger_prob):
+
+            self.state['id'] = 1
+            sentimentCorrelationNodeArray[self.id][self.env.now]=1
+            self.time_awareness[self.state['id']-1] = self.env.now
+        elif (num<joy_prob+anger_prob and num>anger_prob):
+
+            self.state['id'] = 2
+            sentimentCorrelationNodeArray[self.id][self.env.now]=2
+            self.time_awareness[self.state['id']-1] = self.env.now
+        elif (num<sadness_prob+anger_prob+joy_prob and num>joy_prob+anger_prob):
+
+
+            self.state['id'] = 3
+            sentimentCorrelationNodeArray[self.id][self.env.now]=3
+            self.time_awareness[self.state['id']-1] = self.env.now
+        elif (num<disgust_prob+sadness_prob+anger_prob+joy_prob and num>sadness_prob+anger_prob+joy_prob):
+
+
+            self.state['id'] = 4
+            sentimentCorrelationNodeArray[self.id][self.env.now]=4
+            self.time_awareness[self.state['id']-1] = self.env.now
+
+        self.attrs['sentiment'] = self.state['id']

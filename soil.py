@@ -9,7 +9,6 @@ import math
 import json
 
 settings.init() # Loads all the data from settings
-models.init() # Loads the models and network variables
 
 ####################
 # Network creation #
