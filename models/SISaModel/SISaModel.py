@@ -1,6 +1,6 @@
 import random
 import numpy as np
-from ..BaseBehaviour import *
+from models.BaseBehaviour import *
 
 
 class SISaModel(BaseBehaviour):
