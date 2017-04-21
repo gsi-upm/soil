@@ -4,8 +4,6 @@ import numpy as np
 from ..BaseBehaviour import *
 from .. import init_states
 
-settings.init()
-
 
 class SpreadModelM2(BaseBehaviour):
     """
@@ -25,22 +23,28 @@ class SpreadModelM2(BaseBehaviour):
         prob_generate_anti_rumor
     """
 
-    init_states[random.randint(0, settings.number_of_nodes)] = {'id':1}
-    init_states[random.randint(0, settings.number_of_nodes)] = {'id':1}
+    init_states[random.randint(0, settings.number_of_nodes)] = {'id': 1}
+    init_states[random.randint(0, settings.number_of_nodes)] = {'id': 1}
 
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
 
-        self.prob_neutral_making_denier = np.random.normal(settings.prob_neutral_making_denier, settings.standard_variance)
+        self.prob_neutral_making_denier = np.random.normal(environment.prob_neutral_making_denier,
+                                                           environment.standard_variance)
 
-        self.prob_infect = np.random.normal(settings.prob_infect, settings.standard_variance)
+        self.prob_infect = np.random.normal(environment.prob_infect, environment.standard_variance)
 
-        self.prob_cured_healing_infected = np.random.normal(settings.prob_cured_healing_infected, settings.standard_variance)
-        self.prob_cured_vaccinate_neutral = np.random.normal(settings.prob_cured_vaccinate_neutral, settings.standard_variance)
+        self.prob_cured_healing_infected = np.random.normal(environment.prob_cured_healing_infected,
+                                                            environment.standard_variance)
+        self.prob_cured_vaccinate_neutral = np.random.normal(environment.prob_cured_vaccinate_neutral,
+                                                             environment.standard_variance)
 
-        self.prob_vaccinated_healing_infected = np.random.normal(settings.prob_vaccinated_healing_infected, settings.standard_variance)
-        self.prob_vaccinated_vaccinate_neutral = np.random.normal(settings.prob_vaccinated_vaccinate_neutral, settings.standard_variance)
-        self.prob_generate_anti_rumor = np.random.normal(settings.prob_generate_anti_rumor, settings.standard_variance)
+        self.prob_vaccinated_healing_infected = np.random.normal(environment.prob_vaccinated_healing_infected,
+                                                                 environment.standard_variance)
+        self.prob_vaccinated_vaccinate_neutral = np.random.normal(environment.prob_vaccinated_vaccinate_neutral,
+                                                                  environment.standard_variance)
+        self.prob_generate_anti_rumor = np.random.normal(environment.prob_generate_anti_rumor,
+                                                         environment.standard_variance)
 
     def step(self, now):
 
@@ -60,7 +64,7 @@ class SpreadModelM2(BaseBehaviour):
 
         # Infected
         infected_neighbors = self.get_neighboring_agents(state_id=1)
-        if len(infected_neighbors)>0:
+        if len(infected_neighbors) > 0:
             if random.random() < self.prob_neutral_making_denier:
                 self.state['id'] = 3   # Vaccinated making denier
 

@@ -1,8 +1,5 @@
-import settings
 import random
 from ..BaseBehaviour import *
-
-settings.init()
 
 
 class BigMarketModel(BaseBehaviour):
@@ -22,45 +19,44 @@ class BigMarketModel(BaseBehaviour):
             sentiment_about [Array]
     """
 
-
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
-        self.enterprises = settings.enterprises
+        self.enterprises = environment.enterprises
         self.type = ""
-        self.number_of_enterprises = len(settings.enterprises)
+        self.number_of_enterprises = len(environment.enterprises)
 
-        if self.id < self.number_of_enterprises: # Enterprises
+        if self.id < self.number_of_enterprises:  # Enterprises
             self.state['id']=self.id
             self.type="Enterprise"
-            self.tweet_probability = settings.tweet_probability_enterprises[self.id]
-        else:                       # normal users
+            self.tweet_probability = environment.tweet_probability_enterprises[self.id]
+        else:  # normal users
             self.state['id']=self.number_of_enterprises
             self.type="User"
-            self.tweet_probability = settings.tweet_probability_users
-            self.tweet_relevant_probability = settings.tweet_relevant_probability
-            self.tweet_probability_about = settings.tweet_probability_about # List
-            self.sentiment_about = settings.sentiment_about # List
+            self.tweet_probability = environment.tweet_probability_users
+            self.tweet_relevant_probability = environment.tweet_relevant_probability
+            self.tweet_probability_about = environment.tweet_probability_about  # List
+            self.sentiment_about = environment.sentiment_about  # List
 
     def step(self, now):
 
-        if(self.id < self.number_of_enterprises): # Enterprise
+        if self.id < self.number_of_enterprises:  # Enterprise
             self.enterpriseBehaviour()
         else:  # Usuario
             self.userBehaviour()
-            for i in range(self.number_of_enterprises):       # So that it never is set to 0 if there are not changes (logs)
+            for i in range(self.number_of_enterprises):  # So that it never is set to 0 if there are not changes (logs)
                 self.attrs['sentiment_enterprise_%s'% self.enterprises[i]] = self.sentiment_about[i]
 
         super().step(now)
 
     def enterpriseBehaviour(self):
 
-        if random.random()< self.tweet_probability: # Tweets
-            aware_neighbors = self.get_neighboring_agents(state_id=self.number_of_enterprises) #Nodes neighbour users
+        if random.random()< self.tweet_probability:  # Tweets
+            aware_neighbors = self.get_neighboring_agents(state_id=self.number_of_enterprises)  # Nodes neighbour users
             for x in aware_neighbors:
                 if random.uniform(0,10) < 5:
-                    x.sentiment_about[self.id] += 0.1 # Increments for enterprise
+                    x.sentiment_about[self.id] += 0.1  # Increments for enterprise
                 else:
-                    x.sentiment_about[self.id] -= 0.1 # Decrements for enterprise
+                    x.sentiment_about[self.id] -= 0.1  # Decrements for enterprise
 
                 # Establecemos limites
                 if x.sentiment_about[self.id] > 1:
@@ -72,8 +68,8 @@ class BigMarketModel(BaseBehaviour):
 
     def userBehaviour(self):
 
-        if random.random() < self.tweet_probability: # Tweets
-            if random.random() < self.tweet_relevant_probability: # Tweets something relevant
+        if random.random() < self.tweet_probability:  # Tweets
+            if random.random() < self.tweet_relevant_probability:  # Tweets something relevant
                 # Tweet probability per enterprise
                 for i in range(self.number_of_enterprises):
                     random_num = random.random()
@@ -90,7 +86,7 @@ class BigMarketModel(BaseBehaviour):
                             self.userTweets("positive",i)
 
     def userTweets(self,sentiment,enterprise):
-        aware_neighbors = self.get_neighboring_agents(state_id=self.number_of_enterprises) #Nodes neighbours users
+        aware_neighbors = self.get_neighboring_agents(state_id=self.number_of_enterprises)  # Nodes neighbours users
         for x in aware_neighbors:
             if sentiment == "positive":
                 x.sentiment_about[enterprise] +=0.003

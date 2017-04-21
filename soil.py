@@ -8,7 +8,6 @@ import models
 import math
 import json
 
-settings.init() # Loads all the data from settings
 
 ####################
 # Network creation #
@@ -17,10 +16,11 @@ settings.init() # Loads all the data from settings
 if settings.network_type == 0:
     G = nx.complete_graph(settings.number_of_nodes)
 if settings.network_type == 1:
-    G = nx.barabasi_albert_graph(settings.number_of_nodes,10)
+    G = nx.barabasi_albert_graph(settings.number_of_nodes, 10)
 if settings.network_type == 2:
     G = nx.margulis_gabber_galil_graph(settings.number_of_nodes, None)
 # More types of networks can be added here
+
 
 ##############
 # Simulation #
@@ -29,12 +29,13 @@ if settings.network_type == 2:
 sim = NetworkSimulation(topology=G, states=init_states, agent_type=ControlModelM2,
                         max_time=settings.max_time, num_trials=settings.num_trials, logging_interval=1.0)
 
-
 sim.run_simulation()
+
 
 ###########
 # Results #
 ###########
+
 x_values = []
 infected_values = []
 neutral_values = []
@@ -52,16 +53,16 @@ for time in range(0, settings.max_time):
     for x in range(0, settings.number_of_nodes):
         if attribute_plot in models.networkStatus["agent_%s" % x]:
             if real_time in models.networkStatus["agent_%s" % x][attribute_plot]:
-                if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 1: ##Infected
+                if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 1:  ## Infected
                     value_infectados += 1
                     activity = True
-                if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 0:  ##Neutral
+                if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 0:   ## Neutral
                     value_neutral += 1
                     activity = True
-                if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 2:  ##Cured
+                if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 2:  ## Cured
                     value_cured += 1
                     activity = True
-                if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 3:  ##Vaccinated
+                if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 3:  ## Vaccinated
                     value_vaccinated += 1
                     activity = True
 
@@ -79,20 +80,19 @@ cured_line = plt.plot(x_values,cured_values, label='Cured')
 vaccinated_line = plt.plot(x_values,vaccinated_values, label='Vaccinated')
 plt.legend()
 plt.savefig('control_model.png')
-#plt.show()
+# plt.show()
 
 
 #################
 # Visualization #
 #################
 
-
 for x in range(0, settings.number_of_nodes):
     for attribute in models.networkStatus["agent_%s"%x]:
         emotionStatusAux=[]
         for t_step in models.networkStatus["agent_%s"%x][attribute]:
             prec = 2
-            output = math.floor(models.networkStatus["agent_%s"%x][attribute][t_step] * (10 ** prec)) / (10 ** prec) #2 decimals
+            output = math.floor(models.networkStatus["agent_%s"%x][attribute][t_step] * (10 ** prec)) / (10 ** prec)  # 2 decimals
             emotionStatusAux.append((output,t_step,None))
         attributes = {}
         attributes[attribute] = emotionStatusAux

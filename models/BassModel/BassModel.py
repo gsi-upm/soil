@@ -1,9 +1,6 @@
-import settings
 import random
 from ..BaseBehaviour import *
 from .. import sentimentCorrelationNodeArray
-
-settings.init()
 
 
 class BassModel(BaseBehaviour):
@@ -16,9 +13,9 @@ class BassModel(BaseBehaviour):
 
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
-        self.innovation_prob = settings.innovation_prob
-        self.imitation_prob = settings.imitation_prob
-        sentimentCorrelationNodeArray[self.id][self.env.now]=0
+        self.innovation_prob = environment.innovation_prob
+        self.imitation_prob = environment.imitation_prob
+        sentimentCorrelationNodeArray[self.id][self.env.now] = 0
 
     def step(self, now):
         self.behaviour()
@@ -26,10 +23,10 @@ class BassModel(BaseBehaviour):
 
     def behaviour(self):
         # Outside effects
-        if random.random() < settings.innovation_prob:
+        if random.random() < self.innovation_prob:
             if self.state['id'] == 0:
                 self.state['id'] = 1
-                sentimentCorrelationNodeArray[self.id][self.env.now]=1
+                sentimentCorrelationNodeArray[self.id][self.env.now] = 1
             else:
                 pass
 
@@ -40,9 +37,9 @@ class BassModel(BaseBehaviour):
         if self.state['id'] == 0:
             aware_neighbors = self.get_neighboring_agents(state_id=1)
             num_neighbors_aware = len(aware_neighbors)
-            if random.random() < (settings.imitation_prob*num_neighbors_aware):
+            if random.random() < (self.imitation_prob*num_neighbors_aware):
                 self.state['id'] = 1
-                sentimentCorrelationNodeArray[self.id][self.env.now]=1
+                sentimentCorrelationNodeArray[self.id][self.env.now] = 1
 
             else:
                 pass

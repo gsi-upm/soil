@@ -2,8 +2,6 @@ import settings
 from nxsim import BaseNetworkAgent
 from .. import networkStatus
 
-settings.init()
-
 
 class BaseBehaviour(BaseNetworkAgent):
 
@@ -35,6 +33,6 @@ class BaseBehaviour(BaseNetworkAgent):
         for stamp, attrs in self._attrs.items():
             for a in attrs:
                 if a not in final:
-                   final[a] = {}
+                    final[a] = {}
                 final[a][stamp] = attrs[a]
         return final
