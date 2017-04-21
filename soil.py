@@ -27,7 +27,8 @@ if settings.network_type == 2:
 ##############
 
 sim = NetworkSimulation(topology=G, states=init_states, agent_type=ControlModelM2,
-                        max_time=settings.max_time, num_trials=settings.num_trials, logging_interval=1.0)
+                        max_time=settings.max_time, num_trials=settings.num_trials, logging_interval=1.0,
+                        environment_params=settings)
 
 sim.run_simulation()
 
