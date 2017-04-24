@@ -19,11 +19,11 @@ class SentimentCorrelationModel(BaseBehaviour):
 
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
-        self.outside_effects_prob = environment.outside_effects_prob
-        self.anger_prob = environment.anger_prob
-        self.joy_prob = environment.joy_prob
-        self.sadness_prob = environment.sadness_prob
-        self.disgust_prob = environment.disgust_prob
+        self.outside_effects_prob = environment.environment_params['outside_effects_prob']
+        self.anger_prob = environment.environment_params['anger_prob']
+        self.joy_prob = environment.environment_params['joy_prob']
+        self.sadness_prob = environment.environment_params['sadness_prob']
+        self.disgust_prob = environment.environment_params['disgust_prob']
         self.time_awareness = []
         for i in range(4):  # In this model we have 4 sentiments
             self.time_awareness.append(0)  # 0-> Anger, 1-> joy, 2->sadness, 3 -> disgust

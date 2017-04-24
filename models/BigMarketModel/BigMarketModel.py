@@ -21,21 +21,21 @@ class BigMarketModel(BaseBehaviour):
 
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
-        self.enterprises = environment.enterprises
+        self.enterprises = environment.environment_params['enterprises']
         self.type = ""
-        self.number_of_enterprises = len(environment.enterprises)
+        self.number_of_enterprises = len(environment.environment_params['enterprises'])
 
         if self.id < self.number_of_enterprises:  # Enterprises
-            self.state['id']=self.id
-            self.type="Enterprise"
-            self.tweet_probability = environment.tweet_probability_enterprises[self.id]
+            self.state['id'] = self.id
+            self.type = "Enterprise"
+            self.tweet_probability = environment.environment_params['tweet_probability_enterprises'][self.id]
         else:  # normal users
-            self.state['id']=self.number_of_enterprises
-            self.type="User"
-            self.tweet_probability = environment.tweet_probability_users
-            self.tweet_relevant_probability = environment.tweet_relevant_probability
-            self.tweet_probability_about = environment.tweet_probability_about  # List
-            self.sentiment_about = environment.sentiment_about  # List
+            self.state['id'] = self.number_of_enterprises
+            self.type = "User"
+            self.tweet_probability = environment.environment_params['tweet_probability_users']
+            self.tweet_relevant_probability = environment.environment_params['tweet_relevant_probability']
+            self.tweet_probability_about = environment.environment_params['tweet_probability_about']  # List
+            self.sentiment_about = environment.environment_params['sentiment_about']  # List
 
     def step(self, now):
 

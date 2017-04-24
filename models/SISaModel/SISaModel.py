@@ -32,20 +32,24 @@ class SISaModel(BaseBehaviour):
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
 
-        self.neutral_discontent_spon_prob = np.random.normal(environment.neutral_discontent_spon_prob,
-                                                             environment.standard_variance)
-        self.neutral_discontent_infected_prob = np.random.normal(environment.neutral_discontent_infected_prob,
-                                                                 environment.standard_variance)
-        self.neutral_content_spon_prob = np.random.normal(environment.neutral_content_spon_prob,
-                                                          environment.standard_variance)
-        self.neutral_content_infected_prob = np.random.normal(environment.neutral_content_infected_prob,
-                                                              environment.standard_variance)
+        self.neutral_discontent_spon_prob = np.random.normal(environment.environment_params['neutral_discontent_spon_prob'],
+                                                             environment.environment_params['standard_variance'])
+        self.neutral_discontent_infected_prob = np.random.normal(environment.environment_params['neutral_discontent_infected_prob'],
+                                                                 environment.environment_params['standard_variance'])
+        self.neutral_content_spon_prob = np.random.normal(environment.environment_params['neutral_content_spon_prob'],
+                                                          environment.environment_params['standard_variance'])
+        self.neutral_content_infected_prob = np.random.normal(environment.environment_params['neutral_content_infected_prob'],
+                                                              environment.environment_params['standard_variance'])
 
-        self.discontent_neutral = np.random.normal(environment.discontent_neutral, environment.standard_variance)
-        self.discontent_content = np.random.normal(environment.discontent_content, environment.variance_d_c)
+        self.discontent_neutral = np.random.normal(environment.environment_params['discontent_neutral'],
+                                                   environment.environment_params['standard_variance'])
+        self.discontent_content = np.random.normal(environment.environment_params['discontent_content'],
+                                                   environment.environment_params['variance_d_c'])
 
-        self.content_discontent = np.random.normal(environment.content_discontent, environment.variance_c_d)
-        self.content_neutral = np.random.normal(environment.content_neutral, environment.standard_variance)
+        self.content_discontent = np.random.normal(environment.environment_params['content_discontent'],
+                                                   environment.environment_params['variance_c_d'])
+        self.content_neutral = np.random.normal(environment.environment_params['content_neutral'],
+                                                environment.environment_params['standard_variance'])
 
     def step(self, now):
         if self.state['id'] == 0:

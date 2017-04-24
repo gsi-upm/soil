@@ -13,8 +13,8 @@ class BassModel(BaseBehaviour):
 
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
-        self.innovation_prob = environment.innovation_prob
-        self.imitation_prob = environment.imitation_prob
+        self.innovation_prob = environment.environment_params['innovation_prob']
+        self.imitation_prob = environment.environment_params['imitation_prob']
         sentimentCorrelationNodeArray[self.id][self.env.now] = 0
 
     def step(self, now):
