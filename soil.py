@@ -8,6 +8,7 @@ import models
 import math
 import json
 
+
 #################
 # Visualization #
 #################
@@ -25,7 +26,6 @@ def visualization(graph_name):
             attributes[attribute] = emotionStatusAux
             G.add_node(x, attributes)
 
-
     print("Done!")
 
     with open('data.txt', 'w') as outfile:
@@ -33,9 +33,11 @@ def visualization(graph_name):
 
     nx.write_gexf(G, graph_name+".gexf", version="1.2draft")
 
+
 ###########
 # Results #
 ###########
+
 def results(model_name):
     x_values = []
     infected_values = []
@@ -106,14 +108,12 @@ if settings.network_type == 2:
 
 agents = settings.environment_params['agent']
 
-
-
 print("Using Agent(s): {agents}".format(agents=agents))
 
 if len(agents) > 1:
     for agent in agents:
         sim = NetworkSimulation(topology=G, states=init_states, agent_type=locals()[agent], max_time=settings.max_time,
-                        num_trials=settings.num_trials, logging_interval=1.0, **settings.environment_params)
+                                num_trials=settings.num_trials, logging_interval=1.0, **settings.environment_params)
         sim.run_simulation()
         print(str(agent))
         results(str(agent))
@@ -121,13 +121,7 @@ if len(agents) > 1:
 else:
     agent = agents[0]
     sim = NetworkSimulation(topology=G, states=init_states, agent_type=locals()[agent], max_time=settings.max_time,
-                        num_trials=settings.num_trials, logging_interval=1.0, **settings.environment_params)
+                            num_trials=settings.num_trials, logging_interval=1.0, **settings.environment_params)
     sim.run_simulation()
     results(str(agent))
     visualization(str(agent))
-
-
-
-
-
-

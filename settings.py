@@ -1,5 +1,4 @@
 # General configuration
-
 import json
 
 # Network settings
@@ -9,12 +8,11 @@ max_time = 50
 num_trials = 1
 timeout = 2
 
-
 with open('simulation_settings.json', 'r') as f:
     environment_params = json.load(f)
 
-'''
 
+'''
 environment_params = {
     # Zombie model
     'bite_prob': 0.01,  # 0-1
