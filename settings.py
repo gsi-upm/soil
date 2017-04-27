@@ -1,11 +1,19 @@
 # General configuration
 
+import json
+
 # Network settings
 network_type = 1
 number_of_nodes = 1000
 max_time = 50
 num_trials = 1
 timeout = 2
+
+
+with open('simulation_settings.json', 'r') as f:
+    environment_params = json.load(f)
+
+'''
 
 environment_params = {
     # Zombie model
@@ -62,3 +70,4 @@ environment_params = {
     'prob_vaccinated_vaccinate_neutral': 0.035,
     'prob_generate_anti_rumor': 0.035
 }
+'''
