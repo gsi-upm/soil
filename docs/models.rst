@@ -9,7 +9,7 @@ A model defines the behaviour of the agents with a view to assessing their effec
 In practice, a model consists of at least two parts:
 
 * Python module: the actual code that describes the behaviour.
-* Setting up the variables in the Simulation Settings JSON file.
+* Setting up the variables in the Settings JSON file.
 
 This separation allows us to run the simulation with different agents.
 
@@ -25,10 +25,10 @@ All the models are imported to the main file. The initialization look like this:
     networkStatus = {}  # Dict that will contain the status of every agent in the network
 
     sentimentCorrelationNodeArray = []
-    for x in range(0, settings.number_of_nodes):
+    for x in range(0, settings.network_params["number_of_nodes"]):
         sentimentCorrelationNodeArray.append({'id': x})
     # Initialize agent states. Let's assume everyone is normal.
-    init_states = [{'id': 0, } for _ in range(settings.number_of_nodes)]
+    init_states = [{'id': 0, } for _ in range(settings.network_params["number_of_nodes"])]
         # add keys as as necessary, but "id" must always refer to that state category
 
 A new model have to inherit the BaseBehaviour class which is in the same module.
@@ -77,7 +77,7 @@ passed as a parameter to the simulation.
     }
 
 In this file you will also define the models you are going to simulate. You can simulate as many models as you want.
-The simulation returns one result for each model. For the usage, see :doc:`usage`.
+The simulation returns one result for each model, executing each model separately. For the usage, see :doc:`usage`.
 
 Example Model
 =============

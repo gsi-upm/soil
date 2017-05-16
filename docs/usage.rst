@@ -8,18 +8,19 @@ Simulation Settings
 
 Once installed, before running a simulation, you need to configure it.
 
-* In the settings.py file you will find the configuration of the network.
+* In the Settings JSON file you will find the configuration of the network.
 
   .. code:: python
 
-    # Network settings
-    network_type = 1
-    number_of_nodes = 1000
-    max_time = 50
-    num_trials = 1
-    timeout = 2
+    {
+        "network_type": 1,
+        "number_of_nodes": 1000,
+        "max_time": 50,
+        "num_trials": 1,
+        "timeout": 2
+    }
 
-* In the Simulation Settings JSON file, you will find the configuration of the models.
+* In the Settings JSON file, you will also find the configuration of the models.
 
 Network Types
 =============
@@ -40,7 +41,7 @@ Models Settings
 ===============
 
 After having configured the simulation, the next step is setting up the variables of the models.
-For this, you will need to modify the Simulation Settings JSON file.
+For this, you will need to modify the Settings JSON file again.
 
 .. code:: json
 
@@ -76,7 +77,7 @@ For this, you will need to modify the Simulation Settings JSON file.
     }
 
 In this file you will define the different models you are going to simulate. You can simulate as many models
-as you want.
+as you want. Each model will be simulated separately.
 
 After setting up the models, you have to initialize the parameters of each one. You will find the parameters needed
 in the documentation of each model.
@@ -90,7 +91,7 @@ After setting all the configuration, you will be able to run the simulation. All
 
 .. code:: bash
 
-    python soil.py
+    python3 soil.py
 
 The simulation will return a dynamic graph .gexf file which could be visualized with
 `Gephi <https://gephi.org/users/download/>`__.

@@ -24,12 +24,12 @@ class ControlModelM2(BaseBehaviour):
     """
 
     # Init infected
-    init_states[random.randint(0, settings.number_of_nodes-1)] = {'id': 1}
-    init_states[random.randint(0, settings.number_of_nodes-1)] = {'id': 1}
+    init_states[random.randint(0, settings.network_params["number_of_nodes"]-1)] = {'id': 1}
+    init_states[random.randint(0, settings.network_params["number_of_nodes"]-1)] = {'id': 1}
 
     # Init beacons
-    init_states[random.randint(0, settings.number_of_nodes-1)] = {'id': 4}
-    init_states[random.randint(0, settings.number_of_nodes-1)] = {'id': 4}
+    init_states[random.randint(0, settings.network_params["number_of_nodes"]-1)] = {'id': 4}
+    init_states[random.randint(0, settings.network_params["number_of_nodes"]-1)] = {'id': 4}
 
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)

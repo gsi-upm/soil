@@ -23,7 +23,7 @@ class BaseBehaviour(BaseNetworkAgent):
     def run(self):
         while True:
             self.step(self.env.now)
-            yield self.env.timeout(settings.timeout)
+            yield self.env.timeout(settings.network_params["timeout"])
 
     def step(self, now):
         networkStatus['agent_%s'% self.id] = self.to_json()

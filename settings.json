@@ -1,4 +1,13 @@
-{
+[
+  {
+    "network_type": 1,
+    "number_of_nodes": 1000,
+    "max_time": 50,
+    "num_trials": 1,
+    "timeout": 2
+  },
+
+  {
     "agent": ["BaseBehaviour","SISaModel","ControlModelM2"],
 
 
@@ -19,7 +28,7 @@
     "tweet_probability_users": 0.44,
     "tweet_relevant_probability": 0.25,
     "tweet_probability_about": [0.15, 0.15, 0.15],
-    "sentiment_about": [0, 0, 0],  
+    "sentiment_about": [0, 0, 0],
 
     "tweet_probability_enterprises": [0.3, 0.3, 0.3],
 
@@ -49,4 +58,5 @@
     "prob_vaccinated_healing_infected": 0.035,
     "prob_vaccinated_vaccinate_neutral": 0.035,
     "prob_generate_anti_rumor": 0.035
-}
+  }
+]

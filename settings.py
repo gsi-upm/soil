@@ -1,15 +1,11 @@
 # General configuration
 import json
 
-# Network settings
-network_type = 1
-number_of_nodes = 1000
-max_time = 50
-num_trials = 1
-timeout = 2
+with open('settings.json', 'r') as f:
+    settings = json.load(f)
 
-with open('simulation_settings.json', 'r') as f:
-    environment_params = json.load(f)
+network_params = settings[0]
+environment_params = settings[1]
 
 
 '''

@@ -23,8 +23,8 @@ class SpreadModelM2(BaseBehaviour):
         prob_generate_anti_rumor
     """
 
-    init_states[random.randint(0, settings.number_of_nodes)] = {'id': 1}
-    init_states[random.randint(0, settings.number_of_nodes)] = {'id': 1}
+    init_states[random.randint(0, settings.network_params["number_of_nodes"])] = {'id': 1}
+    init_states[random.randint(0, settings.network_params["number_of_nodes"])] = {'id': 1}
 
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)

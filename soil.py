@@ -1,6 +1,6 @@
 from models import *
 from nxsim import NetworkSimulation
-import numpy
+# import numpy
 from matplotlib import pyplot as plt
 import networkx as nx
 import settings
@@ -15,7 +15,7 @@ import json
 
 def visualization(graph_name):
 
-    for x in range(0, settings.number_of_nodes):
+    for x in range(0, settings.network_params["number_of_nodes"]):
         for attribute in models.networkStatus["agent_%s" % x]:
             emotionStatusAux = []
             for t_step in models.networkStatus["agent_%s" % x][attribute]:
@@ -46,14 +46,14 @@ def results(model_name):
     vaccinated_values = []
 
     attribute_plot = 'status'
-    for time in range(0, settings.max_time):
+    for time in range(0, settings.network_params["max_time"]):
         value_infectados = 0
         value_neutral = 0
         value_cured = 0
         value_vaccinated = 0
-        real_time = time * settings.timeout
+        real_time = time * settings.network_params["timeout"]
         activity = False
-        for x in range(0, settings.number_of_nodes):
+        for x in range(0, settings.network_params["number_of_nodes"]):
             if attribute_plot in models.networkStatus["agent_%s" % x]:
                 if real_time in models.networkStatus["agent_%s" % x][attribute_plot]:
                     if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 1:  ## Infected
@@ -93,12 +93,12 @@ def results(model_name):
 # Network creation #
 ####################
 
-if settings.network_type == 0:
-    G = nx.complete_graph(settings.number_of_nodes)
-if settings.network_type == 1:
-    G = nx.barabasi_albert_graph(settings.number_of_nodes, 10)
-if settings.network_type == 2:
-    G = nx.margulis_gabber_galil_graph(settings.number_of_nodes, None)
+if settings.network_params["network_type"] == 0:
+    G = nx.complete_graph(settings.network_params["number_of_nodes"])
+if settings.network_params["network_type"] == 1:
+    G = nx.barabasi_albert_graph(settings.network_params["number_of_nodes"], 10)
+if settings.network_params["network_type"] == 2:
+    G = nx.margulis_gabber_galil_graph(settings.network_params["number_of_nodes"], None)
 # More types of networks can be added here
 
 
@@ -112,16 +112,16 @@ print("Using Agent(s): {agents}".format(agents=agents))
 
 if len(agents) > 1:
     for agent in agents:
-        sim = NetworkSimulation(topology=G, states=init_states, agent_type=locals()[agent], max_time=settings.max_time,
-                                num_trials=settings.num_trials, logging_interval=1.0, **settings.environment_params)
+        sim = NetworkSimulation(topology=G, states=init_states, agent_type=locals()[agent], max_time=settings.network_params["max_time"],
+                                num_trials=settings.network_params["num_trials"], logging_interval=1.0, **settings.environment_params)
         sim.run_simulation()
         print(str(agent))
         results(str(agent))
         visualization(str(agent))
 else:
     agent = agents[0]
-    sim = NetworkSimulation(topology=G, states=init_states, agent_type=locals()[agent], max_time=settings.max_time,
-                            num_trials=settings.num_trials, logging_interval=1.0, **settings.environment_params)
+    sim = NetworkSimulation(topology=G, states=init_states, agent_type=locals()[agent], max_time=settings.network_params["max_time"],
+                            num_trials=settings.network_params["num_trials"], logging_interval=1.0, **settings.environment_params)
     sim.run_simulation()
     results(str(agent))
     visualization(str(agent))
