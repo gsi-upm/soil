@@ -21,7 +21,7 @@ def visualization(graph_name):
             for t_step in models.networkStatus["agent_%s" % x][attribute]:
                 prec = 2
                 output = math.floor(models.networkStatus["agent_%s" % x][attribute][t_step] * (10 ** prec)) / (10 ** prec)  # 2 decimals
-                emotionStatusAux.append((output, t_step, t_step+settings.timeout))
+                emotionStatusAux.append((output, t_step, t_step + settings.network_params["timeout"]))
             attributes = {}
             attributes[attribute] = emotionStatusAux
             G.add_node(x, attributes)
