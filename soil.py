@@ -85,7 +85,7 @@ def results(model_name):
     cured_line = ax1.plot(x_values, cured_values, label='Cured')
     vaccinated_line = ax1.plot(x_values, vaccinated_values, label='Vaccinated')
     ax1.legend()
-    fig1.savefig(model_name+'.png')
+    fig1.savefig(model_name + '.png')
     # plt.show()
 
 
