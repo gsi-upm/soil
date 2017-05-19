@@ -8,7 +8,7 @@
   },
 
   {
-    "agent": ["BaseBehaviour","SISaModel","ControlModelM2"],
+    "agent": ["SISaModel","ControlModelM2"],
 
 
     "bite_prob": 0.01,

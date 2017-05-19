@@ -71,6 +71,7 @@ class ControlModelM2(BaseBehaviour):
         super().step(now)
 
     def neutral_behaviour(self):
+        self.attrs['visible'] = False
 
         # Infected
         infected_neighbors = self.get_neighboring_agents(state_id=1)
@@ -85,9 +86,11 @@ class ControlModelM2(BaseBehaviour):
         for neighbor in neutral_neighbors:
             if random.random() < self.prob_infect:
                 neighbor.state['id'] = 1  # Infected
+        self.attrs['visible'] = False
 
     def cured_behaviour(self):
 
+        self.attrs['visible'] = True
         # Vaccinate
         neutral_neighbors = self.get_neighboring_agents(state_id=0)
         for neighbor in neutral_neighbors:
@@ -101,6 +104,7 @@ class ControlModelM2(BaseBehaviour):
                 neighbor.state['id'] = 2  # Cured
 
     def vaccinated_behaviour(self):
+        self.attrs['visible'] = True
 
         # Cure
         infected_neighbors = self.get_neighboring_agents(state_id=1)
@@ -121,12 +125,13 @@ class ControlModelM2(BaseBehaviour):
                 neighbor.state['id'] = 2  # Cured
 
     def beacon_off_behaviour(self):
+        self.attrs['visible'] = False
         infected_neighbors = self.get_neighboring_agents(state_id=1)
         if len(infected_neighbors) > 0:
             self.state['id'] == 5  # Beacon on
 
     def beacon_on_behaviour(self):
-
+        self.attrs['visible'] = False
         # Cure (M2 feature added)
         infected_neighbors = self.get_neighboring_agents(state_id=1)
         for neighbor in infected_neighbors:

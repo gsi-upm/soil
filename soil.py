@@ -16,14 +16,32 @@ import json
 def visualization(graph_name):
 
     for x in range(0, settings.network_params["number_of_nodes"]):
+        attributes = {}
+        spells = []
         for attribute in models.networkStatus["agent_%s" % x]:
-            emotionStatusAux = []
-            for t_step in models.networkStatus["agent_%s" % x][attribute]:
-                prec = 2
-                output = math.floor(models.networkStatus["agent_%s" % x][attribute][t_step] * (10 ** prec)) / (10 ** prec)  # 2 decimals
-                emotionStatusAux.append((output, t_step, t_step + settings.network_params["timeout"]))
-            attributes = {}
-            attributes[attribute] = emotionStatusAux
+            if attribute == 'visible':
+                lastvisible = False
+                laststep = 0
+                for t_step in models.networkStatus["agent_%s" % x][attribute]:
+                    nowvisible = models.networkStatus["agent_%s" % x][attribute][t_step]
+                    if nowvisible and not lastvisible:
+                        laststep = t_step
+                    if not nowvisible and lastvisible:
+                        spells.append((laststep, t_step))
+
+                    lastvisible = nowvisible
+                if lastvisible:
+                    spells.append((laststep, None))
+            else:
+                emotionStatusAux = []
+                for t_step in models.networkStatus["agent_%s" % x][attribute]:
+                    prec = 2
+                    output = math.floor(models.networkStatus["agent_%s" % x][attribute][t_step] * (10 ** prec)) / (10 ** prec)  # 2 decimals
+                    emotionStatusAux.append((output, t_step, t_step + settings.network_params["timeout"]))
+                attributes[attribute] = emotionStatusAux
+        if spells:
+            G.add_node(x, attributes, spells=spells)
+        else:
             G.add_node(x, attributes)
 
     print("Done!")
@@ -100,7 +118,6 @@ if settings.network_params["network_type"] == 1:
 if settings.network_params["network_type"] == 2:
     G = nx.margulis_gabber_galil_graph(settings.network_params["number_of_nodes"], None)
 # More types of networks can be added here
-
 
 ##############
 # Simulation #
