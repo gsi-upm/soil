@@ -1,12 +1,9 @@
-#[Soil](https://github.com/gsi-upm/soil)
+# [Soil](https://github.com/gsi-upm/soil)
 
-The purpose of Soil (SOcial network sImuLator) is provding an Agent-based Social Simulator written in Python for Social Networks.
+Soil is an extensible and user-friendly Agent-based Social Simulator for Social Networks.
+Learn how to run your own simulations with our [documentation](http://soilsim.readthedocs.io).
 
-
-In order to see quickly how to use Soil, you can follow the following [tutorial](https://github.com/gsi-upm/soil/blob/master/soil_tutorial.ipynb).
-
-
-
+Follow our [tutorial](notebooks/soil_tutorial.ipynb) to develop your own agent models.
 
 
 @Copyright GSI - Universidad Politécnica de Madrid 2017

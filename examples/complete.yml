@@ -1,0 +1,24 @@
+---
+name: simple
+dir_path: "/tmp/"
+num_trials: 3
+max_time: 100
+interval: 1
+network_params:
+  generator: complete_graph
+  n: 10
+network_agents:
+  - agent_type: CounterModel
+    weight: 1
+    state:
+      id: 0
+  - agent_type: AggregatedCounter
+    weight: 0.2
+environment_agents: []
+environment_params:
+  am_i_complete: true
+default_state:
+  incidents: 0
+states:
+  - name: 'The first node'
+  - name: 'The second node'

@@ -1,0 +1,14 @@
+---
+name: torvalds_example
+max_time: 1
+interval: 2
+agent_type: CounterModel
+default_state:
+  skill_level: 'beginner'
+network_params:
+  path: 'torvalds.edgelist'
+states:
+  Torvalds:
+    skill_level: 'God'
+  balkian:
+    skill_level: 'developer'

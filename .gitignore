@@ -1,5 +1,10 @@
 __pycache__/
 .idea/
 .ipynb_checkpoints/
-*.png
 *.gexf
+.*
+results
+soil_output
+docs/_build*
+build/*
+dist/*

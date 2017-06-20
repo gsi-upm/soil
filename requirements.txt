@@ -3,3 +3,4 @@ simpy
 networkx
 numpy
 matplotlib
+pyyaml

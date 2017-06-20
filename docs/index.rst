@@ -13,8 +13,8 @@ Soil is an Agent-based Social Simulator in Python for modelling and simulation o
    :caption: Learn more about soil:
 
    installation
-   usage
-   models
+   quickstart
+   Tutorial - Spreading news
 
 
 
