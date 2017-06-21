@@ -1,18 +1,18 @@
 [
   {
     "network_type": 1,
-    "number_of_nodes": 1000,
-    "max_time": 50,
-    "num_trials": 1,
-    "timeout": 2
+    "number_of_nodes": 500,
+    "max_time": 30,
+    "num_trials": 20,
+    "timeout": 1
   },
 
   {
-    "agent": ["SISaModel","ControlModelM2"],
+    "agent": ["SpreadModelM2"],
 
 
-    "bite_prob": 0.01,
-    "heal_prob": 0.01,
+    "bite_prob": 0,
+    "heal_prob": 0,
 
     "innovation_prob": 0.001,
     "imitation_prob": 0.005,
@@ -45,18 +45,18 @@
     "variance_c_d": 0.003,
     "content_neutral": 0.088,
 
-    "standard_variance": 0.055,
 
 
-    "prob_neutral_making_denier": 0.035,
+    "standard_variance": 1e-15,
+    "prob_neutral_making_denier": 0.07,
+    "prob_cured_healing_infected": 0,
+    "prob_cured_vaccinate_neutral": 0,
+    "prob_vaccinated_healing_infected": 0,
+    "prob_vaccinated_vaccinate_neutral": 0,
+    "prob_generate_anti_rumor": 0.01,
 
-    "prob_infect": 0.075,
+    "prob_infect": 0.0375,
+    "source": 2
 
-    "prob_cured_healing_infected": 0.035,
-    "prob_cured_vaccinate_neutral": 0.035,
-
-    "prob_vaccinated_healing_infected": 0.035,
-    "prob_vaccinated_vaccinate_neutral": 0.035,
-    "prob_generate_anti_rumor": 0.035
   }
 ]

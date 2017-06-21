@@ -6,6 +6,7 @@ import networkx as nx
 import settings
 import models
 import math
+import random
 import json
 
 
@@ -49,7 +50,7 @@ def visualization(graph_name):
     with open('data.txt', 'w') as outfile:
         json.dump(models.networkStatus, outfile, sort_keys=True, indent=4, separators=(',', ': '))
 
-    nx.write_gexf(G, graph_name+".gexf", version="1.2draft")
+    nx.write_gexf(G, graph_name+"_"+str(random.randint(0,1000))+".gexf", version="1.2draft")
 
 
 ###########
@@ -77,15 +78,15 @@ def results(model_name):
                     if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 1:  ## Infected
                         value_infectados += 1
                         activity = True
-                    if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 0:  ## Neutral
-                        value_neutral += 1
-                        activity = True
+                    # if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 0:  ## Neutral
+                    #     value_neutral += 1
+                    #     activity = True
                     if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 2:  ## Cured
                         value_cured += 1
                         activity = True
-                    if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 3:  ## Vaccinated
-                        value_vaccinated += 1
-                        activity = True
+                    # if models.networkStatus["agent_%s" % x][attribute_plot][real_time] == 3:  ## Vaccinated
+                    #     value_vaccinated += 1
+                    #     activity = True
 
         if activity:
             x_values.append(real_time)
@@ -98,13 +99,13 @@ def results(model_name):
     fig1 = plt.figure()
     ax1 = fig1.add_subplot(111)
 
-    infected_line = ax1.plot(x_values, infected_values, label='Infected')
-    neutral_line = ax1.plot(x_values, neutral_values, label='Neutral')
-    cured_line = ax1.plot(x_values, cured_values, label='Cured')
-    vaccinated_line = ax1.plot(x_values, vaccinated_values, label='Vaccinated')
+    infected_line = ax1.plot(x_values, infected_values, label='Endorses')
+    # neutral_line = ax1.plot(x_values, neutral_values, label='Neutral')
+    cured_line = ax1.plot(x_values, cured_values, label='Denies')
+    # vaccinated_line = ax1.plot(x_values, vaccinated_values, label='Vaccinated')
     ax1.legend()
-    fig1.savefig(model_name + '.png')
-    # plt.show()
+    fig1.savefig(model_name + '_' + str(random.randint(0, 1000)) + '.png')
+    plt.show()
 
 
 ####################
@@ -133,12 +134,12 @@ if len(agents) > 1:
                                 num_trials=settings.network_params["num_trials"], logging_interval=1.0, **settings.environment_params)
         sim.run_simulation()
         print(str(agent))
-        results(str(agent))
         visualization(str(agent))
+        results(str(agent))
 else:
     agent = agents[0]
     sim = NetworkSimulation(topology=G, states=init_states, agent_type=locals()[agent], max_time=settings.network_params["max_time"],
                             num_trials=settings.network_params["num_trials"], logging_interval=1.0, **settings.environment_params)
     sim.run_simulation()
-    results(str(agent))
     visualization(str(agent))
+    results(str(agent))

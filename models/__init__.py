@@ -3,6 +3,7 @@ from .BaseBehaviour import *
 from .BassModel import *
 from .BigMarketModel import *
 from .IndependentCascadeModel import *
-from .ModelM2 import *
+from .ControlModelM2 import *
+from .SpreadModelM2 import *
 from .SentimentCorrelationModel import *
 from .SISaModel import *
