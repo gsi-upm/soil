@@ -1,5 +1,3 @@
-[![SOIL](logo_gsi.png)](https://www.gsi.dit.upm.es)
-
 # [SOIL](https://github.com/gsi-upm/soil)
 
 Soil is an extensible and user-friendly Agent-based Social Simulator for Social Networks.
@@ -31,3 +29,6 @@ If you use Soil in your research, don't forget to cite this paper:
 ```
 
 @Copyright GSI - Universidad Politécnica de Madrid 2017
+
+[![SOIL](logo_gsi.png)](https://www.gsi.dit.upm.es)
+
