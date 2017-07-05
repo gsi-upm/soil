@@ -1,0 +1,23 @@
+[
+  {
+    "network_type": 0,
+    "number_of_nodes": 80,
+    "max_time": 50,
+    "num_trials": 1,
+    "timeout": 2
+  },
+
+  {
+    "agent": ["TerroristModel"],
+
+    "initial_population": 0.85,
+    "initial_havens": 0.1,
+    "initial_training_enviroments": 0.05,
+
+    "initial_radicalism": 0.12,
+    "relative_inequality": 0.33,
+    "information_spread_intensity": 0.1,
+    "influence": 0.4,
+    "additional_influence": 0.1
+  }
+]
