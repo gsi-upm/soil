@@ -2,7 +2,6 @@
 name: ControlModelM2_sim
 max_time: 50
 num_trials: 1
-timeout: 2
 network_params:
   generator: barabasi_albert_graph
   n: 100
@@ -29,7 +28,6 @@ environment_params:
 name: SISA_sm
 max_time: 50
 num_trials: 2
-timeout: 2
 network_params:
   generator: erdos_renyi_graph
   n: 10000
