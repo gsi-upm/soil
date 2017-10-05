@@ -183,8 +183,8 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
             if lastvisible:
                 spells.append((laststep, None))
             if spells:
-                G.add_node(agent.id, attributes, spells=spells)
+                G.add_node(agent.id, **attributes, spells=spells)
             else:
-                G.add_node(agent.id, attributes)
+                G.add_node(agent.id, **attributes)
 
         return G
