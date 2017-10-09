@@ -1,9 +1,9 @@
 import random
 import numpy as np
-from . import FSM, state
+from . import FSM, NetworkAgent, state
 
 
-class SISaModel(FSM):
+class SISaModel(FSM, NetworkAgent):
     """
     Settings:
         neutral_discontent_spon_prob

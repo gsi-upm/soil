@@ -28,7 +28,16 @@ setup(
     download_url='https://github.com/gsi-upm/soil/archive/{}.tar.gz'.format(
         __version__),
     keywords=['agent', 'social', 'simulator'],
-    classifiers=[],
+    classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'Environment :: Console',
+        'Intended Audience :: End Users/Desktop',
+        'Intended Audience :: Developers',
+        'License :: OSI Approved :: Apache Software License',
+        'Operating System :: MacOS :: MacOS X',
+        'Operating System :: Microsoft :: Windows',
+        'Operating System :: POSIX',
+        'Programming Language :: Python :: 3'],
     install_requires=install_reqs,
     tests_require=test_reqs,
     setup_requires=['pytest-runner', ],

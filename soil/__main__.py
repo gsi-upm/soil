@@ -1,24 +1,10 @@
 import importlib
 import sys
-import os
-
-__version__ = "0.9.6"
-
-try:
-    basestring
-except NameError:
-    basestring = str
-
-from . import agents
+import argparse
 from . import simulation
-from . import environment
-from . import utils
-from . import settings
 
 
 def main():
-    import argparse
-    from . import simulation
 
     parser = argparse.ArgumentParser(description='Run a SOIL simulation')
     parser.add_argument('file', type=str,
@@ -39,7 +25,7 @@ def main():
         importlib.import_module(args.module)
 
     print('Loading config file: {}'.format(args.file, args.output))
-    simulation.run_from_config(args.file, dump=(not args.dry_run), results_dir=args.output)
+    simulation.run_from_config(args.file, dump=not args.dry_run, results_dir=args.output)
 
 
 if __name__ == '__main__':

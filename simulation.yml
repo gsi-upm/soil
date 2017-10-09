@@ -6,7 +6,7 @@ network_params:
   generator: barabasi_albert_graph
   n: 100
   m: 2
-agent_distribution:
+network_agents:
   - agent_type: ControlModelM2
     weight: 0.1
     state:
@@ -30,11 +30,11 @@ max_time: 50
 num_trials: 2
 network_params:
   generator: erdos_renyi_graph
-  n: 10000
+  n: 1000
   p: 0.05
 #other_agents:
 #  - agent_type: DrawingAgent
-agent_distribution:
+network_agents:
   - agent_type: SISaModel
     weight: 1
     state:
