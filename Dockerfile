@@ -1,3 +1,3 @@
-FROM python:3.5-onbuild
+FROM python:3.4-onbuild
 
 ENTRYPOINT ["python", "-m", "soil"]

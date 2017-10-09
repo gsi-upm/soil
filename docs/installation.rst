@@ -1,7 +1,7 @@
 Installation
 ------------
 
-The easiest way to install Soil is through pip:
+The easiest way to install Soil is through pip, with Python >= 3.4:
 
 .. code:: bash
 

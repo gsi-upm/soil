@@ -50,8 +50,7 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
             atype = kwargs.pop('agent_type')
             kwargs['agent_id'] = kwargs.get('agent_id', atype.__name__)
             kwargs['state'] = kwargs.get('state', {})
-            a = atype(**kwargs,
-                      environment=self)
+            a = atype(environment=self, **kwargs)
             self._env_agents[a.id] = weakref.ref(a)
 
     @property
@@ -160,7 +159,7 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
             spells = []
             lastvisible = False
             laststep = None
-            for t_step, state in reversed(agent._history.items()):
+            for t_step, state in reversed(list(agent._history.items())):
                 for attribute, value in state.items():
                     if attribute == 'visible':
                         nowvisible = state[attribute]
@@ -183,7 +182,7 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
             if lastvisible:
                 spells.append((laststep, None))
             if spells:
-                G.add_node(agent.id, **attributes, spells=spells)
+                G.add_node(agent.id, spells=spells, **attributes)
             else:
                 G.add_node(agent.id, **attributes)
 
