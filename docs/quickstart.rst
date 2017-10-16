@@ -13,7 +13,7 @@ Here's an example (``example.yml``).
     name: MyExampleSimulation
     max_time: 50
     num_trials: 3
-    timeout: 2
+    interval: 2
     network_params:
         network_type: barabasi_albert_graph
         n: 100
@@ -34,6 +34,12 @@ Here's an example (``example.yml``).
     environment_params:
         prob_infect: 0.075
 
+
+This example configuration will run three trials of a simulation containing a randomly generated network.
+The 100 nodes in the network will be SISaModel agents, 10% of them will start in the content state, 10% in the discontent state, and the remaining 80% in the neutral state.
+All agents will have access to the environment, which only contains one variable, ``prob_infected``.
+The state of the agents will be updated every 2 seconds (``interval``).
+
 Now run the simulation with the command line tool:
 
 .. code:: bash
@@ -41,7 +47,7 @@ Now run the simulation with the command line tool:
    soil example.yml
 
 Once the simulation finishes, its results will be stored in a folder named ``MyExampleSimulation``.
-Four types of objects are saved by default: a pickle of the simulation, a ``YAML`` representation of the simulation (to re-launch it), for every trial, a csv file with the content of the state of every network node and the environment parameters at every step of the simulation as well as the network in gephi format (``gexf``).
+Four types of objects are saved by default: a pickle of the simulation; a ``YAML`` representation of the simulation (which can be used to re-launch it); and for every trial, a csv file with the content of the state of every network node and the environment parameters at every step of the simulation, as well as the network in gephi format (``gexf``).
 
 
 .. code::
@@ -52,12 +58,6 @@ Four types of objects are saved by default: a pickle of the simulation, a ``YAML
     │   ├── Sim_prob_0.simulation.pickle
     │   ├── Sim_prob_0_trial_0.environment.csv
     │   └── Sim_prob_0_trial_0.gexf
-
-
-This example configuration will run three trials of a simulation containing a randomly generated network.
-The 100 nodes in the network will be SISaModel agents, 10% of them will start in the content state, 10% in the discontent state, and the remaining 80% in the neutral state.
-All agents will have access to the environment, which only contains one variable, ``prob_infected``.
-The state of the agents will be updated every 2 seconds (``timeout``).
 
 
 Network
@@ -94,7 +94,7 @@ For example, the following configuration is equivalent to :code:`nx.complete_gra
 Environment
 ============
 The environment is the place where the shared state of the simulation is stored.
-For instance, the probability of certain events.
+For instance, the probability of disease outbreak.
 The configuration file may specify the initial value of the environment parameters:
 
 .. code:: yaml
@@ -103,14 +103,17 @@ The configuration file may specify the initial value of the environment paramete
         daily_probability_of_earthquake: 0.001
         number_of_earthquakes: 0
 
+Any agent has unrestricted access to the environment.
+However, for the sake of simplicity, we recommend limiting environment updates to environment agents.
+
 Agents
 ======
 Agents are a way of modelling behavior.
 Agents can be characterized with two variables: an agent type (``agent_type``) and its state.
-Only one agent is executed at a time (generally, every ``timeout`` seconds), and it has access to its state and the environment parameters.
+Only one agent is executed at a time (generally, every ``interval`` seconds), and it has access to its state and the environment parameters.
 Through the environment, it can access the network topology and the state of other agents.
 
-There are three three types of agents according to how they are added to the simulation: network agents, environment agent, and other agents.
+There are three three types of agents according to how they are added to the simulation: network agents and environment agent.
 
 Network Agents
 ##############
@@ -118,13 +121,13 @@ Network agents are attached to a node in the topology.
 The configuration file allows you to specify how agents will be mapped to topology nodes.
 
 The simplest way is to specify a single type of agent.
-Hence, every node in the network will have an associated agent of that type.
+Hence, every node in the network will be associated to an agent of that type.
 
 .. code:: yaml
 
    agent_type: SISaModel
 
-It is also possible to add more than one type of agent to the simulation, and to control the ratio of each type (``weight``).
+It is also possible to add more than one type of agent to the simulation, and to control the ratio of each type (using the ``weight`` property).
 For instance, with following configuration, it is five times more likely for a node to be assigned a CounterModel type than a SISaModel type.
 
 .. code:: yaml

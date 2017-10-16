@@ -1,6 +1,8 @@
 import importlib
 import sys
 import os
+import pdb
+import logging
 
 __version__ = "0.9.7"
 
@@ -29,6 +31,8 @@ def main():
                         help='file containing the code of any custom agents.')
     parser.add_argument('--dry-run', '--dry', action='store_true',
                         help='Do not store the results of the simulation.')
+    parser.add_argument('--pdb', action='store_true',
+                        help='Use a pdb console in case of exception.')
     parser.add_argument('--output', '-o', type=str,
                         help='folder to write results to. It defaults to the current directory.')
 
@@ -38,8 +42,16 @@ def main():
         sys.path.append(os.getcwd())
         importlib.import_module(args.module)
 
-    print('Loading config file: {}'.format(args.file, args.output))
-    simulation.run_from_config(args.file, dump=(not args.dry_run), results_dir=args.output)
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    logger.info('Loading config file: {}'.format(args.file, args.output))
+    try:
+        simulation.run_from_config(args.file, dump=(not args.dry_run), results_dir=args.output)
+    except Exception as ex:
+        if args.pdb:
+            pdb.post_mortem()
+        else:
+            raise
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 ---
 name: torvalds_example
-max_time: 1
+max_time: 10
 interval: 2
 agent_type: CounterModel
 default_state:

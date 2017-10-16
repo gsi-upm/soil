@@ -1,7 +1,11 @@
 import importlib
 import sys
+import os
 import argparse
+import logging
 from . import simulation
+
+logger = logging.getLogger(__name__)
 
 
 def main():

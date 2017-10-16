@@ -8,6 +8,7 @@
 import nxsim
 from collections import OrderedDict
 from copy import deepcopy
+from functools import partial
 import json
 
 from functools import wraps
@@ -27,28 +28,33 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
     A special simpy BaseAgent that keeps track of its state history.
     """
 
-    def __init__(self, *args, **kwargs):
-        self._history = OrderedDict()
+    defaults = {}
+
+    def __init__(self, **kwargs):
         self._neighbors = None
-        super().__init__(*args, **kwargs)
+        self.alive = True
+        state = deepcopy(self.defaults)
+        state.update(kwargs.pop('state', {}))
+        kwargs['state'] = state
+        super().__init__(**kwargs)
 
     def __getitem__(self, key):
         if isinstance(key, tuple):
             k, t_step = key
-            if k is not None:
-                if t_step is not None:
-                    return self._history[t_step][k]
-                else:
-                    return {tt: tv.get(k, None) for tt, tv in self._history.items()}
-            else:
-                return self._history[t_step]
-        return self.state[key]
+            return self.env[t_step, self.id, k]
+        return self.state.get(key, None)
+
+    def __delitem__(self, key):
+        del self.state[key]
+
+    def __contains__(self, key):
+        return key in self.state
 
     def __setitem__(self, key, value):
         self.state[key] = value
 
-    def save_state(self):
-        self._history[self.now] = deepcopy(self.state)
+    def get(self, key, default=None):
+        return self[key] if key in self else default
 
     @property
     def now(self):
@@ -59,18 +65,20 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
             return None
 
     def run(self):
-        while True:
+        while self.alive:
             res = self.step()
             yield res or self.env.timeout(self.env.interval)
+
+    def die(self, remove=False):
+        self.alive = False
+        if remove:
+            super().die()
 
     def step(self):
         pass
 
     def to_json(self):
         return json.dumps(self._history)
-
-
-class NetworkAgent(BaseAgent, nxsim.BaseNetworkAgent):
 
     def count_agents(self, state_id=None, limit_neighbors=False):
         if limit_neighbors:
@@ -83,6 +91,25 @@ class NetworkAgent(BaseAgent, nxsim.BaseNetworkAgent):
                 continue
             count += 1
         return count
+
+    def get_agents(self, state_id=None, limit_neighbors=False, **kwargs):
+        if limit_neighbors:
+            agents = super().get_agents(state_id, limit_neighbors)
+        else:
+            agents = filter(lambda x: state_id is None or x.state.get('id', None) == state_id,
+                            self.env.agents)
+
+        def matches_all(agent):
+            state = agent.state
+            for k, v in kwargs.items():
+                if state.get(k, None) != v:
+                    return False
+            return True
+
+        return filter(matches_all, agents)
+
+
+class NetworkAgent(BaseAgent, nxsim.BaseNetworkAgent):
 
     def count_neighboring_agents(self, state_id=None):
         return self.count_agents(state_id, limit_neighbors=True)
@@ -154,6 +181,13 @@ class FSM(BaseAgent, metaclass=MetaFSM):
         if next_state not in self.states:
             raise Exception('{} is not a valid id for {}'.format(next_state, self))
         self.states[next_state](self)
+
+    def set_state(self, state):
+        if hasattr(state, 'id'):
+            state = state.id
+        if state not in self.states:
+            raise ValueError('{} is not a valid state'.format(state))
+        self.state['id'] = state
 
 
 from .BassModel import *

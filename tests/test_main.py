@@ -111,7 +111,7 @@ class TestMain(TestCase):
         env = s.run_simulation()[0]
         for agent in env.network_agents:
             last = 0
-            assert len(agent._history) == 11
+            assert len(agent[None, None]) == 11
             for step, total in agent['total', None].items():
                 if step > 0:
                     assert total == last + 2
@@ -177,6 +177,7 @@ class TestMain(TestCase):
             recovered = yaml.load(serial)
         with utils.timer('deleting'):
             del recovered['topology']
+            del recovered['load_module']
         assert config == recovered
 
     def test_configuration_changes(self):
@@ -190,6 +191,7 @@ class TestMain(TestCase):
             s.run_simulation()
             nconfig = s.to_dict()
             del nconfig['topology']
+            del nconfig['load_module']
             assert config == nconfig
 
     def test_examples(self):
@@ -205,9 +207,11 @@ def make_example_test(path, config):
         s = simulation.from_config(config)
         envs = s.run_simulation()
         for env in envs:
-            n = config['network_params'].get('n', None)
-            if n is not None:
+            try:
+                n = config['network_params']['n']
                 assert len(env.get_agents()) == n
+            except KeyError:
+                pass
         os.chdir(root)
     return wrapped
 

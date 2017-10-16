@@ -1,11 +1,15 @@
 import os
+import time
 import csv
 import weakref
-from random import random
+import random
 from copy import deepcopy
+from functools import partial
 
 import networkx as nx
 import nxsim
+
+from . import utils
 
 
 class SoilEnvironment(nxsim.NetworkEnvironment):
@@ -16,6 +20,8 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
                  states=None,
                  default_state=None,
                  interval=1,
+                 seed=None,
+                 dump=False,
                  *args, **kwargs):
         self.name = name or 'UnnamedEnvironment'
         self.states = deepcopy(states) or {}
@@ -25,8 +31,11 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         self._history = {}
         self.interval = interval
         self.logger = None
+        self.dump = dump
         # Add environment agents first, so their events get
         # executed before network agents
+        self['SEED'] = seed or time.time()
+        random.seed(self['SEED'])
         self.environment_agents = environment_agents or []
         self.network_agents = network_agents or []
         self.process(self.save_state())
@@ -65,26 +74,32 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         for ix in self.G.nodes():
             i = ix
             node = self.G.node[i]
-            v = random()
-            found = False
-            for d in network_agents:
-                threshold = d['threshold']
-                if v >= threshold[0] and v < threshold[1]:
-                    agent = d['agent_type']
-                    state = None
-                    if 'state' in d:
-                        state = deepcopy(d['state'])
-                    else:
-                        try:
-                            state = self.states[i]
-                        except (IndexError, KeyError):
-                            state = deepcopy(self.default_state)
-                    node['agent'] = agent(environment=self,
-                                          agent_id=i,
-                                          state=state)
-                    found = True
-                    break
-            assert found
+            agent, state = utils.agent_from_distribution(network_agents)
+            self.set_agent(i, agent_type=agent, state=state)
+
+    def set_agent(self, agent_id, agent_type, state=None):
+        node = self.G.nodes[agent_id]
+        defstate = deepcopy(self.default_state)
+        defstate.update(self.states.get(agent_id, {}))
+        if state:
+            defstate.update(state)
+        state = defstate
+        state.update(node.get('state', {}))
+        a = agent_type(environment=self,
+                       agent_id=agent_id,
+                       state=state)
+        node['agent'] = a
+        return a
+
+    def add_node(self, agent_type, state=None):
+        agent_id = int(len(self.G.nodes()))
+        self.G.add_node(agent_id)
+        a = self.set_agent(agent_id, agent_type, state)
+        a['visible'] = True
+        return a
+
+    def add_edge(self, agent1, agent2, attrs=None):
+        return self.G.add_edge(agent1, agent2)
 
     def run(self, *args, **kwargs):
         self._save_state()
@@ -92,9 +107,12 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         self._save_state()
 
     def _save_state(self):
+        # for agent in self.agents:
+        #     agent.save_state()
+        nowd = self._history[self.now] = {}
+        nowd['env'] = deepcopy(self.environment_params)
         for agent in self.agents:
-            agent.save_state()
-        self._history[self.now] = deepcopy(self.environment_params)
+            nowd[agent.id] = deepcopy(agent.state)
 
     def save_state(self):
         while True:
@@ -107,10 +125,31 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
             self._save_state()
 
     def __getitem__(self, key):
+        if isinstance(key, tuple):
+            t_step, agent_id, k = key
+
+            def key_or_dict(d, k, nfunc):
+                if k is None:
+                    if d is None:
+                        return {}
+                    return {k: nfunc(v) for k, v in d.items()}
+                if k in d:
+                    return nfunc(d[k])
+                return {}
+
+            f1 = partial(key_or_dict, k=k, nfunc=lambda x: x)
+            f2 = partial(key_or_dict, k=agent_id, nfunc=f1)
+            return key_or_dict(self._history, t_step, f2)
         return self.environment_params[key]
 
     def __setitem__(self, key, value):
         self.environment_params[key] = value
+
+    def __contains__(self, key):
+        return key in self.environment_params
+
+    def get(self, key, default=None):
+        return self[key] if key in self else default
 
     def get_path(self, dir_path=None):
         dir_path = dir_path or self.sim().dir_path
@@ -141,13 +180,10 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         nx.write_gexf(G, graph_path, version="1.2draft")
 
     def history_to_tuples(self):
-        for tstep, state in self._history.items():
-            for attribute, value in state.items():
-                yield ('env', tstep, attribute, value)
-        for agent in self.agents:
-            for tstep, state in agent._history.items():
+        for tstep, states in self._history.items():
+            for a_id, state in states.items():
                 for attribute, value in state.items():
-                    yield (agent.id, tstep, attribute, value)
+                    yield (a_id, tstep, attribute, value)
 
     def history_to_graph(self):
         G = nx.Graph(self.G)
@@ -159,7 +195,7 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
             spells = []
             lastvisible = False
             laststep = None
-            for t_step, state in reversed(list(agent._history.items())):
+            for t_step, state in reversed(list(self[None, agent.id, None].items())):
                 for attribute, value in state.items():
                     if attribute == 'visible':
                         nowvisible = state[attribute]

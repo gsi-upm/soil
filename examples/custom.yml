@@ -1,0 +1,21 @@
+---
+load_module: custom_agents
+name: custom_agent_example
+max_time: 2500
+interval: 1
+seed: MySimulationSeed
+agent_type: RabbitModel
+environment_agents:
+    - agent_type: RandomAccident
+default_state:
+  mating_prob: 1
+topology:
+  nodes:
+    - id: 1
+      state:
+        gender: female
+    - id: 0
+      state:
+        gender: male
+  directed: true
+  links: []
