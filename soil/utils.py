@@ -10,10 +10,15 @@ import networkx as nx
 
 from contextlib import contextmanager
 
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler())
 
 
 def load_network(network_params, dir_path=None):
+    if network_params is None:
+        return nx.Graph()
     path = network_params.get('path', None)
     if path:
         if dir_path and not os.path.isabs(path):
@@ -73,9 +78,23 @@ def agent_from_distribution(distribution, value=-1):
     for d in distribution:
         threshold = d['threshold']
         if value >= threshold[0] and value < threshold[1]:
-            state = None
+            state = {}
             if 'state' in d:
                 state = deepcopy(d['state'])
             return d['agent_type'], state
 
     raise Exception('Distribution for value {} not found in: {}'.format(value, distribution))
+
+
+def convert(value, type_):
+    import importlib
+    try:
+        # Check if it's a builtin type
+        module = importlib.import_module('builtins')
+        cls = getattr(module, type_)
+    except AttributeError:
+        # if not, separate module and class
+        module, type_ = type_.rsplit(".", 1)
+        module = importlib.import_module(module)
+        cls = getattr(module, type_)
+    return cls(value)

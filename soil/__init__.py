@@ -11,11 +11,8 @@ try:
 except NameError:
     basestring = str
 
-from . import agents
-from . import simulation
-from . import environment
+logging.basicConfig()#format=FORMAT)
 from . import utils
-from . import settings
 
 
 def main():
@@ -42,9 +39,8 @@ def main():
         sys.path.append(os.getcwd())
         importlib.import_module(args.module)
 
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
-    logger.info('Loading config file: {}'.format(args.file, args.output))
+    logging.info('Loading config file: {}'.format(args.file, args.output))
+
     try:
         simulation.run_from_config(args.file, dump=(not args.dry_run), results_dir=args.output)
     except Exception as ex:

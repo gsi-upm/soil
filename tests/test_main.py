@@ -5,7 +5,7 @@ import yaml
 from functools import partial
 
 from os.path import join
-from soil import simulation, agents, utils
+from soil import simulation, environment, agents, utils
 
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
@@ -198,6 +198,26 @@ class TestMain(TestCase):
         """
         Make sure all examples in the examples folder are correct
         """
+        pass
+
+    def test_row_conversion(self):
+        sim = simulation.SoilSimulation()
+        env = environment.SoilEnvironment(simulation=sim)
+        env['test'] = 'test_value'
+        env._save_state(now=0)
+
+        res = list(env.history_to_tuples())
+        assert len(res) == len(env.environment_params)
+        assert ('env', 0, 'test', 'test_value') in res
+
+        env['test'] = 'second_value'
+        env._save_state(now=1)
+        res = list(env.history_to_tuples())
+
+        assert env['env', 0, 'test' ] == 'test_value'
+        assert env['env', 1, 'test' ] == 'second_value'
+
+
 
 
 def make_example_test(path, config):

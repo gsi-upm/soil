@@ -9,8 +9,8 @@ class CounterModel(NetworkAgent):
 
     def step(self):
         # Outside effects
-        total = len(self.get_all_agents())
-        neighbors = len(self.get_neighboring_agents())
+        total = len(list(self.get_all_agents()))
+        neighbors = len(list(self.get_neighboring_agents()))
         self.state['times'] = self.state.get('times', 0) + 1
         self.state['neighbors'] = neighbors
         self.state['total'] = total
@@ -24,8 +24,8 @@ class AggregatedCounter(NetworkAgent):
 
     def step(self):
         # Outside effects
-        total = len(self.get_all_agents())
-        neighbors = len(self.get_neighboring_agents())
+        total = len(list(self.get_all_agents()))
+        neighbors = len(list(self.get_neighboring_agents()))
         self.state['times'] = self.state.get('times', 0) + 1
         self.state['neighbors'] = self.state.get('neighbors', 0) + neighbors
         self.state['total'] = self.state.get('total', 0) + total

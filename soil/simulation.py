@@ -1,10 +1,8 @@
-import weakref
 import os
 import time
 import imp
 import sys
 import yaml
-import logging
 import networkx as nx
 from networkx.readwrite import json_graph
 
@@ -15,8 +13,8 @@ import pickle
 from nxsim import NetworkSimulation
 
 from . import agents, utils, environment, basestring
+from .utils import logger
 
-logger = logging.getLogger(__name__)
 
 class SoilSimulation(NetworkSimulation):
     """
@@ -86,7 +84,7 @@ class SoilSimulation(NetworkSimulation):
         self.network_agents = self._convert_agent_types(distro)
 
         self.states = self.validate_states(states,
-                                           topology)
+                                           self.topology)
 
     def calculate_distribution(self,
                                network_agents=None,
@@ -178,9 +176,8 @@ class SoilSimulation(NetworkSimulation):
                                           states=self.states,
                                           default_state=self.default_state,
                                           environment_agents=self.environment_agents,
+                                          simulation=self,
                                           **self.environment_params)
-
-        env.sim = weakref.ref(self)
         # Set up agents on nodes
         logger.info('\tRunning')
         with utils.timer('trial'):

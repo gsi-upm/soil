@@ -6,10 +6,12 @@
     
 
 import nxsim
+import logging
 from collections import OrderedDict
 from copy import deepcopy
 from functools import partial
 import json
+
 
 from functools import wraps
 
@@ -37,11 +39,16 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
         state.update(kwargs.pop('state', {}))
         kwargs['state'] = state
         super().__init__(**kwargs)
+        if not hasattr(self, 'level'):
+            self.level = logging.DEBUG
+        self.logger = logging.getLogger('Agent-{}'.format(self.id))
+        self.logger.setLevel(self.level)
+
 
     def __getitem__(self, key):
         if isinstance(key, tuple):
             k, t_step = key
-            return self.env[t_step, self.id, k]
+            return self.env[self.id, t_step, k]
         return self.state.get(key, None)
 
     def __delitem__(self, key):
@@ -78,7 +85,7 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
         pass
 
     def to_json(self):
-        return json.dumps(self._history)
+        return json.dumps(self.state)
 
     def count_agents(self, state_id=None, limit_neighbors=False):
         if limit_neighbors:
@@ -108,6 +115,20 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
 
         return filter(matches_all, agents)
 
+    def log(self, message, level=logging.INFO, **kwargs):
+        message = "\t@{:>5}:\t{}".format(self.now, message)
+        for k, v in kwargs:
+            message += " {k}={v} ".format(k, v)
+        extra = {}
+        extra['now'] = self.now
+        extra['id'] = self.id
+        return self.logger.log(level, message, extra=extra)
+
+    def debug(self, *args, **kwargs):
+        return self.log(*args, level=logging.DEBUG, **kwargs)
+
+    def info(self, *args, **kwargs):
+        return self.log(*args, level=logging.INFO, **kwargs)
 
 class NetworkAgent(BaseAgent, nxsim.BaseNetworkAgent):
 

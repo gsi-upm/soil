@@ -4,6 +4,8 @@ dir_path: "/tmp/"
 num_trials: 3
 max_time: 100
 interval: 1
+seed: "CompleteSeed!"
+dump: false
 network_params:
   generator: complete_graph
   n: 10

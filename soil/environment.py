@@ -1,10 +1,11 @@
 import os
+import sqlite3
 import time
-import csv
 import weakref
+import csv
 import random
+import simpy
 from copy import deepcopy
-from functools import partial
 
 import networkx as nx
 import nxsim
@@ -22,15 +23,19 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
                  interval=1,
                  seed=None,
                  dump=False,
+                 simulation=None,
                  *args, **kwargs):
         self.name = name or 'UnnamedEnvironment'
-        self.states = deepcopy(states) or {}
+        if isinstance(states, list):
+            states = dict(enumerate(states))
+        self.states = deepcopy(states) if states else {}
         self.default_state = deepcopy(default_state) or {}
+        self.sim = weakref.ref(simulation)
+        if 'topology' not in kwargs and simulation:
+            kwargs['topology'] = self.sim().topology.copy()
         super().__init__(*args, **kwargs)
         self._env_agents = {}
-        self._history = {}
         self.interval = interval
-        self.logger = None
         self.dump = dump
         # Add environment agents first, so their events get
         # executed before network agents
@@ -39,6 +44,17 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         self.environment_agents = environment_agents or []
         self.network_agents = network_agents or []
         self.process(self.save_state())
+        if self.dump:
+            self._db_path = os.path.join(self.get_path(), 'db.sqlite')
+        else:
+            self._db_path = ":memory:"
+        self.create_db(self._db_path)
+
+    def create_db(self, db_path=None):
+        db_path = db_path or self._db_path
+        self._db = sqlite3.connect(db_path)
+        with self._db:
+            self._db.execute('''CREATE TABLE IF NOT EXISTS history (agent_id text, t_step int, key text, value text, value_type text)''')
 
     @property
     def agents(self):
@@ -48,7 +64,7 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
     @property
     def environment_agents(self):
         for ref in self._env_agents.values():
-            yield ref()
+            yield ref
 
     @environment_agents.setter
     def environment_agents(self, environment_agents):
@@ -60,7 +76,7 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
             kwargs['agent_id'] = kwargs.get('agent_id', atype.__name__)
             kwargs['state'] = kwargs.get('state', {})
             a = atype(environment=self, **kwargs)
-            self._env_agents[a.id] = weakref.ref(a)
+            self._env_agents[a.id] = a
 
     @property
     def network_agents(self):
@@ -106,41 +122,71 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         super().run(*args, **kwargs)
         self._save_state()
 
-    def _save_state(self):
+    def _save_state(self, now=None):
         # for agent in self.agents:
         #     agent.save_state()
-        nowd = self._history[self.now] = {}
-        nowd['env'] = deepcopy(self.environment_params)
-        for agent in self.agents:
-            nowd[agent.id] = deepcopy(agent.state)
+        with self._db:
+            self._db.executemany("insert into history(agent_id, t_step, key, value, value_type) values (?, ?, ?, ?, ?)", self.state_to_tuples(now=now))
 
     def save_state(self):
-        while True:
+        while self.peek() != simpy.core.Infinity:
+            utils.logger.info('Step: {}'.format(self.now))
             ev = self.event()
             ev._ok = True
             # Schedule the event with minimum priority so
             # that it executes after all agents are done
-            self.schedule(ev, -1, self.interval)
+            self.schedule(ev, -1, self.peek())
             yield ev
             self._save_state()
 
     def __getitem__(self, key):
         if isinstance(key, tuple):
-            t_step, agent_id, k = key
+            values = {"agent_id": key[0],
+                      "t_step": key[1],
+                      "key": key[2],
+                      "value": None,
+                      "value_type": None
+            }
 
-            def key_or_dict(d, k, nfunc):
-                if k is None:
-                    if d is None:
-                        return {}
-                    return {k: nfunc(v) for k, v in d.items()}
-                if k in d:
-                    return nfunc(d[k])
-                return {}
+            fields = list(k for k, v in values.items() if v is None)
+            conditions = " and ".join("{}='{}'".format(k, v) for k, v in values.items() if v is not None)
 
-            f1 = partial(key_or_dict, k=k, nfunc=lambda x: x)
-            f2 = partial(key_or_dict, k=agent_id, nfunc=f1)
-            return key_or_dict(self._history, t_step, f2)
+            query = """SELECT {fields} from history""".format(fields=",".join(fields))
+            if conditions:
+                query = """{query} where {conditions}""".format(query=query,
+                                                                conditions=conditions)
+            with self._db:
+                rows = self._db.execute(query).fetchall()
+
+            utils.logger.debug(rows)
+            results = self.rows_to_dict(rows)
+            return results
+
         return self.environment_params[key]
+
+    def rows_to_dict(self, rows):
+        if len(rows) < 1:
+            return None
+
+        level = len(rows[0])-2
+
+        if level == 0:
+            if len(rows) != 1:
+                raise ValueError('Cannot convert {} to dictionaries'.format(rows))
+            value, value_type = rows[0]
+            return utils.convert(value, value_type)
+
+        results = {}
+        for row in rows:
+            item = results
+            for i in range(level-1):
+                key = row[i]
+                if key not in item:
+                    item[key] = {}
+                item = item[key]
+            key, value, value_type = row[level-1:]
+            item[key] = utils.convert(value, value_type)
+        return results
 
     def __setitem__(self, key, value):
         self.environment_params[key] = value
@@ -179,23 +225,34 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
                                   self.name+".gexf")
         nx.write_gexf(G, graph_path, version="1.2draft")
 
+    def state_to_tuples(self, now=None):
+        if now is None:
+            now = self.now
+        for k, v in self.environment_params.items():
+            yield 'env', now, k, v, type(v).__name__
+        for agent in self.agents:
+            for k, v in agent.state.items():
+                yield agent.id, now, k, v, type(v).__name__
+
     def history_to_tuples(self):
-        for tstep, states in self._history.items():
-            for a_id, state in states.items():
-                for attribute, value in state.items():
-                    yield (a_id, tstep, attribute, value)
+        with self._db:
+            res = self._db.execute("select agent_id, t_step, key, value from history ").fetchall()
+        yield from res
 
     def history_to_graph(self):
         G = nx.Graph(self.G)
 
-        for agent in self.agents:
+        for agent in self.network_agents:
 
             attributes = {'agent': str(agent.__class__)}
             lastattributes = {}
             spells = []
             lastvisible = False
             laststep = None
-            for t_step, state in reversed(list(self[None, agent.id, None].items())):
+            history = self[agent.id, None, None]
+            if not history:
+                continue
+            for t_step, state in reversed(sorted(list(history.items()))):
                 for attribute, value in state.items():
                     if attribute == 'visible':
                         nowvisible = state[attribute]
@@ -206,15 +263,20 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
 
                         lastvisible = nowvisible
                     else:
-                        if attribute not in lastattributes or lastattributes[attribute][0] != value:
-                            laststep = lastattributes.get(attribute,
-                                                          (None, None))[1]
-                            value = (state[attribute], t_step, laststep)
-                            key = 'attr_' + attribute
+                        key = 'attr_' + attribute
+                        if key not in attributes:
+                            attributes[key] = list()
+                        if key not in lastattributes:
+                            lastattributes[key] = (state[attribute], t_step)
+                        elif lastattributes[key][0] != value:
+                            last_value, laststep = lastattributes[key]
+                            value = (last_value, t_step, laststep)
                             if key not in attributes:
                                 attributes[key] = list()
                             attributes[key].append(value)
-                            lastattributes[attribute] = (state[attribute], t_step)
+                            lastattributes[key] = (state[attribute], t_step)
+            for k, v in lastattributes.items():
+                attributes[k].append((v[0], 0, v[1]))
             if lastvisible:
                 spells.append((laststep, None))
             if spells:
