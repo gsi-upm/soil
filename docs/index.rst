@@ -34,13 +34,14 @@ If you use Soil in your research, do not forget to cite this paper:
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 0
    :caption: Learn more about soil:
 
    installation
    quickstart
-   Tutorial - Spreading news
+   Tutorial <soil_tutorial>
 
+..
 
 
 .. Indices and tables

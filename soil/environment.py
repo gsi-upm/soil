@@ -41,17 +41,20 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         # executed before network agents
         self['SEED'] = seed or time.time()
         random.seed(self['SEED'])
+        self.process(self.save_state())
         self.environment_agents = environment_agents or []
         self.network_agents = network_agents or []
-        self.process(self.save_state())
         if self.dump:
-            self._db_path = os.path.join(self.get_path(), 'db.sqlite')
+            self._db_path = os.path.join(self.get_path(), '{}.db.sqlite'.format(self.name))
         else:
             self._db_path = ":memory:"
         self.create_db(self._db_path)
 
     def create_db(self, db_path=None):
         db_path = db_path or self._db_path
+        if os.path.exists(db_path):
+            newname = db_path.replace('db.sqlite', 'backup{}.sqlite'.format(time.time()))
+            os.rename(db_path, newname)
         self._db = sqlite3.connect(db_path)
         with self._db:
             self._db.execute('''CREATE TABLE IF NOT EXISTS history (agent_id text, t_step int, key text, value text, value_type text)''')
@@ -118,24 +121,25 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         return self.G.add_edge(agent1, agent2)
 
     def run(self, *args, **kwargs):
-        self._save_state()
         super().run(*args, **kwargs)
-        self._save_state()
 
     def _save_state(self, now=None):
         # for agent in self.agents:
         #     agent.save_state()
+        utils.logger.debug('Saving state @{}'.format(self.now))
         with self._db:
             self._db.executemany("insert into history(agent_id, t_step, key, value, value_type) values (?, ?, ?, ?, ?)", self.state_to_tuples(now=now))
 
     def save_state(self):
+        self._save_state()
         while self.peek() != simpy.core.Infinity:
-            utils.logger.info('Step: {}'.format(self.now))
+            delay = max(self.peek() - self.now, self.interval)
+            utils.logger.debug('Step: {}'.format(self.now))
             ev = self.event()
             ev._ok = True
             # Schedule the event with minimum priority so
-            # that it executes after all agents are done
-            self.schedule(ev, -1, self.peek())
+            # that it executes before all agents
+            self.schedule(ev, -999, delay)
             yield ev
             self._save_state()
 
@@ -215,7 +219,7 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
 
         with open(csv_name, 'w') as f:
             cr = csv.writer(f)
-            cr.writerow(('agent_id', 'tstep', 'attribute', 'value'))
+            cr.writerow(('agent_id', 't_step', 'key', 'value', 'value_type'))
             for i in self.history_to_tuples():
                 cr.writerow(i)
 
@@ -229,14 +233,16 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         if now is None:
             now = self.now
         for k, v in self.environment_params.items():
-            yield 'env', now, k, v, type(v).__name__
+            v, v_t = utils.repr(v)
+            yield 'env', now, k, v, v_t
         for agent in self.agents:
             for k, v in agent.state.items():
-                yield agent.id, now, k, v, type(v).__name__
+                v, v_t = utils.repr(v)
+                yield agent.id, now, k, v, v_t
 
     def history_to_tuples(self):
         with self._db:
-            res = self._db.execute("select agent_id, t_step, key, value from history ").fetchall()
+            res = self._db.execute("select agent_id, t_step, key, value, value_type from history ").fetchall()
         yield from res
 
     def history_to_graph(self):

@@ -72,9 +72,10 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
             return None
 
     def run(self):
+        interval = self.env.interval
         while self.alive:
             res = self.step()
-            yield res or self.env.timeout(self.env.interval)
+            yield res or self.env.timeout(interval)
 
     def die(self, remove=False):
         self.alive = False
@@ -99,7 +100,10 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
             count += 1
         return count
 
-    def get_agents(self, state_id=None, limit_neighbors=False, **kwargs):
+    def count_neighboring_agents(self, state_id=None):
+        return len(super().get_agents(state_id, limit_neighbors=True))
+
+    def get_agents(self, state_id=None, limit_neighbors=False, iterator=False, **kwargs):
         if limit_neighbors:
             agents = super().get_agents(state_id, limit_neighbors)
         else:
@@ -113,9 +117,13 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
                     return False
             return True
 
-        return filter(matches_all, agents)
+        f = filter(matches_all, agents)
+        if iterator:
+            return f
+        return list(f)
 
-    def log(self, message, level=logging.INFO, **kwargs):
+    def log(self, message, *args, level=logging.INFO, **kwargs):
+        message = message + " ".join(str(i) for i in args)
         message = "\t@{:>5}:\t{}".format(self.now, message)
         for k, v in kwargs:
             message += " {k}={v} ".format(k, v)
@@ -129,11 +137,6 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
 
     def info(self, *args, **kwargs):
         return self.log(*args, level=logging.INFO, **kwargs)
-
-class NetworkAgent(BaseAgent, nxsim.BaseNetworkAgent):
-
-    def count_neighboring_agents(self, state_id=None):
-        return self.count_agents(state_id, limit_neighbors=True)
 
 
 def state(func):
@@ -150,7 +153,7 @@ def state(func):
             try:
                 self.state['id'] = next_state.id
             except AttributeError:
-                raise NotImplemented('State id %s is not valid.' % next_state)
+                raise ValueError('State id %s is not valid.' % next_state)
         return when
 
     func_wrapper.id = func.__name__

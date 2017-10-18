@@ -1,8 +1,8 @@
 import random
-from . import NetworkAgent
+from . import BaseAgent
 
 
-class BassModel(NetworkAgent):
+class BassModel(BaseAgent):
     """
     Settings:
         innovation_prob

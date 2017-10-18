@@ -60,7 +60,7 @@ class TestMain(TestCase):
             'network_params': {
                 'path': join(ROOT, 'test.gexf')
             },
-            'agent_type': 'NetworkAgent',
+            'agent_type': 'BaseAgent',
             'environment_params': {
             }
         }
@@ -119,7 +119,7 @@ class TestMain(TestCase):
 
     def test_custom_agent(self):
         """Allow for search of neighbors with a certain state_id"""
-        class CustomAgent(agents.NetworkAgent):
+        class CustomAgent(agents.BaseAgent):
             def step(self):
                 self.state['neighbors'] = self.count_agents(state_id=0,
                                                             limit_neighbors=True)
@@ -208,7 +208,7 @@ class TestMain(TestCase):
 
         res = list(env.history_to_tuples())
         assert len(res) == len(env.environment_params)
-        assert ('env', 0, 'test', 'test_value') in res
+        assert ('env', 0, 'test', 'test_value', 'str') in res
 
         env['test'] = 'second_value'
         env._save_state(now=1)

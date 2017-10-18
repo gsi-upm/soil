@@ -3,7 +3,7 @@
 Soil is an extensible and user-friendly Agent-based Social Simulator for Social Networks.
 Learn how to run your own simulations with our [documentation](http://soilsim.readthedocs.io).
 
-Follow our [tutorial](notebooks/soil_tutorial.ipynb) to develop your own agent models.
+Follow our [tutorial](examples/tutorial/soil_tutorial.ipynb) to develop your own agent models.
 
 If you use Soil in your research, don't forget to cite this paper:
 

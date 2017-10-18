@@ -1,9 +1,9 @@
 import random
 import numpy as np
-from . import NetworkAgent
+from . import BaseAgent
 
 
-class SpreadModelM2(NetworkAgent):
+class SpreadModelM2(BaseAgent):
     """
     Settings:
         prob_neutral_making_denier
@@ -104,7 +104,7 @@ class SpreadModelM2(NetworkAgent):
                 neighbor.state['id'] = 2  # Cured
 
 
-class ControlModelM2(NetworkAgent):
+class ControlModelM2(BaseAgent):
     """
     Settings:
         prob_neutral_making_denier

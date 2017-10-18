@@ -1,14 +1,14 @@
 ---
 load_module: rabbit_agents
 name: rabbits_example
-max_time: 1500
+max_time: 1200
 interval: 1
 seed: MySeed
 agent_type: RabbitModel
 environment_agents:
     - agent_type: RandomAccident
 environment_params:
-  prob_death: 0.0001
+  prob_death: 0.001
 default_state:
   mating_prob: 0.01
 topology:

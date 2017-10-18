@@ -1,8 +1,8 @@
 import random
-from . import NetworkAgent
+from . import BaseAgent
 
 
-class BigMarketModel(NetworkAgent):
+class BigMarketModel(BaseAgent):
     """
     Settings:
         Names:

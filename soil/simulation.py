@@ -67,7 +67,7 @@ class SoilSimulation(NetworkSimulation):
         self.default_state = default_state or {}
         self.dir_path = dir_path or os.getcwd()
         self.interval = interval
-        self.seed = seed
+        self.seed = str(seed) or str(time.time())
         self.dump = dump
         self.environment_params = environment_params or {}
 
@@ -168,7 +168,7 @@ class SoilSimulation(NetworkSimulation):
         env_name = '{}_trial_{}'.format(self.name, trial_id)
         env = environment.SoilEnvironment(name=env_name,
                                           topology=self.topology.copy(),
-                                          seed=self.seed,
+                                          seed=self.seed+env_name,
                                           initial_time=0,
                                           dump=self.dump,
                                           interval=self.interval,

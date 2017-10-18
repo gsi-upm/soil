@@ -13,7 +13,6 @@ from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler())
 
 
 def load_network(network_params, dir_path=None):
@@ -85,6 +84,12 @@ def agent_from_distribution(distribution, value=-1):
 
     raise Exception('Distribution for value {} not found in: {}'.format(value, distribution))
 
+
+def repr(v):
+    if isinstance(v, bool):
+        v = "true" if v else ""
+        return v, bool.__name__
+    return v, type(v).__name__
 
 def convert(value, type_):
     import importlib

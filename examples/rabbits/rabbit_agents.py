@@ -1,4 +1,4 @@
-from soil.agents import NetworkAgent, FSM, state, default_state, BaseAgent
+from soil.agents import FSM, state, default_state, BaseAgent
 from enum import Enum
 from random import random, choice
 from itertools import islice
@@ -11,7 +11,7 @@ class Genders(Enum):
     female = 'female'
 
 
-class RabbitModel(NetworkAgent, FSM):
+class RabbitModel(FSM):
 
     level = logging.INFO
 
@@ -26,7 +26,7 @@ class RabbitModel(NetworkAgent, FSM):
     life_expectancy = 365 * 3
     gestation = 33
     pregnancy = -1
-    max_females = 2
+    max_females = 5
 
     @default_state
     @state
@@ -71,6 +71,7 @@ class RabbitModel(NetworkAgent, FSM):
         self.debug('Pregnancy: {}'.format(self['pregnancy']))
         if self['pregnancy'] >= self.gestation:
             number_of_babies = int(8+4*random())
+            self.info('Having {} babies'.format(number_of_babies))
             for i in range(number_of_babies):
                 state = {}
                 state['gender'] = choice(list(Genders)).value
@@ -79,13 +80,13 @@ class RabbitModel(NetworkAgent, FSM):
                 self.env.add_edge(self['mate'], child.id)
                 # self.add_edge()
                 self.debug('A BABY IS COMING TO LIFE')
-                self.env['rabbits_alive'] = self.env.get('rabbits_alive', 0)+1
+                self.env['rabbits_alive'] = self.env.get('rabbits_alive', self.global_topology.number_of_nodes())+1
                 self.debug('Rabbits alive: {}'.format(self.env['rabbits_alive']))
                 self['offspring'] += 1
                 self.env.get_agent(self['mate'])['offspring'] += 1
-                del self['mate']
-                self['pregnancy'] = -1
-                return self.fertile
+            del self['mate']
+            self['pregnancy'] = -1
+            return self.fertile
 
     @state
     def dead(self):
@@ -98,12 +99,12 @@ class RabbitModel(NetworkAgent, FSM):
 
 class RandomAccident(BaseAgent):
 
-    level = logging.INFO
+    level = logging.DEBUG
 
     def step(self):
         rabbits_total = self.global_topology.number_of_nodes()
         rabbits_alive = self.env.get('rabbits_alive', rabbits_total)
-        prob_death = self.env.get('prob_death', 1e-100)*math.log(max(1, rabbits_alive))
+        prob_death = self.env.get('prob_death', 1e-100)*math.floor(math.log10(max(1, rabbits_alive)))
         self.debug('Killing some rabbits with prob={}!'.format(prob_death))
         for i in self.env.network_agents:
             if i.state['id'] == i.dead.id:

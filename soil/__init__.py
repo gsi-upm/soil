@@ -4,15 +4,20 @@ import os
 import pdb
 import logging
 
-__version__ = "0.9.7"
+__version__ = "0.10"
 
 try:
     basestring
 except NameError:
     basestring = str
 
-logging.basicConfig()#format=FORMAT)
+logging.basicConfig()
+
+from . import agents
+from . import simulation
+from . import environment
 from . import utils
+from . import analysis
 
 
 def main():

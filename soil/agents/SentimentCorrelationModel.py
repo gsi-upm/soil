@@ -1,8 +1,8 @@
 import random
-from . import NetworkAgent
+from . import BaseAgent
 
 
-class SentimentCorrelationModel(NetworkAgent):
+class SentimentCorrelationModel(BaseAgent):
     """
     Settings:
         outside_effects_prob
