@@ -145,15 +145,13 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
 
     def __getitem__(self, key):
         if isinstance(key, tuple):
-            values = {"agent_id": key[0],
-                      "t_step": key[1],
-                      "key": key[2],
-                      "value": None,
-                      "value_type": None
-            }
-
-            fields = list(k for k, v in values.items() if v is None)
-            conditions = " and ".join("{}='{}'".format(k, v) for k, v in values.items() if v is not None)
+            values = [("agent_id", key[0]),
+                      ("t_step", key[1]),
+                      ("key", key[2]),
+                      ("value", None),
+                      ("value_type", None)]
+            fields = list(k for k, v in values if v is None)
+            conditions = " and ".join("{}='{}'".format(k, v) for k, v in values if v is not None)
 
             query = """SELECT {fields} from history""".format(fields=",".join(fields))
             if conditions:
