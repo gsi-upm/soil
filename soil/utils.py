@@ -11,7 +11,7 @@ import networkx as nx
 from contextlib import contextmanager
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('soil')
 logger.setLevel(logging.INFO)
 
 
@@ -62,27 +62,13 @@ def load_config(config):
 @contextmanager
 def timer(name='task', pre="", function=logger.info, to_object=None):
     start = time()
+    function('{}Starting {} at {}.'.format(pre, name, start))
     yield start
     end = time()
     function('{}Finished {} in {} seconds'.format(pre, name, str(end-start)))
     if to_object:
         to_object.start = start
         to_object.end = end
-
-
-def agent_from_distribution(distribution, value=-1):
-    """Find the agent """
-    if value < 0:
-        value = random()
-    for d in distribution:
-        threshold = d['threshold']
-        if value >= threshold[0] and value < threshold[1]:
-            state = {}
-            if 'state' in d:
-                state = deepcopy(d['state'])
-            return d['agent_type'], state
-
-    raise Exception('Distribution for value {} not found in: {}'.format(value, distribution))
 
 
 def repr(v):

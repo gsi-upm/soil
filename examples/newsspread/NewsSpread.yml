@@ -68,7 +68,7 @@ network_agents:
 - agent_type: HerdViewer
   state:
     has_tv: true
-    id: infected
+    id: neutral
   weight: 1
 - agent_type: HerdViewer
   state:
@@ -95,7 +95,7 @@ network_agents:
 - agent_type: HerdViewer
   state:
     has_tv: true
-    id: infected
+    id: neutral
   weight: 1
 - agent_type: WiseViewer
   state:
@@ -121,7 +121,7 @@ network_agents:
 - agent_type: WiseViewer
   state:
     has_tv: true
-    id: infected
+    id: neutral
   weight: 1
 - agent_type: WiseViewer
   state:

@@ -1,16 +1,16 @@
 import os
 import sqlite3
 import time
-import weakref
 import csv
 import random
 import simpy
 from copy import deepcopy
+from networkx.readwrite import json_graph
 
 import networkx as nx
 import nxsim
 
-from . import utils
+from . import utils, agents
 
 
 class SoilEnvironment(nxsim.NetworkEnvironment):
@@ -22,21 +22,18 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
                  default_state=None,
                  interval=1,
                  seed=None,
-                 dump=False,
-                 simulation=None,
+                 dry_run=False,
+                 dir_path=None,
                  *args, **kwargs):
         self.name = name or 'UnnamedEnvironment'
         if isinstance(states, list):
             states = dict(enumerate(states))
         self.states = deepcopy(states) if states else {}
         self.default_state = deepcopy(default_state) or {}
-        self.sim = weakref.ref(simulation)
-        if 'topology' not in kwargs and simulation:
-            kwargs['topology'] = self.sim().topology.copy()
         super().__init__(*args, **kwargs)
         self._env_agents = {}
+        self.dry_run = dry_run
         self.interval = interval
-        self.dump = dump
         # Add environment agents first, so their events get
         # executed before network agents
         self['SEED'] = seed or time.time()
@@ -44,10 +41,11 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         self.process(self.save_state())
         self.environment_agents = environment_agents or []
         self.network_agents = network_agents or []
-        if self.dump:
-            self._db_path = os.path.join(self.get_path(), '{}.db.sqlite'.format(self.name))
-        else:
+        self.dir_path = dir_path
+        if self.dry_run:
             self._db_path = ":memory:"
+        else:
+            self._db_path = os.path.join(self.get_path(), '{}.db.sqlite'.format(self.name))
         self.create_db(self._db_path)
 
     def create_db(self, db_path=None):
@@ -93,7 +91,7 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         for ix in self.G.nodes():
             i = ix
             node = self.G.node[i]
-            agent, state = utils.agent_from_distribution(network_agents)
+            agent, state = agents._agent_from_distribution(network_agents)
             self.set_agent(i, agent_type=agent, state=state)
 
     def set_agent(self, agent_id, agent_type, state=None):
@@ -200,7 +198,7 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         return self[key] if key in self else default
 
     def get_path(self, dir_path=None):
-        dir_path = dir_path or self.sim().dir_path
+        dir_path = dir_path or self.dir_path
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
         return dir_path
@@ -226,6 +224,19 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         graph_path = os.path.join(self.get_path(dir_path),
                                   self.name+".gexf")
         nx.write_gexf(G, graph_path, version="1.2draft")
+
+    def dump(self, dir_path=None, formats=None):
+        if not formats:
+            return
+        functions = {
+            'csv': self.dump_csv,
+            'gexf': self.dump_gexf
+        }
+        for f in formats:
+            if f in functions:
+                functions[f](dir_path)
+            else:
+                raise ValueError('Unknown format: {}'.format(f))
 
     def state_to_tuples(self, now=None):
         if now is None:
@@ -289,3 +300,23 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
                 G.add_node(agent.id, **attributes)
 
         return G
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['G'] = json_graph.node_link_data(self.G)
+        state['network_agents'] = agents.serialize_distribution(self.network_agents)
+        state['environment_agents'] = agents._convert_agent_types(self.environment_agents,
+                                                                 to_string=True)
+        del state['_queue']
+        import inspect
+        for k, v in state.items():
+            if inspect.isgeneratorfunction(v):
+                print(k, v, type(v))
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__ = state
+        self.G = json_graph.node_link_graph(state['G'])
+        self.network_agents = self.calculate_distribution(self._convert_agent_types(self.network_agents))
+        self.environment_agents = self._convert_agent_types(self.environment_agents)
+        return state

@@ -5,14 +5,14 @@ import sys
 import yaml
 import networkx as nx
 from networkx.readwrite import json_graph
-
-from copy import deepcopy
+from multiprocessing import Pool
+from functools import partial
 
 import pickle
 
 from nxsim import NetworkSimulation
 
-from . import agents, utils, environment, basestring
+from . import utils, environment, basestring, agents
 from .utils import logger
 
 
@@ -46,7 +46,7 @@ class SoilSimulation(NetworkSimulation):
     """
     def __init__(self, name=None, topology=None, network_params=None,
                  network_agents=None, agent_type=None, states=None,
-                 default_state=None, interval=1, dump=False,
+                 default_state=None, interval=1, dump=None, dry_run=False,
                  dir_path=None, num_trials=1, max_time=100,
                  agent_module=None, load_module=None, seed=None,
                  environment_agents=None, environment_params=None):
@@ -56,7 +56,6 @@ class SoilSimulation(NetworkSimulation):
                                           dir_path=dir_path)
         elif isinstance(topology, basestring) or isinstance(topology, dict):
             topology = json_graph.node_link_graph(topology)
-
 
         self.load_module = load_module
         self.topology = nx.Graph(topology)
@@ -69,94 +68,64 @@ class SoilSimulation(NetworkSimulation):
         self.interval = interval
         self.seed = str(seed) or str(time.time())
         self.dump = dump
+        self.dry_run = dry_run
         self.environment_params = environment_params or {}
 
         if load_module:
-            path = sys.path + [self.dir_path]
+            path = sys.path + [self.dir_path, os.getcwd()]
             f, fp, desc = imp.find_module(load_module, path)
             imp.load_module('soil.agents.custom', f, fp, desc)
 
         environment_agents = environment_agents or []
-        self.environment_agents = self._convert_agent_types(environment_agents)
+        self.environment_agents = agents._convert_agent_types(environment_agents)
 
-        distro = self.calculate_distribution(network_agents,
-                                             agent_type)
-        self.network_agents = self._convert_agent_types(distro)
+        distro = agents.calculate_distribution(network_agents,
+                                               agent_type)
+        self.network_agents = agents._convert_agent_types(distro)
 
-        self.states = self.validate_states(states,
-                                           self.topology)
+        self.states = agents._validate_states(states,
+                                              self.topology)
 
-    def calculate_distribution(self,
-                               network_agents=None,
-                               agent_type=None):
-        if network_agents:
-            network_agents = deepcopy(network_agents)
-        elif agent_type:
-            network_agents = [{'agent_type': agent_type}]
-        else:
-            return []
+    def run_simulation(self, *args, **kwargs):
+        return self.run(*args, **kwargs)
 
-        # Calculate the thresholds
-        total = sum(x.get('weight', 1) for x in network_agents)
-        acc = 0
-        for v in network_agents:
-            upper = acc + (v.get('weight', 1)/total)
-            v['threshold'] = [acc, upper]
-            acc = upper
-        return network_agents
+    def run(self, *args, **kwargs):
+        return list(self.run_simulation_gen(*args, **kwargs))
 
-    def serialize_distribution(self):
-        d = self._convert_agent_types(self.network_agents,
-                                      to_string=True)
-        for v in d:
-            if 'threshold' in v:
-                del v['threshold']
-        return d
-
-    def _convert_agent_types(self, ind, to_string=False):
-        d = deepcopy(ind)
-        for v in d:
-            agent_type = v['agent_type']
-            if to_string and not isinstance(agent_type, str):
-                v['agent_type'] = str(agent_type.__name__)
-            elif not to_string and isinstance(agent_type, str):
-                v['agent_type'] = agents.agent_types[agent_type]
-        return d
-
-    def validate_states(self, states, topology):
-        states = states or []
-        # Validate states to avoid ignoring states during
-        # initialization
-        if isinstance(states, dict):
-            for x in states:
-                assert x in self.topology.node
-        else:
-            assert len(states) <= len(self.topology)
-        return states
-
-    def run_simulation(self):
-        return self.run()
-
-    def run(self):
-        return list(self.run_simulation_gen())
-
-    def run_simulation_gen(self, *args, **kwargs):
+    def run_simulation_gen(self, *args, parallel=False, **kwargs):
+        p = Pool()
         with utils.timer('simulation'):
-            for i in range(self.num_trials):
-                res = self.run_trial(i)
-                if self.dump:
-                    res.dump_gexf(self.dir_path)
-                    res.dump_csv(self.dir_path)
-                yield res
-
-            if self.dump:
+            if parallel:
+                func = partial(self.run_trial, return_env=not parallel)
+                for i in p.imap_unordered(func, range(self.num_trials)):
+                    yield i
+            else:
+                for i in range(self.num_trials):
+                    yield self.run_trial(i)
+            if not self.dry_run:
                 logger.info('Dumping results to {}'.format(self.dir_path))
                 self.dump_pickle(self.dir_path)
                 self.dump_yaml(self.dir_path)
             else:
                 logger.info('NOT dumping results')
 
-    def run_trial(self, trial_id=0, dump=False, dir_path=None):
+    def get_env(self, trial_id=0, dump=False, dir_path=None):
+        env_name = '{}_trial_{}'.format(self.name, trial_id)
+        env = environment.SoilEnvironment(name=env_name,
+                                          topology=self.topology.copy(),
+                                          seed=self.seed+env_name,
+                                          initial_time=0,
+                                          dry_run=self.dry_run,
+                                          interval=self.interval,
+                                          network_agents=self.network_agents,
+                                          states=self.states,
+                                          default_state=self.default_state,
+                                          environment_agents=self.environment_agents,
+                                          dir_path=dir_path or self.dir_path,
+                                          **self.environment_params)
+        return env
+
+    def run_trial(self, trial_id=0, dump=False, dir_path=None, until=None, return_env=False):
         """Run a single trial of the simulation
 
         Parameters
@@ -164,25 +133,16 @@ class SoilSimulation(NetworkSimulation):
         trial_id : int
         """
         # Set-up trial environment and graph
-        logger.info('Trial: {}'.format(trial_id))
-        env_name = '{}_trial_{}'.format(self.name, trial_id)
-        env = environment.SoilEnvironment(name=env_name,
-                                          topology=self.topology.copy(),
-                                          seed=self.seed+env_name,
-                                          initial_time=0,
-                                          dump=self.dump,
-                                          interval=self.interval,
-                                          network_agents=self.network_agents,
-                                          states=self.states,
-                                          default_state=self.default_state,
-                                          environment_agents=self.environment_agents,
-                                          simulation=self,
-                                          **self.environment_params)
+        until = until or self.max_time
+        env = self.get_env(trial_id=trial_id, dump=dump, dir_path=dir_path)
         # Set up agents on nodes
-        logger.info('\tRunning')
-        with utils.timer('trial'):
-            env.run(until=self.max_time)
-        return env
+        with utils.timer('Simulation {} trial {}'.format(self.name, trial_id)):
+            env.run(until)
+        if self.dump and not self.dry_run:
+            with utils.timer('Dumping simulation {} trial {}'.format(self.name, trial_id)):
+                env.dump(dir_path, formats=self.dump)
+        if return_env:
+            return env
 
     def to_dict(self):
         return self.__getstate__()
@@ -213,16 +173,16 @@ class SoilSimulation(NetworkSimulation):
     def __getstate__(self):
         state = self.__dict__.copy()
         state['topology'] = json_graph.node_link_data(self.topology)
-        state['network_agents'] = self.serialize_distribution()
-        state['environment_agents'] = self._convert_agent_types(self.environment_agents,
-                                                          to_string=True)
+        state['network_agents'] = agents._serialize_distribution(self.network_agents)
+        state['environment_agents'] = agents._convert_agent_types(self.environment_agents,
+                                                                 to_string=True)
         return state
 
     def __setstate__(self, state):
         self.__dict__ = state
         self.topology = json_graph.node_link_graph(state['topology'])
-        self.network_agents = self._convert_agent_types(self.network_agents)
-        self.environment_agents = self._convert_agent_types(self.environment_agents)
+        self.network_agents = agents.calculate_distribution(agents._convert_agent_types(self.network_agents))
+        self.environment_agents = agents._convert_agent_types(self.environment_agents)
         return state
 
 
@@ -235,21 +195,18 @@ def from_config(config, G=None):
     return sim
 
 
-def run_from_config(*configs, dump=True, results_dir=None, timestamp=False):
-    if not results_dir:
-        results_dir = 'soil_output'
+def run_from_config(*configs, results_dir='soil_output', dump=None, timestamp=False,  **kwargs):
     for config_def in configs:
         for config, cpath in utils.load_config(config_def):
             name = config.get('name', 'unnamed')
             logger.info("Using config(s): {name}".format(name=name))
 
-            sim = SoilSimulation(**config)
             if timestamp:
-                sim_folder = '{}_{}'.format(sim.name,
+                sim_folder = '{}_{}'.format(name,
                                             time.strftime("%Y-%m-%d_%H:%M:%S"))
             else:
-                sim_folder = sim.name
-            sim.dir_path = os.path.join(results_dir, sim_folder)
-            sim.dump = dump
-            logger.info('Dumping results to {} : {}'.format(sim.dir_path, dump))
-            results = sim.run_simulation()
+                sim_folder = name
+            dir_path = os.path.join(results_dir, sim_folder)
+            sim = SoilSimulation(dir_path=dir_path, dump=dump, **config)
+            logger.info('Dumping results to {} : {}'.format(sim.dir_path, sim.dump))
+            results = sim.run_simulation(**kwargs)

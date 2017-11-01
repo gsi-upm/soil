@@ -12,9 +12,9 @@ from copy import deepcopy
 from functools import partial
 import json
 
-
 from functools import wraps
 
+from .. import utils
 
 agent_types = {}
 
@@ -41,7 +41,7 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
         super().__init__(**kwargs)
         if not hasattr(self, 'level'):
             self.level = logging.DEBUG
-        self.logger = logging.getLogger('Agent-{}'.format(self.id))
+        self.logger = logging.getLogger('{}-Agent-{}'.format(self.env.name, self.id))
         self.logger.setLevel(self.level)
 
 
@@ -140,20 +140,24 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
 
 
 def state(func):
+    '''
+    A state function should return either a state id, or a tuple (state_id, when)
+    The default value for state_id is the current state id.
+    The default value for when is the interval defined in the nevironment.
+    '''
 
     @wraps(func)
     def func_wrapper(self):
-        when = None
         next_state = func(self)
+        when = None
+        if next_state is None:
+            return when
         try:
             next_state, when = next_state
-        except TypeError:
+        except (ValueError, TypeError):
             pass
         if next_state:
-            try:
-                self.state['id'] = next_state.id
-            except AttributeError:
-                raise ValueError('State id %s is not valid.' % next_state)
+            self.set_state(next_state)
         return when
 
     func_wrapper.id = func.__name__
@@ -212,6 +216,116 @@ class FSM(BaseAgent, metaclass=MetaFSM):
         if state not in self.states:
             raise ValueError('{} is not a valid state'.format(state))
         self.state['id'] = state
+        return state
+
+
+def prob(prob=1):
+    '''
+    A true/False uniform distribution with a given probability.
+    To be used like this:
+
+    .. code-block:: python
+          
+          if prob(0.3):
+              do_something()
+
+    '''
+    r = random.random()
+    return r < prob
+
+
+def calculate_distribution(network_agents=None,
+                           agent_type=None):
+    '''
+    Calculate the threshold values (thresholds for a uniform distribution)
+    of an agent distribution given the weights of each agent type.
+
+    The input has this form: ::
+
+            [
+            {'agent_type': 'agent_type_1',
+                'weight': 0.2,
+                'state': {
+                    'id': 0
+                }
+            },
+            {'agent_type': 'agent_type_2',
+                'weight': 0.8,
+                'state': {
+                    'id': 1
+                }
+            }
+            ]
+
+    In this example, 20% of the nodes will be marked as type
+    'agent_type_1'.
+    '''
+    if network_agents:
+        network_agents = deepcopy(network_agents)
+    elif agent_type:
+        network_agents = [{'agent_type': agent_type}]
+    else:
+        return []
+
+    # Calculate the thresholds
+    total = sum(x.get('weight', 1) for x in network_agents)
+    acc = 0
+    for v in network_agents:
+        upper = acc + (v.get('weight', 1)/total)
+        v['threshold'] = [acc, upper]
+        acc = upper
+    return network_agents
+
+
+def _serialize_distribution(network_agents):
+    d = _convert_agent_types(network_agents,
+                             to_string=True)
+    '''
+    When serializing an agent distribution, remove the thresholds, in order
+    to avoid cluttering the YAML definition file.
+    '''
+    for v in d:
+        if 'threshold' in v:
+            del v['threshold']
+    return d
+
+
+def _validate_states(states, topology):
+    '''Validate states to avoid ignoring states during initialization'''
+    states = states or []
+    if isinstance(states, dict):
+        for x in states:
+            assert x in topology.node
+    else:
+        assert len(states) <= len(topology)
+    return states
+
+
+def _convert_agent_types(ind, to_string=False):
+    '''Convenience method to allow specifying agents by class or class name.'''
+    d = deepcopy(ind)
+    for v in d:
+        agent_type = v['agent_type']
+        if to_string and not isinstance(agent_type, str):
+            v['agent_type'] = str(agent_type.__name__)
+        elif not to_string and isinstance(agent_type, str):
+            v['agent_type'] = agent_types[agent_type]
+    return d
+
+
+def _agent_from_distribution(distribution, value=-1):
+    """Used in the initialization of agents given an agent distribution."""
+    if value < 0:
+        value = random.random()
+    for d in distribution:
+        threshold = d['threshold']
+        if value >= threshold[0] and value < threshold[1]:
+            state = {}
+            if 'state' in d:
+                state = deepcopy(d['state'])
+            return d['agent_type'], state
+
+    raise Exception('Distribution for value {} not found in: {}'.format(value, distribution))
 
 
 from .BassModel import *

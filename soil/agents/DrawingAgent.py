@@ -15,4 +15,4 @@ class DrawingAgent(BaseAgent):
         # Outside effects
         f = plt.figure()
         nx.draw(self.env.G, node_size=10, width=0.2, pos=nx.spring_layout(self.env.G, scale=100), ax=f.add_subplot(111))
-        f.savefig(os.path.join(self.env.sim().dir_path, "graph-"+str(self.env.now)+".png"))
+        f.savefig(os.path.join(self.env.get_path(), "graph-"+str(self.env.now)+".png"))
