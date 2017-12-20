@@ -1,4 +1,20 @@
 
+html, body, .carousel-inner {
+  height: 100%;
+}
+
+.carousel {
+  height: calc(100% - 150px);
+}
+
+.carousel-indicators li {
+  border-color: black;
+}
+
+.carousel-indicators li.active {
+  background-color: black;
+}
+
 .node {
   stroke: #fff;
   stroke-width: 1.5px;
@@ -235,4 +251,43 @@ table#speed .max,
 table#link-distance .min,
 table#link-distance .max {
 	font-weight: normal !important;
+}
+
+/* Console */
+
+#update, .console  {
+  padding: 10px 15px;
+  height: 135px;
+  border: 1px solid #585858;
+}
+
+#update {
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
+}
+
+.container-fluid.fixed {
+  padding-top: 15px;
+}
+
+.console {
+  background-color: rgb(88,88,88);
+  font-family: "Ubuntu Mono";
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  line-height: 14px;
+  overflow: auto;
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+}
+
+.console::-webkit-scrollbar {
+  width: 6px;
+  background-color: #F5F5F5;
+}
+
+.console::-webkit-scrollbar-thumb {
+  -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,.3);
+  background-color: #555;
 }

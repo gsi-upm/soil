@@ -8,6 +8,7 @@ from xml.etree import ElementTree
 class Model():
 
 	def __init__(self, dump=True, dir_path='output'):
+		self.name = 'soil'
 		self.dump = dump
 		self.dir_path = dir_path
 
@@ -20,8 +21,9 @@ class Model():
 		sim.dump = self.dump
 
 		print('Dumping results to {} : {}'.format(sim.dir_path, sim.dump))
-
+		
 		sim.run_simulation()
+
 
 	def get_trial(self, name, trial):
 		graph = nx.read_gexf(os.path.join(self.dir_path, name, '{}_trial_{}.gexf'.format(name, trial)))

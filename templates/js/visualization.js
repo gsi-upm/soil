@@ -12,13 +12,13 @@
    */
 
   // Private constants
-  var width = window.innerWidth * 0.75,
-      height = window.innerHeight * 4 / 5,
-      focus_opacity = 0.1,
+  var focus_opacity = 0.1,
       radius = 8;
 
   // Private variables
-  var graph,              // JSON data for the graph
+  var width,
+      height,
+      graph,              // JSON data for the graph
       model,              // Definition of the attributes of the nodes
       linkedByIndex,      // Nodes linked by index
       name,               // Name of the graph (id for svg item)
@@ -260,12 +260,15 @@
    * @param   {object}    id            The id of the svg item.
    * @return  {object}                  This class.
    */
-  function create(id, callback) {
+  function create(id, n_height, n_width, callback) {
     name = id;
     svg = d3.select('svg#' + name)
-            .attr('width', width)
-            .attr('height', height)
+            .attr('width', n_width)
+            .attr('height', n_height)
             .style('background-color', 'rgba(128,128,128,0.1)');
+
+    height  = n_height;
+    width   = n_width
 
     if (callback) { callback(this.GraphVisualization);  }
     else          { return this.GraphVisualization      }

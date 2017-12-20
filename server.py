@@ -9,6 +9,12 @@ import webbrowser
 import yaml
 import logging
 
+import logging
+import threading
+import io
+from datetime import timedelta
+from contextlib import contextmanager
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -54,6 +60,7 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
 	def open(self):
 		if self.application.verbose:
 			logger.info('Socket opened!')
+		
 
 	def check_origin(self, origin):
 		return True
@@ -79,9 +86,12 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
 				return
 			else:
 				config = config[0]
+				self.send_log('INFO.soil', 'Using config: {name}'.format(name=config['name']))
 
 			self.name = config['name']
-			self.application.model.run(config)
+			
+			with self.logging(self.application.model.name):
+				self.application.model.run(config)
 
 			trials = []
 			for i in range(config['num_trials']):
@@ -92,12 +102,48 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
 		elif msg['type'] == 'get_trial':
 			if self.application.verbose:
 				logger.info('Trial {} requested!'.format(msg['data']))
+			self.send_log('INFO.user', 'Trial {} requested!'.format(msg['data']))
 			self.write_message({'type': 'get_trial',
 				'data': self.application.model.get_trial(self.name, msg['data']) })
 
 		else:
 			if self.application.verbose:
 				logger.info('Unexpected message!')
+
+	def update_logging(self):
+		try:
+			if (not self.log_capture_string.closed and self.log_capture_string.getvalue()):
+				self.send_log('INFO.soil', self.log_capture_string.getvalue())
+				self.log_capture_string.truncate(0)
+				self.log_capture_string.seek(0)
+		finally:
+			if self.capture_logging:
+				thread = threading.Timer(0.01, self.update_logging)
+				thread.start()
+
+	def on_close(self):
+		logger.info('Socket closed!')
+
+	def send_log(self, logger, logging):
+		self.write_message({'type': 'log',
+			'logger': logger,
+			'logging': logging })
+
+	@contextmanager
+	def logging(self, logger):
+		self.capture_logging = True
+		self.logger_application = logging.getLogger(logger)
+		self.log_capture_string = io.StringIO()
+		ch = logging.StreamHandler(self.log_capture_string)
+		self.logger_application.addHandler(ch)
+		self.update_logging()
+		yield self.capture_logging
+
+		self.capture_logging = False
+		self.log_capture_string.close()
+		self.logger_application.removeHandler(ch)
+		return self.capture_logging
+	
 
 
 class ModularServer(tornado.web.Application):
@@ -110,7 +156,6 @@ class ModularServer(tornado.web.Application):
 	page_handler = (r'/', PageHandler)
 	socket_handler = (r'/ws', SocketHandler)
 	static_handler = (r'/(.*)', tornado.web.StaticFileHandler,
-					  # {'path': os.path.dirname(__file__)})
 					  {'path': 'templates'})
 	local_handler = (r'/local/(.*)', tornado.web.StaticFileHandler,
 					 {'path': ''})
@@ -133,7 +178,6 @@ class ModularServer(tornado.web.Application):
 		self.model = model
 		self.model_args = args
 		self.model_kwargs = kwargs
-
 		#self.reset_model()
 
 		# Initializing the application itself:
@@ -155,5 +199,5 @@ class ModularServer(tornado.web.Application):
 		url = 'http://127.0.0.1:{PORT}'.format(PORT=self.port)
 		print('Interface starting at {url}'.format(url=url))
 		self.listen(self.port)
-		webbrowser.open(url)
+		# webbrowser.open(url)
 		tornado.ioloop.IOLoop.instance().start()

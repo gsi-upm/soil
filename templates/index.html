@@ -28,13 +28,14 @@
   <!-- STYLESHEETS -->
   <link rel="stylesheet" type="text/css" href="css/main.css">
   <link rel="stylesheet" type="text/css" href="css/timeline.css">
+  <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Ubuntu+Mono" />
   
   <title>{{ model_name }}</title>
 
   <script type="text/javascript">//<![CDATA[
 
     var width   = window.innerWidth * 0.75,
-        height  = window.innerHeight * 4 / 5,
+        height  = window.innerHeight * 3 / 5,
         speed   = 1000,
         play,
         slider;
@@ -43,7 +44,7 @@
         "use strict";
 
         // Create svg, timeline and settings
-        self.GraphVisualization.create('graph');
+        self.GraphVisualization.create('graph', height, width);
         $('<div>').attr('id', 'load').appendTo('#graph_container').css('left', width / 2 - 25).css('top', height / 2);
         $('#configuration').css("height", height);
         d3.select('#slider3').attr("width", width).call(
@@ -51,7 +52,7 @@
         );
 
         // Load a file
-        $('#configuration #file').change(function() { 
+        $('#update #file').change(function() { 
 
             var file = $('#file')[0].files[0];
             self.GraphVisualization.reset();
@@ -93,6 +94,8 @@
             })
         });
 
+        $('[data-toggle="tooltip"]').tooltip()
+
     }
 
     ///]]
@@ -103,13 +106,17 @@
 
 <body>
 
-<div class="container-fluid">
+<div class="container-fluid fixed">
 
-    <div id="graph_container">
-        <svg id="graph" class="col-sm-9"></svg>
+    <!-- CONSOLE -->
+    <div class="col-sm-9 console">
+        Please, update YAML file that define all the parameters of a simulation. <br/>
+        If you don't know how to write the file, please visit this link:<br/>
+        http://soilsim.readthedocs.io/en/latest/quickstart.html<br/><br/>
     </div>
+    <!-- //CONSOLE -->
 
-    <div id="configuration" class="col-sm-3">
+    <div id="update" class="col-sm-3">
         <!-- Load File -->
         <form enctype="multipart/form-data">
             <label class="custom-file">
@@ -117,7 +124,6 @@
                 <span class="custom-file-control" data-content="Choose file..."></span>
             </label>
         </form>  
-        <hr />
         <!-- //Load File -->
 
         <!-- TRIALS -->
@@ -126,101 +132,142 @@
             <select id="trials" class="form-control form-control-sm">
             </select>
         </div>
-        <hr />
         <!-- //TRIALS -->
-
-        <!-- Graph Info -->
-        <div class="config-item">
-            <table id="info-graph">
-                <tbody>
-                    <tr id="nodes"><th>Nodes:</th></tr>
-                    <tr id="links"><th>Links:</th></tr>
-                </tbody>
-            </table>
-            <div class="logo pull-right">
-                <img src="img/logo_gsi.svg" style="height: 40px;">
-            </div>
-        </div>
-        <hr />
-        <!-- //Graph Info --> 
-        
-        <!-- PROPIEDADES -->
-        <div class="config-item">
-            Propiedades: 
-            <select id="properties" class="form-control form-control-sm">
-                <optgroup id="properties-dynamic" label="Dynamics"></optgroup>
-                <optgroup id="properties-static" label="Statics"></optgroup>
-            </select>
-        </div>
-        <hr />
-        <div class="config-item">
-            <table id="percentTable">
-                <tbody><tr><th></th></tr></tbody>
-            </table>
-        </div>
-        <hr />
-        <!-- //PROPIEDADES -->
-
-        <!-- SPEED -->
-        <div class="config-item">
-            <table id="speed"><tbody><tr>
-                <th class="text-left min">min</th>
-                <th class="text-center">Speed</th>
-                <th class="text-right max">max</th>
-            </tr></tbody></table>
-            <div class="speed-slider">
-                <input id="speed-slider" type="text" data-slider-min="1" data-slider-max="1000" data-slider-step="0.01" data-slider-value="1000" data-slider-tooltip="hide" data-slider-reversed="true" data-slider-enabled="false" data-slider-scale="logarithmic"/> 
-            </div>
-        </div>
-        <hr />
-        <script type="text/javascript">
-            $('#speed-slider').slider();
-        </script>
-        <!-- //SPEED -->
-
-        <!-- LINK DISTANCE -->
-        <div class="config-item">
-            <table id="link-distance"><tbody><tr>
-                <th class="text-left min">min</th>
-                <th class="text-center">Link Distance</th>
-                <th class="text-right max">max</th>
-            </tr></tbody></table>
-            <div class="link-distance-slider">
-                <input id="link-distance-slider" type="text" data-slider-min="30" data-slider-max="1000" data-slider-step="0.01" data-slider-value="30" data-slider-tooltip="hide" data-slider-reversed="false" data-slider-enabled="false" data-slider-scale="logarithmic"/> 
-            </div>
-        </div>
-        <script type="text/javascript">
-            $('#link-distance-slider').slider();
-        </script>
-        <!-- //LINK DISTANCE -->
     </div>
-    
-    <!-- TIMELINE -->
-    <div id="timeline" class="col-sm-12">
-        <div id="slider3" class="pull-left col-sm-9"></div>
-
-        <div class="btn-toolbar controls">
-            <button type="button" id="button_play" class="btn btn-lg">
-                <span class="glyphicon glyphicon-play" aria-hidden="true"></span>
-            </button>
-            <button type="button" id="button_pause" class="btn btn-lg">
-                <span class="glyphicon glyphicon-pause" aria-hidden="true"></span>
-            </button>
-            <button type="button" id="button_zoomFit" class="btn btn-lg">
-                <span class="glyphicon glyphicon-fullscreen" aria-hidden="true"></span>
-            </button>
-        </div>
-    </div>
-    <!-- //TIMELINE -->
-
-    <!-- ERROR ALERT -->
-    <div class="alert alert-danger alert-dismissable fade in" style="display: none;">
-        <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
-        <strong>Error! </strong><span id="error-message"></span>
-    </div>
-    <!-- //ERROR ALERT -->
 
 </div>
+
+<div id="myCarousel" class="carousel slide">
+
+    <!-- Indicators -->
+    <ol class="carousel-indicators">
+        <li data-target="#myCarousel" data-slide-to="0" class="active" data-toggle="tooltip" title="Graph" data-placement="top"></li>
+        <li data-target="#myCarousel" data-slide-to="1" data-toggle="tooltip" title="Settings" data-placement="top"></li>
+    </ol>
+
+    <!-- Wrapper for slides -->
+    <div class="carousel-inner">
+
+        <!-- Wrapper Graph Container -->
+        <div class="item active">
+            <div class="container-fluid">
+
+                <div id="graph_container">
+                    <svg id="graph" class="col-sm-9"></svg>
+                </div>
+
+                <div id="configuration" class="col-sm-3">
+                    <!-- Graph Info -->
+                    <div class="config-item" style="margin-top: 0 !important;">
+                        <table id="info-graph">
+                            <tbody>
+                                <tr id="nodes"><th>Nodes:</th></tr>
+                                <tr id="links"><th>Links:</th></tr>
+                            </tbody>
+                        </table>
+                        <div class="logo pull-right">
+                            <img src="img/logo_gsi.svg" style="height: 40px;">
+                        </div>
+                    </div>
+                    <hr />
+                    <!-- //Graph Info --> 
+                    
+                    <!-- PROPIEDADES -->
+                    <div class="config-item">
+                        Propiedades: 
+                        <select id="properties" class="form-control form-control-sm">
+                            <optgroup id="properties-dynamic" label="Dynamics"></optgroup>
+                            <optgroup id="properties-static" label="Statics"></optgroup>
+                        </select>
+                    </div>
+                    <hr />
+                    <div class="config-item">
+                        <table id="percentTable">
+                            <tbody><tr><th></th></tr></tbody>
+                        </table>
+                    </div>
+                    <hr />
+                    <!-- //PROPIEDADES -->
+
+                    <!-- SPEED -->
+                    <div class="config-item">
+                        <table id="speed"><tbody><tr>
+                            <th class="text-left min">min</th>
+                            <th class="text-center">Speed</th>
+                            <th class="text-right max">max</th>
+                        </tr></tbody></table>
+                        <div class="speed-slider">
+                            <input id="speed-slider" type="text" data-slider-min="1" data-slider-max="1000" data-slider-step="0.01" data-slider-value="1000" data-slider-tooltip="hide" data-slider-reversed="true" data-slider-enabled="false" data-slider-scale="logarithmic"/> 
+                        </div>
+                    </div>
+                    <hr />
+                    <script type="text/javascript">
+                        $('#speed-slider').slider();
+                    </script>
+                    <!-- //SPEED -->
+
+                    <!-- LINK DISTANCE -->
+                    <div class="config-item">
+                        <table id="link-distance"><tbody><tr>
+                            <th class="text-left min">min</th>
+                            <th class="text-center">Link Distance</th>
+                            <th class="text-right max">max</th>
+                        </tr></tbody></table>
+                        <div class="link-distance-slider">
+                            <input id="link-distance-slider" type="text" data-slider-min="30" data-slider-max="1000" data-slider-step="0.01" data-slider-value="30" data-slider-tooltip="hide" data-slider-reversed="false" data-slider-enabled="false" data-slider-scale="logarithmic"/> 
+                        </div>
+                    </div>
+                    <script type="text/javascript">
+                        $('#link-distance-slider').slider();
+                    </script>
+                    <!-- //LINK DISTANCE -->
+                </div>
+                
+                <!-- TIMELINE -->
+                <div id="timeline" class="col-sm-12">
+                    <div id="slider3" class="pull-left col-sm-9"></div>
+
+                    <div class="btn-toolbar controls">
+                        <button type="button" id="button_play" class="btn btn-lg">
+                            <span class="glyphicon glyphicon-play" aria-hidden="true"></span>
+                        </button>
+                        <button type="button" id="button_pause" class="btn btn-lg">
+                            <span class="glyphicon glyphicon-pause" aria-hidden="true"></span>
+                        </button>
+                        <button type="button" id="button_zoomFit" class="btn btn-lg">
+                            <span class="glyphicon glyphicon-fullscreen" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <!-- //TIMELINE -->
+
+                <!-- ERROR ALERT -->
+                <div class="alert alert-danger alert-dismissable fade in" style="display: none;">
+                    <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
+                    <strong>Error! </strong><span id="error-message"></span>
+                </div>
+                <!-- //ERROR ALERT -->
+
+            </div>
+        </div>
+        <!-- //Wrapper Graph Container -->
+
+        <!-- Wrapper Settings -->
+        <div class="item">
+            <div class="container-fluid">
+
+                
+
+            </div>
+        </div>
+
+    </div>
+    <!-- //Wrapper for slides -->
+
+</div>
+
+
+
 
 </body>
 </html>

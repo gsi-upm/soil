@@ -34,6 +34,12 @@ ws.onmessage = function(message) {
 			console.log(msg['error']);
 			_socket.error(msg['error']);
 			$('#load').removeClass('loader');
+			break;
+
+		case 'log':
+			console.log(msg['logging'])
+			$('.console').append(msg['logger'] + ': ' + msg['logging'] + '<br/>');
+        	$('.console').animate({ scrollTop: $(window).height() }, 'slow');
 
 		default:
 			console.log('Unexpected message!')
