@@ -221,13 +221,11 @@ hr {
 	width: 100% !important;
 }
 
-.speed-slider .slider, 
-.link-distance-slider .slider {
+.slider {
 	width: 100% !important;
 }
 
-.speed-slider .slider-selection,
-.link-distance-slider .slider-selection {
+.slider .slider-selection {
 	background-image: linear-gradient(to bottom, 
                     rgba(36, 110, 162, 0.5) 0%, 
                     rgba(3, 169, 224, 0.5) 100%) !important;
@@ -290,4 +288,23 @@ table#link-distance .max {
 .console::-webkit-scrollbar-thumb {
   -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,.3);
   background-color: #555;
+}
+
+/** FORMS **/
+.checkbox {
+  margin-left: 10px !important;
+}
+
+#wrapper-settings {
+  padding: 15px !important;
+}
+
+#wrapper-settings .btn-group button:focus {
+  background: initial;
+  border-color: #ccc;
+}
+
+#wrapper-settings .btn-group button {
+  font-size: xx-small;
+  padding: 3px 6px;
 }

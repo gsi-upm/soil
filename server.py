@@ -99,6 +99,24 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
 			self.write_message({'type': 'trials',
 				'data': trials })
 
+			settings = []
+			for key in config['environment_params']: 
+				if type(config['environment_params'][key]) == float:
+					setting_type = 'number'
+				elif type(config['environment_params'][key]) == bool:
+					setting_type = 'boolean'
+				else:
+					setting_type = 'undefined'
+
+				settings.append({
+					'label': key,
+					'type': setting_type,
+					'value': config['environment_params'][key]
+				})
+
+			self.write_message({'type': 'settings',
+				'data': settings})
+
 		elif msg['type'] == 'get_trial':
 			if self.application.verbose:
 				logger.info('Trial {} requested!'.format(msg['data']))
@@ -118,7 +136,7 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
 				self.log_capture_string.seek(0)
 		finally:
 			if self.capture_logging:
-				thread = threading.Timer(0.01, self.update_logging)
+				thread = threading.Timer(0.001, self.update_logging)
 				thread.start()
 
 	def on_close(self):
@@ -139,12 +157,11 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
 		self.update_logging()
 		yield self.capture_logging
 
-		self.capture_logging = False
 		self.log_capture_string.close()
 		self.logger_application.removeHandler(ch)
+		self.capture_logging = False
 		return self.capture_logging
 	
-
 
 class ModularServer(tornado.web.Application):
 	""" Main visualization application. """

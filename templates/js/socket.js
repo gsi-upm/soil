@@ -9,7 +9,7 @@ ws.onopen = function() {
 
 // Receive data from server
 ws.onmessage = function(message) {
-	console.log('Message received!');
+	//console.log('Message received!');
 
 	var msg = JSON.parse(message.data);
 
@@ -30,6 +30,11 @@ ws.onmessage = function(message) {
 			});
 			break;
 
+		case 'settings':
+			//console.log(msg['data']);
+			initGUI(msg['data']);
+			break;
+
 		case 'error':
 			console.log(msg['error']);
 			_socket.error(msg['error']);
@@ -37,9 +42,9 @@ ws.onmessage = function(message) {
 			break;
 
 		case 'log':
-			console.log(msg['logging'])
-			$('.console').append(msg['logger'] + ': ' + msg['logging'] + '<br/>');
-        	$('.console').animate({ scrollTop: $(window).height() }, 'slow');
+			$('.console').append('$ ' + msg['logger'] + ': ' + msg['logging'] + '<br/>');
+        	$('.console').animate({ scrollTop: $('.console')[0].scrollHeight }, 'slow');
+        	break;
 
 		default:
 			console.log('Unexpected message!')
