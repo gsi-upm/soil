@@ -1,5 +1,5 @@
 
-html, body, .carousel-inner {
+html, body {
   height: 100%;
 }
 
@@ -7,12 +7,17 @@ html, body, .carousel-inner {
   height: calc(100% - 150px);
 }
 
-.carousel-indicators li {
-  border-color: black;
+.carousel-inner {
+  height: calc(100% - 50px) !important;
 }
 
-.carousel-indicators li.active {
-  background-color: black;
+.carousel-inner .item,
+.carousel-inner .item .container-fluid {
+  height: 100%;
+}
+
+.navbar {
+  box-shadow: 0px -2px 5px 3px rgba(0, 0, 0, .3);
 }
 
 .node {
@@ -297,6 +302,8 @@ table#link-distance .max {
 
 #wrapper-settings {
   padding: 15px !important;
+  height: 100%;
+  overflow-y: auto;
 }
 
 #wrapper-settings .btn-group button:focus {
@@ -307,4 +314,18 @@ table#link-distance .max {
 #wrapper-settings .btn-group button {
   font-size: xx-small;
   padding: 3px 6px;
+}
+
+.item.settings .container-fluid {
+  padding-top: 10px !important;
+}
+
+#wrapper-settings::-webkit-scrollbar {
+  width: 6px;
+  background-color: #F5F5F5;
+}
+
+#wrapper-settings::-webkit-scrollbar-thumb {
+  -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,.3);
+  background-color: #ccc;
 }

@@ -138,13 +138,30 @@
 
 </div>
 
-<div id="myCarousel" class="carousel slide">
+<nav class="navbar navbar-default navbar-fixed-bottom">
+    <div class="container-fluid">
+        <div class="navbar-header">
+            <a class="navbar-brand" href="#">Brand</a>
+        </div>
+        <div class="collapse navbar-collapse">
+            <ul class="nav navbar-nav">
+                <li data-target="#myCarousel" data-slide-to="0" class="active"><a href='#'>Home</a></li>
+                <li data-target="#myCarousel" data-slide-to="1"><a href="#" onclick="">Settings</a></li>
+            </ul>
+            <ul class="nav navbar-nav navbar-right">
+                <li><a href="#">Run simulation</a></li>
+            </ul>
+        </div>
+        <script type="text/javascript">
+            $('.nav li').click(function() {
+                $('.nav li').removeClass('active');
+                $(this).addClass('active');
+            });
+        </script>
+    </div>
+</nav>
 
-    <!-- Indicators -->
-    <ol class="carousel-indicators">
-        <li data-target="#myCarousel" data-slide-to="0" class="active" data-toggle="tooltip" title="Graph" data-placement="top"></li>
-        <li data-target="#myCarousel" data-slide-to="1" data-toggle="tooltip" title="Settings" data-placement="top"></li>
-    </ol>
+<div id="myCarousel" class="carousel slide">
 
     <!-- Wrapper for slides -->
     <div class="carousel-inner">
@@ -254,11 +271,10 @@
         <!-- //Wrapper Graph Container -->
 
         <!-- Wrapper Settings -->
-        <div class="item">
-            <div class="container-fluid" id="wrapper-settings">
-
-                
-
+        <div class="item settings">
+            <div class="container-fluid">
+                <div class="col-sm-6" id="charts"></div>
+                <div class="col-sm-6" id="wrapper-settings"></div>
             </div>
         </div>
 

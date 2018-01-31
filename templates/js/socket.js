@@ -161,7 +161,7 @@ var reset_configuration = function() {
 
 var set_timeline = function(graph) {
 	// 'Timeline' slider
-	var [min, max] = get_min_and_max(graph);
+	var [min, max] = get_limits(graph);
 
 	var stepUnix = (max - min) / 200;
 	var minUnix  = (min !== Math.min()) ? min : 0;
@@ -253,7 +253,7 @@ var reset_timeline = function() {
     $('button#button_zoomFit').off();
 }
 
-var get_min_and_max = function(graph) {
+var get_limits = function(graph) {
 	var max = Math.max();
 	var min = Math.min()
 	graph.links.forEach(function(link) {

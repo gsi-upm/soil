@@ -89,15 +89,6 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
 				self.send_log('INFO.soil', 'Using config: {name}'.format(name=config['name']))
 
 			self.name = config['name']
-			
-			with self.logging(self.application.model.name):
-				self.application.model.run(config)
-
-			trials = []
-			for i in range(config['num_trials']):
-				trials.append('{}_trial_{}'.format(self.name, i))
-			self.write_message({'type': 'trials',
-				'data': trials })
 
 			settings = []
 			for key in config['environment_params']: 
@@ -116,6 +107,16 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
 
 			self.write_message({'type': 'settings',
 				'data': settings})
+			
+			# Run simulation and capture logs
+			with self.logging(self.application.model.name):
+				self.application.model.run(config)
+
+			trials = []
+			for i in range(config['num_trials']):
+				trials.append('{}_trial_{}'.format(self.name, i))
+			self.write_message({'type': 'trials',
+				'data': trials })
 
 		elif msg['type'] == 'get_trial':
 			if self.application.verbose:

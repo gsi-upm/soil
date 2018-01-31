@@ -8,7 +8,7 @@ var initGUI = function(model_params) {
     var addBooleanInput = function(name, value) {
         var checked = (value) ? 'checked' : 'value';
 
-        var wrapper     = $('<div>').attr('class', 'col-sm-4').height('110px');
+        var wrapper     = $('<div>').attr('class', 'col-sm-6').height('110px');
         var input_group = $('<div>').attr('class', 'input-group').appendTo(wrapper);
         var label       = $('<label>').attr('for', name).attr('class', 'checkbox').appendTo(input_group);
         var input       = $('<input>') .attr('class', 'form-check-input').attr('id', name).attr('type', 'checkbox').attr(checked, checked).appendTo(label);
@@ -19,7 +19,7 @@ var initGUI = function(model_params) {
 
     var addSliderInput = function(name, value) {
 
-        var wrapper = $('<div>').attr('class', 'col-sm-4').height('110px');
+        var wrapper = $('<div>').attr('class', 'col-sm-6').height('110px');
         var label   = $('<div>').width('100%').text(name).css('text-align', 'center').css('font-weight', 'bolder').appendTo(wrapper);
         var input   = $('<input>').attr('id', name).attr('type', 'text').attr('data-slider-min', '0.001').attr('data-slider-max', '1').attr('data-slider-step', '0.001').attr('data-slider-value', value).attr('data-slider-tooltip', 'hide').css('padding', '0 10px').appendTo(wrapper);
         
