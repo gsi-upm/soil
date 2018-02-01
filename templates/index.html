@@ -20,6 +20,10 @@
   <script type="text/javascript" src="http://d3js.org/d3.v3.js"></script>
   <script type="text/javascript" src="http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js"></script>
 
+  <!-- C3.js // D3-based reusable chart library -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/c3/0.4.18/c3.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/c3/0.4.18/c3.min.js"></script>
+
   <!-- JAVASCRIPTS -->
   <script type="text/javascript" src="js/visualization.js"></script>
   <script type="text/javascript" src="js/timeline.js"></script>
@@ -41,6 +45,11 @@
         play,
         slider;
 
+    var width_chart  = (window.innerWidth - 30) / 2 - 15,
+        height_chart = (window.innerHeight - 230) / 2,
+        chart_nodes,
+        chart_attrs;
+
     window.onload = function() {
         "use strict";
 
@@ -56,6 +65,7 @@
         $('#update #file').change(function() { 
 
             var file = $('#file')[0].files[0];
+            $('.console').append('<br/>');
             self.GraphVisualization.reset();
             $('#load').show();
 
@@ -83,11 +93,6 @@
 
         });
 
-        // Select 'trials'
-        $('.config-item #trials').change(function() {
-            _socket.send($(this).val(), 'get_trial');
-        });
-
         // Select 'attributes'
         $('.config-item #properties').change(function() {
             self.GraphVisualization.update_graph($(this).val(), slider.value(), function() {
@@ -95,8 +100,38 @@
             })
         });
 
-        $('[data-toggle="tooltip"]').tooltip()
-
+        chart_nodes = c3.generate({
+            size: {
+                width: width_chart,
+                height: height_chart
+            },
+            data: { 
+                columns: [],
+                type: 'area-spline'
+            },
+            axis: {
+                x: { label: 'Time' },
+                y: { label: 'Number of nodes' }
+            },
+            point: { show: false },
+            bindto: '#chart_nodes'
+        });
+        chart_attrs = c3.generate({
+            size: {
+                width: width_chart,
+                height: height_chart
+            },
+            data: {
+                columns: [],
+                type: 'area-spline'
+            },
+            axis: {
+                x: { label: 'Time' },
+                y: { label: 'Attributes' }
+            },
+            point: { show: false },
+            bindto: '#chart_attrs'
+        });
     }
 
     ///]]
@@ -113,7 +148,7 @@
     <div class="col-sm-9 console">
         Please, upload a YAML file that defines all the parameters of a simulation. <br/>
         If you don't know how to write the file, please visit this page:<br/>
-        http://soilsim.readthedocs.io/en/latest/quickstart.html<br/><br/>
+        http://soilsim.readthedocs.io/en/latest/quickstart.html<br/>
     </div>
     <!-- //CONSOLE -->
 
@@ -127,13 +162,15 @@
         </form>  
         <!-- //Load File -->
 
-        <!-- TRIALS -->
+        <!-- Atributos -->
         <div class="config-item">
-            Trials: 
-            <select id="trials" class="form-control form-control-sm">
+            Attributes: 
+            <select id="properties" class="form-control form-control-sm">
+                <optgroup id="properties-dynamic" label="Dynamics"></optgroup>
+                <optgroup id="properties-static" label="Statics"></optgroup>
             </select>
         </div>
-        <!-- //TRIALS -->
+        <!-- //Atributos -->
     </div>
 
 </div>
@@ -141,19 +178,23 @@
 <nav class="navbar navbar-default navbar-fixed-bottom">
     <div class="container-fluid">
         <div class="navbar-header">
-            <a class="navbar-brand" href="#">Brand</a>
+            <a class="navbar-brand" href="#">{{ model_name }}</a>
         </div>
         <div class="collapse navbar-collapse">
             <ul class="nav navbar-nav">
-                <li data-target="#myCarousel" data-slide-to="0" class="active"><a href='#'>Home</a></li>
-                <li data-target="#myCarousel" data-slide-to="1"><a href="#" onclick="">Settings</a></li>
+                <li data-target="#myCarousel" data-slide-to="0" class="active" id="home_menu"><a href='#'>Home</a></li>
+                <li data-target="#myCarousel" data-slide-to="1" id="settings_menu"><a href="#">Settings &amp; Charts</a></li>
+                <li class="dropdown" id="trials">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Trials <span class="caret"></span></a>
+                    <ul class="dropdown-menu"></ul>
+                </li>
             </ul>
             <ul class="nav navbar-nav navbar-right">
                 <li><a href="#">Run simulation</a></li>
             </ul>
         </div>
         <script type="text/javascript">
-            $('.nav li').click(function() {
+            $('.nav li[data-target="#myCarousel"]').click(function() {
                 $('.nav li').removeClass('active');
                 $(this).addClass('active');
             });
@@ -192,16 +233,8 @@
                     
                     <!-- PROPIEDADES -->
                     <div class="config-item">
-                        Propiedades: 
-                        <select id="properties" class="form-control form-control-sm">
-                            <optgroup id="properties-dynamic" label="Dynamics"></optgroup>
-                            <optgroup id="properties-static" label="Statics"></optgroup>
-                        </select>
-                    </div>
-                    <hr />
-                    <div class="config-item">
                         <table id="percentTable">
-                            <tbody><tr><th></th></tr></tbody>
+                            <tbody><tr><th class="no-data-table">No data</th></tr></tbody>
                         </table>
                     </div>
                     <hr />
@@ -271,10 +304,13 @@
         <!-- //Wrapper Graph Container -->
 
         <!-- Wrapper Settings -->
-        <div class="item settings">
+        <div class="item" id="settings">
             <div class="container-fluid">
-                <div class="col-sm-6" id="charts"></div>
-                <div class="col-sm-6" id="wrapper-settings"></div>
+                <div class="col-sm-6" id="charts">
+                    <div id="chart_nodes" class="chart no-data"></div>
+                    <div id="chart_attrs" class="chart no-data"></div>
+                </div>
+                <div class="col-sm-6 none" id="wrapper-settings"></div>
             </div>
         </div>
 
@@ -282,8 +318,6 @@
     <!-- //Wrapper for slides -->
 
 </div>
-
-
 
 
 </body>

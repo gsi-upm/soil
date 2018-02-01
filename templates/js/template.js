@@ -37,14 +37,35 @@ var initGUI = function(model_params) {
         input.slider().on('change', function(slideEvt) {
             current_value.text(slideEvt.value.newValue);
         });
-        button_down.click(function() {
+        var timeout, interval;
+        button_down.on('mousedown', function() {
             input.slider('setValue', input.slider('getValue') - 0.001);
             current_value.text(input.slider('getValue'));
+            timeout = setTimeout(function() {
+                interval = setInterval(function() {
+                    input.slider('setValue', input.slider('getValue') - 0.001);
+                    current_value.text(input.slider('getValue'));
+                }, 30);
+            }, 500);
         });
-        button_up.click(function() {
+        button_down.on('mouseup', function() {
+            clearTimeout(timeout);
+            clearInterval(interval);
+        });
+        button_up.on('mousedown', function() {
             input.slider('setValue', input.slider('getValue') + 0.001);
             current_value.text(input.slider('getValue'));
-        })
+            timeout = setTimeout(function() {
+                interval = setInterval(function() {
+                    input.slider('setValue', input.slider('getValue') + 0.001);
+                    current_value.text(input.slider('getValue'));
+                }, 30);
+            }, 500);
+        });
+        button_up.on('mouseup', function() {
+            clearTimeout(timeout);
+            clearInterval(interval);
+        });
     };
 
     var addTextBox = function(param, obj) {

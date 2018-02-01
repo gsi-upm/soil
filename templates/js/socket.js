@@ -16,6 +16,7 @@ ws.onmessage = function(message) {
 	switch(msg['type']) {
 		case 'trials':
 			$('#load').removeClass('loader');
+			reset_trials();
 			set_trials(msg['data']);
 			break;
 
@@ -25,13 +26,22 @@ ws.onmessage = function(message) {
 				$('#load').hide();
 				reset_configuration();
 				set_configuration();
+				$('#home_menu').click(function() {
+					setTimeout(function() {
+						reset_timeline();
+						set_timeline(msg['data']['graph']);
+					}, 1000);
+				});
 				reset_timeline();
 				set_timeline(msg['data']['graph']);
 			});
+			$('#charts .chart').removeClass('no-data');
+			set_chart_nodes(msg['data']['graph'], chart_nodes)
+			set_chart_attrs(msg['data']['graph'], chart_attrs, $('.config-item #properties').val())
 			break;
 
 		case 'settings':
-			//console.log(msg['data']);
+			$('#wrapper-settings').empty().removeClass('none');
 			initGUI(msg['data']);
 			break;
 
@@ -67,11 +77,25 @@ var _socket = {
 
 var set_trials = function(trials) {
 	for ( i in trials ) {
-		$('<option>').val(i).text(trials[i]).appendTo('select#trials');
+		var list_item = $('<li>').appendTo('.dropdown#trials .dropdown-menu');
+		$('<a>').val(i).text(trials[i]).appendTo(list_item);
 	}
+	// Select 'trials'
+    $('.dropdown#trials li a').click(function() {
+		var a = $('.dropdown-toggle .caret');
+		$('.dropdown-toggle').text($(this).text() + ' ').append(a);
+        _socket.send($(this).val(), 'get_trial');
+    });
 	// Request first trial as default
 	_socket.send(0, 'get_trial')
 };
+
+var reset_trials = function() {
+	// 'Trials' selector
+    $('.dropdown-menu').empty();
+    var a = $('.dropdown-toggle .caret');
+	$('.dropdown-toggle').text('Trials ').append(a);
+}
 
 var convertJSON = function(json) {
 	json.links.forEach(function(link) {
@@ -156,7 +180,6 @@ var reset_configuration = function() {
 
     // 'Link Distance' slider
     $('#link-distance-slider').slider('disable').slider('setValue', 30);
-
 }
 
 var set_timeline = function(graph) {
@@ -277,4 +300,43 @@ var get_limits = function(graph) {
 		}
 	})
 	return [min, max];
+}
+
+var set_chart_nodes = function(graph, chart) {
+	var [min, max] = get_limits(graph);
+	var data = ['nodes']
+	for (var i = min; i <= max; i++) {
+		data.push(this.GraphVisualization.get_nodes(i));
+	}
+	chart.load({
+		unload: true,
+		columns: [data]
+	});
+}
+
+var set_chart_attrs = function(graph, chart, property) {
+	var [min, max] = get_limits(graph);
+	var data_tmp = {}
+	for (var i = min; i <= max; i++) {
+		this.GraphVisualization.get_attributes(property, i, function(object) {
+			for (var value in object) {
+				if (!data_tmp[value]) {
+					var time = 0
+					for (var done in data_tmp)
+						time = (data_tmp[done].length > time) ? data_tmp[done].length - 1 : time
+					data_tmp[value] = Array(time).fill(0);
+				}
+				data_tmp[value].push(object[value]);
+			}
+		});
+	}
+	var data = $.map(data_tmp, function(value, index) {
+		value.splice(0,0,index);
+		return [value];
+	});
+	chart.load({
+		unload: true,
+		columns: data
+	});
+	chart.axis.labels({y: property});
 }

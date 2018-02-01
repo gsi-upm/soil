@@ -37,22 +37,26 @@
       node;               // Circles for the nodes
 
   Number.prototype.between = function(min, max) {
-    var min = (min) ? min : Math.max(),
-        max = (max) ? max : Math.min();
+    var min = (min || min === 0) ? min : Math.max(),
+        max = (max || max === 0) ? max : Math.min();
 
-    return this > min && this <= max;
+    return ( this > min && this <= max ) || ( min === 0 && this === 0 );
   };
 
   var lastFocusNode;
   var _helpers = {
-    set_node: function(node, property) {
+    set_node: function(node, property, time) {
       // Add nodes if data has more nodes than before
       node.enter().append('circle')
           .attr('class', 'node')
           .attr('r', radius)
           .style('fill', function (d) {
               if ( Array.isArray(d[property]) ) {
-                return color(d[property][0][0]);
+                var color_node = color(d[property][0][0]);
+                d[property].forEach(function(p) {
+                  if ( time.between(p[1], p[2]) ) color_node = color(p[0]);
+                });
+                return color_node;
               } else {
                 return color(d[property]);
               }
@@ -82,7 +86,11 @@
           .attr('r', radius)
           .style('fill', function (d) {
               if ( Array.isArray(d[property]) ) {
-                return color(d[property][0][0]);
+                var color_node = color(d[property][0][0]);
+                d[property].forEach(function(p) {
+                  if ( time.between(p[1], p[2]) ) color_node = color(p[0]);
+                });
+                return color_node;
               } else {
                 return color(d[property]);
               }
@@ -226,7 +234,7 @@
 
     // Do the same with the circles for the nodes - no
     node = gnodes.selectAll('.node').data(data_node);
-    _helpers.set_node(node, property);
+    _helpers.set_node(node, property, time);
 
     // Node Attributes
     var statistics = {}
@@ -234,10 +242,10 @@
     data_node.forEach(function(n) {
       // Count node properties
       if ( Array.isArray(n[property]) ) {
-        statistics[n[property][0][0]] = (!statistics[n[property][0][0]]) ? 1 : statistics[n[property][0][0]] + 1;
-      } else {
-        statistics[n[property]] = (!statistics[n[property]]) ? 1 : statistics[n[property]] + 1;
-      }
+        n[property].forEach(function(p) {
+          if ( time.between(p[1], p[2]) ) statistics[p[0]] = (!statistics[p[0]]) ? 1 : statistics[p[0]] + 1;
+        });
+      } else {  statistics[n[property]] = (!statistics[n[property]]) ? 1 : statistics[n[property]] + 1; }
     });
     for ( i in statistics ) {
       statistics[i] = (statistics[i] / data_node.length * 100).toFixed(2);
@@ -396,6 +404,71 @@
     }
   }
 
+  /**
+   * Get attributes at one moment given.
+   * A function that get the attributes of all nodes at a specific time.
+   *
+   * @param   {object}    time          Instant of time.
+   * @param   {object}    callback      A function called at the end.
+   * @return  {object}    object        An object with the number of nodes.
+   */
+  function get_attributes(property, time, callback) {
+    var attrs = {}
+
+    graph.nodes.forEach(function(node) {
+
+      if (Array.isArray(node.spells)) {
+          node.spells.forEach( function(d) {
+            if ( time.between(d[0], d[1]) ) { 
+
+              if (Array.isArray(node[property])) {
+                node[property].forEach( function(p) {
+                  if ( time.between(p[1], p[2]) ) attrs[p[0]] = (!attrs[p[0]]) ? 1 : attrs[p[0]] + 1;
+                });
+              } else { attrs[node[property]] = (!attrs[node[property]]) ? 1 : attrs[node[property]] + 1;  }
+
+            } 
+          });
+
+      } else {
+
+        if (Array.isArray(node[property])) {
+          node[property].forEach( function(p) {
+            if ( time.between(p[1], p[2]) ) attrs[p[0]] = (!attrs[p[0]]) ? 1 : attrs[p[0]] + 1;
+          });
+        } else { attrs[node[property]] = (!attrs[node[property]]) ? 1 : attrs[node[property]] + 1; }
+
+      }
+    });
+
+    if (callback) { callback(attrs); }
+    else { return attrs }
+  }
+
+  /**
+   * Get nodes at one moment given.
+   * A function that get the number of nodes at a specific time.
+   *
+   * @param   {object}    time          Instant of time.
+   * @param   {object}    callback      A function called at the end.
+   * @return  {object}    number        The number of nodes.
+   */
+  function get_nodes(time, callback) {
+    var total_nodes = 0;
+    graph.nodes.forEach(function(node) {
+      if (Array.isArray(node.spells)) {
+          node.spells.forEach( function(d) {
+            if ( time.between(d[0], d[1]) ) { total_nodes++; } 
+          });
+      } else {
+          total_nodes++;
+      }
+    });
+
+    if (callback) { callback(total_nodes); }
+    else { return total_nodes }
+  }
+
 
   /**
    * Exporting
@@ -418,6 +491,8 @@
 
     // Getters
     color: color,
+    get_attributes: get_attributes,
+    get_nodes: get_nodes,
 
     // Statistics
     statistics: {},
