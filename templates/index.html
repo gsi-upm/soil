@@ -97,40 +97,38 @@
         $('.config-item #properties').change(function() {
             self.GraphVisualization.update_graph($(this).val(), slider.value(), function() {
                 update_statistics_table();
-            })
+            });
         });
 
-        chart_nodes = c3.generate({
-            size: {
-                width: width_chart,
-                height: height_chart
-            },
-            data: { 
-                columns: [],
-                type: 'area-spline'
-            },
-            axis: {
-                x: { label: 'Time' },
-                y: { label: 'Number of nodes' }
-            },
-            point: { show: false },
-            bindto: '#chart_nodes'
+        // Run simulation
+        $('#simulation_modal .btn-success').click(function() {
+            if ( !jQuery.isEmptyObject(run_simulation()) ) {
+                self.GraphVisualization.reset();
+                $('#load').show().addClass('loader');;
+                _socket.send(run_simulation(), 'run_simulation');
+                $('.console').append('<br/>');
+            }
+            $('#simulation_modal').modal('hide')
         });
-        chart_attrs = c3.generate({
-            size: {
-                width: width_chart,
-                height: height_chart
-            },
-            data: {
-                columns: [],
-                type: 'area-spline'
-            },
-            axis: {
-                x: { label: 'Time' },
-                y: { label: 'Attributes' }
-            },
-            point: { show: false },
-            bindto: '#chart_attrs'
+
+        chart_nodes = create_chart(width_chart, height_chart, 'Time', 'Number of nodes', '#chart_nodes');
+        chart_attrs = create_chart(width_chart, height_chart, 'Time', 'Attributes', '#chart_attrs');
+
+        // Fill modal window
+        $('#simulation_modal').on('show.bs.modal', function(e) {
+            var variables = run_simulation()
+            var x = 0,
+                row;
+            for (var i in variables) {
+                if ( x % 2 === 0 ) row = $('<tr>').appendTo('#simulation_modal table tbody');
+                $('<td>').text(i).appendTo(row);
+                $('<td>').text(variables[i]).appendTo(row);
+                x++;
+            }
+        });
+
+        $('#simulation_modal').on('hide.bs.modal', function(e) {
+            $('#simulation_modal table tbody').empty();
         });
     }
 
@@ -190,7 +188,7 @@
                 </li>
             </ul>
             <ul class="nav navbar-nav navbar-right">
-                <li><a href="#">Run simulation</a></li>
+                <li><a href="#" id="run_simulation" role="button">Run simulation</a></li>
             </ul>
         </div>
         <script type="text/javascript">
@@ -318,6 +316,29 @@
     <!-- //Wrapper for slides -->
 
 </div>
+
+<div class="modal fade" tabindex="-1" role="dialog" id="simulation_modal">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">New simulation</h4>
+            </div>
+            <div class="modal-body">
+                <p>You are going to run a new simulation, all charts and trials are going to be lost. A new ones will be available after the simulation.</p>
+                <p>Check your new environment variables for this simulation.</p>
+                <table class="table">
+                    <thead><tr><th>Variable</th><th>Value</th><th>Variable</th><th>Value</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success">Run</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
 
 
 </body>

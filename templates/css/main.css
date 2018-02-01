@@ -24,6 +24,10 @@ html, body {
   margin-right: 10px !important;
 }
 
+.nav.navbar-right a {
+  outline: none !important;
+}
+
 .dropdown-menu > li > a:hover {
   background-color: #d4d3d3;
   cursor: pointer;
@@ -397,4 +401,10 @@ table#link-distance .max {
   flex: 1;
   justify-content: center;
   align-items: center;
+}
+
+/** MODAL **/
+.modal-footer, 
+.modal-header {
+  border: none !important;
 }

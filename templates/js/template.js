@@ -1,10 +1,6 @@
 // Add model parameters that can be edited prior to a model run
 var initGUI = function(model_params) {
 
-    var onSubmitCallback = function(param_name, value) {
-        // SEND SOCKET REQUEST
-    };
-
     var addBooleanInput = function(name, value) {
         var checked = (value) ? 'checked' : 'value';
 
@@ -79,14 +75,14 @@ var initGUI = function(model_params) {
         var param_str = String(option);
 
         switch (model_params[option]['type']) {
-            case "boolean":
+            case 'boolean':
                 addBooleanInput(model_params[option]['label'], model_params[option]['value']);
                 break;
-            case "number":
+            case 'number':
                 addSliderInput(model_params[option]['label'], model_params[option]['value']);
                 break;
-            case "object":
-                addParamInput(param_str, model_params[option]);    // catch-all for params that use Option class
+            default:
+                console.log('Input type not defined!');
                 break;
         }
     }

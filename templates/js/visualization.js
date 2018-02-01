@@ -294,17 +294,17 @@
   function importJSON(json, attributes, callback) {
     reset()
     graph = json;
-    model = attributes
+    model = attributes;
 
     // Create the graph itself
     Graph();
 
     self.GraphVisualization.nodes = graph.nodes.length;
     self.GraphVisualization.links = graph.links.length;
-    self.GraphVisualization.model = model
+    self.GraphVisualization.model = model;
 
     // Draw graph with default property and time for the first time
-    update_data(model.dynamic[0].title, 0)
+    update_data(model.dynamic[0].title, 0);
 
     if (callback) { callback(); }
   }
