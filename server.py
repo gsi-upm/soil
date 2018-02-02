@@ -12,6 +12,7 @@ import logging
 import logging
 import threading
 import io
+import networkx as nx
 from datetime import timedelta
 from contextlib import contextmanager
 
@@ -88,7 +89,6 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
                 self.send_log('INFO.soil', 'Using config: {name}'.format(name=self.config['name']))
 
             self.name = self.config['name']
-
             self.run_simulation()
 
             settings = []
@@ -114,7 +114,7 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
                 logger.info('Trial {} requested!'.format(msg['data']))
             self.send_log('INFO.user', 'Trial {} requested!'.format(msg['data']))
             self.write_message({'type': 'get_trial',
-                'data': self.application.model.get_trial(self.name, msg['data']) })
+                'data': self.get_trial( int(msg['data'] )) })
 
         elif msg['type'] == 'run_simulation':
             self.send_log('INFO.soil', 'Running new simulation for {name}'.format(name=self.config['name']))
@@ -147,13 +147,17 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
     def run_simulation(self):
         # Run simulation and capture logs
         with self.logging(self.application.model.name):
-            self.application.model.run(self.config)
+            self.simulation = self.application.model.run(self.config)
 
         trials = []
         for i in range(self.config['num_trials']):
             trials.append('{}_trial_{}'.format(self.name, i))
         self.write_message({'type': 'trials',
             'data': trials })
+
+    def get_trial(self, trial):
+        G = self.simulation[trial].history_to_graph()
+        return nx.node_link_data(G)
 
     @contextmanager
     def logging(self, logger):

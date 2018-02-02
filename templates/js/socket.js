@@ -21,27 +21,27 @@ ws.onmessage = function(message) {
             break;
 
         case 'get_trial':
-            console.log(msg['data']);
-            GraphVisualization.import(convertJSON(msg['data']['graph']), msg['data']['models'], function() {
+            //console.log(msg['data']);
+            GraphVisualization.import(convertJSON(msg['data']), function() {
                 $('#load').hide();
                 reset_configuration();
                 set_configuration();
                 $('#home_menu').click(function() {
                     setTimeout(function() {
                         reset_timeline();
-                        set_timeline(msg['data']['graph']);
+                        set_timeline(msg['data']);
                     }, 1000);
                 });
                 reset_timeline();
-                set_timeline(msg['data']['graph']);
+                set_timeline(msg['data']);
             });
             $('#charts .chart').removeClass('no-data');
-            set_chart_nodes(msg['data']['graph'], chart_nodes)
-            set_chart_attrs(msg['data']['graph'], chart_attrs, $('.config-item #properties').val())
+            set_chart_nodes(msg['data'], chart_nodes)
+            set_chart_attrs(msg['data'], chart_attrs, $('.config-item #properties').val())
             $('.config-item #properties').change(function() {
                 chart_attrs.destroy();
                 chart_attrs = create_chart(width_chart, height_chart, 'Time', 'Attributes', '#chart_attrs');
-                set_chart_attrs(msg['data']['graph'], chart_attrs, $('.config-item #properties').val())
+                set_chart_attrs(msg['data'], chart_attrs, $('.config-item #properties').val())
             });
             break;
 

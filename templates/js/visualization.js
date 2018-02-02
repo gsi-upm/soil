@@ -13,7 +13,8 @@
 
   // Private constants
   var focus_opacity = 0.1,
-      radius = 8;
+      radius = 8,
+      required_node = ['id', 'index', 'label', 'px', 'py', 'spells', 'weight', 'x', 'y'];
 
   // Private variables
   var width,
@@ -42,6 +43,13 @@
 
     return ( this > min && this <= max ) || ( min === 0 && this === 0 );
   };
+
+  Number.prototype.type = function() {
+    if ( typeof(this) === 'number' )
+      return ( Number.isInteger(this) ) ? 'int' :  'float';
+    else 
+      return false;
+  }
 
   var lastFocusNode;
   var _helpers = {
@@ -118,7 +126,14 @@
       link.style('opacity', function(o) {
           return o.source.index == d.index || o.target.index == d.index ? 1 : focus_opacity;
       });
+    },
+    push_once: function(array, item, key) {
+    for (var i in array) {
+      if ( array[i][key] == item[key] ) return false;
     }
+    array.push(item);
+    return true;
+  }
   }
 
 
@@ -253,6 +268,22 @@
     self.GraphVisualization.statistics = statistics
   }
 
+  function get_models(graph) {
+
+    var models = { 'dynamic': [], 'static': [] }
+
+    graph['nodes'].forEach(function(node) {
+      for ( var att in node ) {
+        if (!required_node.includes(att)) {
+          if ( Array.isArray(node[att]) ) _helpers.push_once(models['dynamic'], { 'title': att, 'type': node[att][0][0].type() }, 'title');
+          else _helpers.push_once(models['static'], { 'title': att, 'type': typeof(node[att]) }, 'title');
+        }
+      }
+    });
+
+    return models;
+  }
+
 
   /**
    * Public API
@@ -287,24 +318,21 @@
    * A function that imports the graph and the attributes of all the nodes.
    *
    * @param   {object}    json          The json structure of the graph.
-   * @param   {object}    attributes    Definition of the attributes of the nodes 
-   *                                    (statics and dynamics).
    * @param   {object}    callback      A function called at the end.
    */
-  function importJSON(json, attributes, callback) {
+  function importJSON(json, callback) {
     reset()
     graph = json;
-    model = attributes;
 
     // Create the graph itself
     Graph();
 
     self.GraphVisualization.nodes = graph.nodes.length;
     self.GraphVisualization.links = graph.links.length;
-    self.GraphVisualization.model = model;
+    self.GraphVisualization.model = get_models(json);
 
     // Draw graph with default property and time for the first time
-    update_data(model.dynamic[0].title, 0);
+    update_data(self.GraphVisualization.model.dynamic[0].title, 0);
 
     if (callback) { callback(); }
   }

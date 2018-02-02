@@ -11,5 +11,5 @@ def run(model, params=None):
 
 
 if __name__ == "__main__":
-    soil = Model(dump=True)
+    soil = Model(dump=False)
     run(soil)

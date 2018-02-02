@@ -82,7 +82,7 @@ var initGUI = function(model_params) {
                 addSliderInput(model_params[option]['label'], model_params[option]['value']);
                 break;
             default:
-                console.log('Input type not defined!');
+                console.log(model_params[option]['type'] + ' not defined!');
                 break;
         }
     }
