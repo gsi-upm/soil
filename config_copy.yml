@@ -1,6 +1,6 @@
 name: ControlModelM2_sim
-max_time: 15
-num_trials: 1
+max_time: 60
+num_trials: 4
 network_params:
   generator: barabasi_albert_graph
   n: 100

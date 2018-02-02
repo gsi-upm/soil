@@ -9,11 +9,10 @@ import webbrowser
 import yaml
 import logging
 
-import logging
 import threading
 import io
 import networkx as nx
-from datetime import timedelta
+from time import sleep
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
@@ -128,12 +127,13 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
     def update_logging(self):
         try:
             if (not self.log_capture_string.closed and self.log_capture_string.getvalue()):
-                self.send_log('INFO.soil', self.log_capture_string.getvalue())
+                for i in range(len(self.log_capture_string.getvalue().split('\n')) - 1):
+                    self.send_log('INFO.soil', self.log_capture_string.getvalue().split('\n')[i])
                 self.log_capture_string.truncate(0)
                 self.log_capture_string.seek(0)
         finally:
             if self.capture_logging:
-                thread = threading.Timer(0.001, self.update_logging)
+                thread = threading.Timer(0.01, self.update_logging)
                 thread.start()
 
     def on_close(self):
@@ -169,6 +169,7 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
         self.update_logging()
         yield self.capture_logging
 
+        sleep(0.2)
         self.log_capture_string.close()
         self.logger_application.removeHandler(ch)
         self.capture_logging = False

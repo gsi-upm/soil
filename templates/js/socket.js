@@ -58,7 +58,7 @@ ws.onmessage = function(message) {
 
         case 'log':
             $('.console').append('$ ' + msg['logger'] + ': ' + msg['logging'] + '<br/>');
-            $('.console').animate({ scrollTop: $('.console')[0].scrollHeight }, 'slow');
+            $('.console').animate({ scrollTop: $('.console')[0].scrollHeight }, 'fast');
             break;
 
         default:
