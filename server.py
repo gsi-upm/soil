@@ -1,19 +1,17 @@
+import io
+import logging
+import networkx as nx
 import os
+import threading
 import tornado.ioloop
 import tornado.web
 import tornado.websocket
 import tornado.escape
 import tornado.gen
-import webbrowser
-
 import yaml
-import logging
-
-import threading
-import io
-import networkx as nx
-from time import sleep
+import webbrowser
 from contextlib import contextmanager
+from time import sleep
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -56,6 +54,7 @@ class PageHandler(tornado.web.RequestHandler):
 
 
 class SocketHandler(tornado.websocket.WebSocketHandler):
+    """ Handler for websocket. """
 
     def open(self):
         if self.application.verbose:
@@ -116,6 +115,9 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
                 'data': self.get_trial( int(msg['data'] )) })
 
         elif msg['type'] == 'run_simulation':
+            if self.application.verbose:
+                logger.info('Running new simulation for {name}'.format(name=self.config['name']))
+                print(msg['data'])
             self.send_log('INFO.soil', 'Running new simulation for {name}'.format(name=self.config['name']))
             self.config['environment_params'] = msg['data']
             self.run_simulation()
@@ -137,7 +139,8 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
                 thread.start()
 
     def on_close(self):
-        logger.info('Socket closed!')
+        if self.application.verbose:
+            logger.info('Socket closed!')
 
     def send_log(self, logger, logging):
         self.write_message({'type': 'log',
@@ -229,5 +232,5 @@ class ModularServer(tornado.web.Application):
         url = 'http://127.0.0.1:{PORT}'.format(PORT=self.port)
         print('Interface starting at {url}'.format(url=url))
         self.listen(self.port)
-        # webbrowser.open(url)
+        webbrowser.open(url)
         tornado.ioloop.IOLoop.instance().start()
