@@ -102,6 +102,17 @@
               } else {
                 return color(d[property]);
               }
+          })
+          .on('dblclick', function(d) {
+            d3.event.stopPropagation();
+            if (d === lastFocusNode) {
+                lastFocusNode = undefined;
+                node.style('opacity', 1);
+                link.style('opacity', 1);
+            } else {
+                lastFocusNode = d;
+                _helpers.set_focus(d);
+            }
           });
     },
     set_link: function(link) {
