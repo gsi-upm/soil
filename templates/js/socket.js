@@ -21,7 +21,7 @@ ws.onmessage = function(message) {
             break;
 
         case 'get_trial':
-            //console.log(msg['data']);
+            console.log(msg['data']);
             GraphVisualization.import(convertJSON(msg['data']), function() {
                 $('#load').hide();
                 reset_configuration();
