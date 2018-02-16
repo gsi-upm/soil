@@ -92,40 +92,46 @@ class SoilSimulation(NetworkSimulation):
     def run(self, *args, **kwargs):
         return list(self.run_simulation_gen(*args, **kwargs))
 
-    def run_simulation_gen(self, *args, parallel=False, **kwargs):
+    def run_simulation_gen(self, *args, parallel=False, dry_run=False,
+                           **kwargs):
         p = Pool()
         with utils.timer('simulation'):
             if parallel:
-                func = partial(self.run_trial, return_env=not parallel)
+                func = partial(self.run_trial, dry_run=dry_run,
+                               return_env=not parallel, **kwargs)
                 for i in p.imap_unordered(func, range(self.num_trials)):
                     yield i
             else:
                 for i in range(self.num_trials):
-                    yield self.run_trial(i)
-            if not self.dry_run:
+                    yield self.run_trial(i, dry_run=dry_run, **kwargs)
+            if not dry_run or self.dry_run:
                 logger.info('Dumping results to {}'.format(self.dir_path))
                 self.dump_pickle(self.dir_path)
                 self.dump_yaml(self.dir_path)
             else:
                 logger.info('NOT dumping results')
 
-    def get_env(self, trial_id=0, dump=False, dir_path=None):
+    def get_env(self, trial_id=0, **kwargs):
+        opts = self.environment_params.copy()
         env_name = '{}_trial_{}'.format(self.name, trial_id)
-        env = environment.SoilEnvironment(name=env_name,
-                                          topology=self.topology.copy(),
-                                          seed=self.seed+env_name,
-                                          initial_time=0,
-                                          dry_run=self.dry_run,
-                                          interval=self.interval,
-                                          network_agents=self.network_agents,
-                                          states=self.states,
-                                          default_state=self.default_state,
-                                          environment_agents=self.environment_agents,
-                                          dir_path=dir_path or self.dir_path,
-                                          **self.environment_params)
+        opts.update({
+            'name': env_name,
+            'topology': self.topology.copy(),
+            'seed': self.seed+env_name,
+            'initial_time': 0,
+            'dry_run': self.dry_run,
+            'interval': self.interval,
+            'network_agents': self.network_agents,
+            'states': self.states,
+            'default_state': self.default_state,
+            'environment_agents': self.environment_agents,
+            'dir_path': self.dir_path,
+        })
+        opts.update(kwargs)
+        env = environment.SoilEnvironment(**opts)
         return env
 
-    def run_trial(self, trial_id=0, dump=False, dir_path=None, until=None, return_env=False):
+    def run_trial(self, trial_id=0, until=None, return_env=True, **opts):
         """Run a single trial of the simulation
 
         Parameters
@@ -134,13 +140,13 @@ class SoilSimulation(NetworkSimulation):
         """
         # Set-up trial environment and graph
         until = until or self.max_time
-        env = self.get_env(trial_id=trial_id, dump=dump, dir_path=dir_path)
+        env = self.get_env(trial_id=trial_id, **opts)
         # Set up agents on nodes
         with utils.timer('Simulation {} trial {}'.format(self.name, trial_id)):
             env.run(until)
         if self.dump and not self.dry_run:
             with utils.timer('Dumping simulation {} trial {}'.format(self.name, trial_id)):
-                env.dump(dir_path, formats=self.dump)
+                env.dump(formats=self.dump)
         if return_env:
             return env
 

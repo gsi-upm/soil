@@ -2,6 +2,7 @@ from unittest import TestCase
 
 import os
 import yaml
+import networkx as nx
 from functools import partial
 
 from os.path import join
@@ -65,13 +66,14 @@ class TestMain(TestCase):
             }
         }
         s = simulation.from_config(config)
-        s.run_simulation()
+        s.run_simulation(dry_run=True)
 
     def test_counter_agent(self):
         """
         The initial states should be applied to the agent and the
         agent should be able to update its state."""
         config = {
+            'name': 'CounterAgent',
             'network_params': {
                 'path': join(ROOT, 'test.gexf')
             },
@@ -83,7 +85,7 @@ class TestMain(TestCase):
             }
         }
         s = simulation.from_config(config)
-        env = s.run_simulation()[0]
+        env = s.run_simulation(dry_run=True)[0]
         assert env.get_agent(0)['neighbors', 0] == 10
         assert env.get_agent(0)['neighbors', 1] == 1
         assert env.get_agent(1)['total', 0] == 12
@@ -94,6 +96,7 @@ class TestMain(TestCase):
         The evolution of the state should be recorded in the logging agent
         """
         config = {
+            'name': 'CounterAgent',
             'network_params': {
                 'path': join(ROOT, 'test.gexf')
             },
@@ -108,7 +111,7 @@ class TestMain(TestCase):
             }
         }
         s = simulation.from_config(config)
-        env = s.run_simulation()[0]
+        env = s.run_simulation(dry_run=True)[0]
         for agent in env.network_agents:
             last = 0
             assert len(agent[None, None]) == 11
@@ -138,7 +141,7 @@ class TestMain(TestCase):
             }
         }
         s = simulation.from_config(config)
-        env = s.run_simulation()[0]
+        env = s.run_simulation(dry_run=True)[0]
         assert env.get_agent(0).state['neighbors'] == 1
 
     def test_torvalds_example(self):
@@ -147,7 +150,7 @@ class TestMain(TestCase):
         config['network_params']['path'] = join(EXAMPLES,
                                                 config['network_params']['path'])
         s = simulation.from_config(config)
-        env = s.run_simulation()[0]
+        env = s.run_simulation(dry_run=True)[0]
         for a in env.network_agents:
             skill_level = a.state['skill_level']
             if a.id == 'Torvalds':
@@ -177,6 +180,7 @@ class TestMain(TestCase):
             recovered = yaml.load(serial)
         with utils.timer('deleting'):
             del recovered['topology']
+            del recovered['dry_run']
             del recovered['load_module']
         assert config == recovered
 
@@ -188,9 +192,10 @@ class TestMain(TestCase):
         config = utils.load_file('examples/complete.yml')[0]
         s = simulation.from_config(config)
         for i in range(5):
-            s.run_simulation()
+            s.run_simulation(dry_run=True)
             nconfig = s.to_dict()
             del nconfig['topology']
+            del nconfig['dry_run']
             del nconfig['load_module']
             assert config == nconfig
 
@@ -202,7 +207,7 @@ class TestMain(TestCase):
 
     def test_row_conversion(self):
         sim = simulation.SoilSimulation()
-        env = environment.SoilEnvironment(simulation=sim)
+        env = environment.SoilEnvironment(dry_run=True)
         env['test'] = 'test_value'
         env._save_state(now=0)
 
@@ -217,7 +222,14 @@ class TestMain(TestCase):
         assert env['env', 0, 'test' ] == 'test_value'
         assert env['env', 1, 'test' ] == 'second_value'
 
-
+    def test_save_geometric(self):
+        """
+        There is a bug in networkx that prevents it from creating a GEXF file 
+        from geometric models. We should work around it.
+        """
+        G = nx.random_geometric_graph(20,0.1)
+        env = environment.SoilEnvironment(topology=G, dry_run=True)
+        env.dump_gexf('/tmp/dump-gexf')
 
 
 def make_example_test(path, config):
@@ -225,8 +237,10 @@ def make_example_test(path, config):
         root = os.getcwd()
         os.chdir(os.path.dirname(path))
         s = simulation.from_config(config)
-        envs = s.run_simulation()
+        envs = s.run_simulation(dry_run=True)
+        assert envs
         for env in envs:
+            assert env
             try:
                 n = config['network_params']['n']
                 assert len(env.get_agents()) == n

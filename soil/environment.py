@@ -4,6 +4,7 @@ import time
 import csv
 import random
 import simpy
+import tempfile
 from copy import deepcopy
 from networkx.readwrite import json_graph
 
@@ -24,13 +25,16 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
                  seed=None,
                  dry_run=False,
                  dir_path=None,
+                 topology=None,
                  *args, **kwargs):
         self.name = name or 'UnnamedEnvironment'
         if isinstance(states, list):
             states = dict(enumerate(states))
         self.states = deepcopy(states) if states else {}
         self.default_state = deepcopy(default_state) or {}
-        super().__init__(*args, **kwargs)
+        if not topology:
+            topology = nx.Graph()
+        super().__init__(*args, topology=topology, **kwargs)
         self._env_agents = {}
         self.dry_run = dry_run
         self.interval = interval
@@ -41,7 +45,7 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         self.process(self.save_state())
         self.environment_agents = environment_agents or []
         self.network_agents = network_agents or []
-        self.dir_path = dir_path
+        self.dir_path = dir_path or tempfile.mkdtemp('soil-env')
         if self.dry_run:
             self._db_path = ":memory:"
         else:
@@ -88,6 +92,8 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
 
     @network_agents.setter
     def network_agents(self, network_agents):
+        if not network_agents:
+            return
         for ix in self.G.nodes():
             i = ix
             node = self.G.node[i]
@@ -223,6 +229,13 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         G = self.history_to_graph()
         graph_path = os.path.join(self.get_path(dir_path),
                                   self.name+".gexf")
+        # Workaround for geometric models
+        # See soil/soil#4
+        for node in G.nodes():
+            if 'pos' in G.node[node]:
+                G.node[node]['viz'] = {"position": {"x": G.node[node]['pos'][0], "y": G.node[node]['pos'][1], "z": 0.0}}
+                del (G.node[node]['pos'])
+
         nx.write_gexf(G, graph_path, version="1.2draft")
 
     def dump(self, dir_path=None, formats=None):
