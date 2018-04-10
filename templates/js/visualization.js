@@ -14,7 +14,7 @@
   // Private constants
   var focus_opacity = 0.1,
       radius = 8,
-      required_node = ['id', 'index', 'label', 'px', 'py', 'spells', 'weight', 'x', 'y'];
+      required_node = ['id', 'index', 'label', 'px', 'py', 'spells', 'weight', 'x', 'y', 'pos', 'scx', 'scy'];
 
   // Private variables
   var width,
@@ -35,7 +35,10 @@
       data_link,          // Actual link data for the graph
 
       link,               // Line svgs
-      node;               // Circles for the nodes
+      node,               // Circles for the nodes
+      shape_property,     // Property to whom the shape will be applied
+      shapes,             // Dictionary of shapes for nodes
+      colors;             // Dictionary of colors for nodes
 
   Number.prototype.between = function(min, max) {
     var min = (min || min === 0) ? min : Math.max(),
@@ -60,14 +63,28 @@
           .attr('r', radius)
           .style('fill', function (d) {
               if ( Array.isArray(d[property]) ) {
-                var color_node = color(d[property][0][0]);
+                var color_node = _helpers.set_color(property, d[property][0][0]);
                 d[property].forEach(function(p) {
-                  if ( time.between(p[1], p[2]) ) color_node = color(p[0]);
+                  if ( time.between(p[1], p[2]) ) color_node = _helpers.set_color(property, p[0]);
                 });
                 return color_node;
               } else {
-                return color(d[property]);
+                return _helpers.set_color(property, d[property]);
               }
+          })
+          .style('stroke', function(d) {
+              if (_helpers.set_shape(d[shape_property]) !== (-1))
+                if ( Array.isArray(d[property]) ) {
+                  var color_node = _helpers.set_color(property, d[property][0][0]);
+                  d[property].forEach(function(p) {
+                    if ( time.between(p[1], p[2]) ) color_node = _helpers.set_color(property, p[0]);
+                  });
+                  return color_node;
+                } else {
+                  return _helpers.set_color(property, d[property]);
+                }
+              else 
+                return '#ffffff';
           })
           // Cancel zoom movement so you can move the node
           .on('mousedown', function(d) {
@@ -93,15 +110,32 @@
       node.attr('class', 'node')
           .attr('r', radius)
           .style('fill', function (d) {
+              if (_helpers.set_shape(d[shape_property]) !== (-1)) {
+                return 'url(#' + _helpers.set_shape(d[shape_property]) + ')';
+              }
               if ( Array.isArray(d[property]) ) {
-                var color_node = color(d[property][0][0]);
+                var color_node = _helpers.set_color(property, d[property][0][0]);
                 d[property].forEach(function(p) {
-                  if ( time.between(p[1], p[2]) ) color_node = color(p[0]);
+                  if ( time.between(p[1], p[2]) ) color_node = _helpers.set_color(property, p[0]);
                 });
                 return color_node;
               } else {
-                return color(d[property]);
+                return _helpers.set_color(property, d[property]);
               }
+          })
+          .style('stroke', function(d) {
+              if (_helpers.set_shape(d[shape_property]) !== (-1))
+                if ( Array.isArray(d[property]) ) {
+                  var color_node = _helpers.set_color(property, d[property][0][0]);
+                  d[property].forEach(function(p) {
+                    if ( time.between(p[1], p[2]) ) color_node = _helpers.set_color(property, p[0]);
+                  });
+                  return color_node;
+                } else {
+                  return _helpers.set_color(property, d[property]);
+                }
+              else 
+                return '#ffffff';
           })
           .on('dblclick', function(d) {
             d3.event.stopPropagation();
@@ -139,12 +173,33 @@
       });
     },
     push_once: function(array, item, key) {
-    for (var i in array) {
-      if ( array[i][key] == item[key] ) return false;
+      for (var i in array) {
+        if ( array[i][key] == item[key] ) return false;
+      }
+      array.push(item);
+      return true;
+    },
+    set_color: function(property, value) {
+      if ( colors instanceof Array ) {
+        for ( var c in colors ) {
+          if ( colors[c][property] == value ) { return colors[c]['color']; }
+        }
+        return color(value);
+      } else {
+        return color(value);
+      }
+    },
+    set_shape: function(value) {
+      if ( shapes instanceof Object && shape_property ) {
+        for ( var s in shapes ) {
+          var str_value = (value.includes('class')) ? value.split('.').pop().split('\'')[0] : value;
+          if ( str_value == s ) return shapes[s];
+        }
+        return (-1);
+      } else {
+        return (-1);
+      }
     }
-    array.push(item);
-    return true;
-  }
   }
 
 
@@ -169,6 +224,29 @@
     groot =  svg.append('g')    .attr('id', 'root');
     glinks = groot.append('g')  .attr('id', 'links');
     gnodes = groot.append('g')  .attr('id', 'nodes');
+
+    // Add patterns for shapes
+    var defs = [];
+    for ( var i in shapes )
+      if (!defs.includes(shapes[i])) defs.push(shapes[i])
+    
+    svg.append('defs')
+       .selectAll('pattern')
+       .data(defs)
+       .enter()
+       .append('pattern')
+       .attr('id', function(d, i) {
+          return d;
+       })
+       .attr('patternUnits', 'objectBoundingBox')
+       .attr('width', 1)
+       .attr('height', 1)
+       .append('image')
+       .attr('href', function(d) {
+          return window.location.protocol + '//' + window.location.host + '/img/svg/' + d + '.svg';
+       })
+       .attr('width', 16)
+       .attr('height', 16);
 
     // Zoom
     zoom = d3.behavior
@@ -200,17 +278,22 @@
     force.on('tick', function () {
 
         link.attr('x1', function (d) {
-            return d.source.x;
+            if ( d.source.scx ) return d.source.scx;
+            else return d.source.x;
         }).attr('y1', function (d) {
-            return d.source.y;
+            if ( d.source.scy ) return d.source.scy;
+            else return d.source.y;
         }).attr('x2', function (d) {
-            return d.target.x;
+            if ( d.target.scx ) return d.target.scx;
+            else return d.target.x;
         }).attr('y2', function (d) {
-            return d.target.y;
+            if ( d.target.scy ) return d.target.scy;
+            else return d.target.y;
         });
 
         node.attr('transform',  function translate(d) {
-            return 'translate(' + d.x + ',' + d.y + ')';
+            if ( d.scx || d.scy ) return 'translate(' + d.scx + ',' + d.scy + ')';
+            else return 'translate(' + d.x + ',' + d.y + ')';
         });
     });
 
@@ -385,6 +468,25 @@
   }
 
   /**
+   * Set shapes and color of graph.
+   * A function that set the shapes and colors of the nodes depending on their status.
+   *
+   * @param   {object}    set_shapes    Shapes for nodes.
+   * @param   {object}    set_colors    Colors for nodes.
+   * @param   {object}    callback      A function called at the end.
+   */
+  function set_params(set_shape_property, set_shapes, set_colors, callback) {
+    shape_property = set_shape_property;
+    shapes = set_shapes;
+    colors = set_colors;
+
+    self.GraphVisualization.shapes = shapes;
+    self.GraphVisualization.colors = colors;
+
+    if (callback) { callback(); }
+  }  
+
+  /**
    * Adjust the graph to the whole area.
    * A function that adjust the graph to the svg item.
    *
@@ -437,9 +539,9 @@
    * @param   {object}    value         Value.
    * @return  {object}    color         The color in hexadecimal.
    */
-  function color(value) {
+  function color(property, value) {
     if (graph) {
-      return color(value);
+      return _helpers.set_color(property, value);
     }
   }
 
@@ -519,6 +621,7 @@
     create: create,
     import: importJSON,
     update_graph: update_graph,
+    set_params: set_params,
     set_link_distance: set_link_distance,
     fit: zoom_to_fit,
     reset: reset,
@@ -530,6 +633,8 @@
 
     // Getters
     color: color,
+    shapes: shapes,
+    colors: colors,
     get_attributes: get_attributes,
     get_nodes: get_nodes,
 

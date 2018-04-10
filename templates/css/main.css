@@ -183,6 +183,7 @@ hr {
   z-index: 5;
   height: 35px;
   padding: .5rem 1rem;
+  overflow: hidden;
   line-height: 1.5;
   color: #464a4c;
   pointer-events: none;

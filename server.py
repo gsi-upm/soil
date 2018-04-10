@@ -86,12 +86,17 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
                 self.config = self.config[0]
                 self.send_log('INFO.soil', 'Using config: {name}'.format(name=self.config['name']))
 
+            if 'visualization_params' in self.config:
+                self.write_message({'type': 'visualization_params',
+                    'data': self.config['visualization_params']})
             self.name = self.config['name']
             self.run_simulation()
 
             settings = []
             for key in self.config['environment_params']: 
                 if type(self.config['environment_params'][key]) == float:
+                    setting_type = 'number'
+                elif type(self.config['environment_params'][key]) == int:
                     setting_type = 'number'
                 elif type(self.config['environment_params'][key]) == bool:
                     setting_type = 'boolean'
@@ -149,8 +154,15 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
 
     def run_simulation(self):
         # Run simulation and capture logs
+        if 'visualization_params' in self.config:
+            del self.config['visualization_params']
         with self.logging(self.application.model.name):
-            self.simulation = self.application.model.run(self.config)
+            try:
+                self.simulation = self.application.model.run(self.config)
+            except:
+                error = 'Something went wrong. Please, try again.'
+                self.write_message({'type': 'error',
+                    'error': error})
 
         trials = []
         for i in range(self.config['num_trials']):
@@ -232,5 +244,5 @@ class ModularServer(tornado.web.Application):
         url = 'http://127.0.0.1:{PORT}'.format(PORT=self.port)
         print('Interface starting at {url}'.format(url=url))
         self.listen(self.port)
-        webbrowser.open(url)
+        # webbrowser.open(url)
         tornado.ioloop.IOLoop.instance().start()

@@ -1,4 +1,5 @@
 import os
+import networkx as nx
 from server import VisualizationElement
 from soil.simulation import SoilSimulation
 from xml.etree import ElementTree
@@ -22,7 +23,16 @@ class Model():
 
         print('Dumping results to {} : {}'.format(sim.dir_path, sim.dump))
         
-        return sim.run_simulation()
+        simulation_results = sim.run_simulation()
+
+        G = simulation_results[0].history_to_graph()
+        for node in G.nodes():
+            if 'pos' in G.node[node]:
+                G.node[node]['viz'] = {"position": {"x": G.node[node]['pos'][0], "y": G.node[node]['pos'][1], "z": 0.0}}
+                del (G.node[node]['pos'])
+        nx.write_gexf(G, 'test.gexf', version='1.2draft')
+
+        return simulation_results
 
     def reset(self):
         pass

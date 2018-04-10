@@ -1,0 +1,58 @@
+name: TerroristNetworkModel_sim
+load_module: TerroristNetworkModel
+max_time: 100
+num_trials: 1
+network_params:
+  generator: random_geometric_graph
+  radius: 0.2
+  # generator: geographical_threshold_graph
+  # theta: 20
+  n: 50
+network_agents:
+  - agent_type: TerroristNetworkModel
+    weight: 0.8
+    state:
+      id: 0 # Civilians
+  - agent_type: TerroristNetworkModel
+    weight: 0.1
+    state:
+      id: 2 # Leaders
+  - agent_type: TrainingAreaModel
+    weight: 0.05
+    state:
+      id: 2 # Terrorism
+  - agent_type: HavenModel
+    weight: 0.05
+    state:
+      id: 0 # Civilian
+
+environment_params:
+  # TerroristSpreadModel
+  information_spread_intensity: 0.7
+  terrorist_additional_influence: 0.035
+  max_vulnerability: 0.5
+  prob_interaction: 0.5
+
+  # TrainingAreaModel and HavenModel
+  training_influence: 0.20
+  haven_influence: 0.20
+
+  # TerroristNetworkModel
+  vision_range: 0.50
+  sphere_influence: 2
+  weight_social_distance: 0.035
+  weight_link_distance: 0.035
+
+visualization_params:
+  # Icons downloaded from https://www.iconfinder.com/
+  shape_property: agent
+  shapes:
+    TrainingAreaModel: target
+    HavenModel: home
+  colors:
+    - attr_id: 0
+      color: green
+    - attr_id: 1
+      color: red
+    - attr_id: 2
+      color: '#c16a6a'

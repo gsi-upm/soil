@@ -15,15 +15,15 @@ ws.onmessage = function(message) {
 
     switch(msg['type']) {
         case 'trials':
-            $('#load').removeClass('loader');
             reset_trials();
             set_trials(msg['data']);
+            // $('#load').removeClass('loader');
             break;
 
         case 'get_trial':
             console.log(msg['data']);
-            GraphVisualization.import(convertJSON(msg['data']), function() {
-                $('#load').hide();
+
+            self.GraphVisualization.import(convertJSON(msg['data']), function() {
                 reset_configuration();
                 set_configuration();
                 $('#home_menu').click(function() {
@@ -34,6 +34,7 @@ ws.onmessage = function(message) {
                 });
                 reset_timeline();
                 set_timeline(msg['data']);
+                $('#load').hide();
             });
             $('#charts .chart').removeClass('no-data');
             set_chart_nodes(msg['data'], chart_nodes)
@@ -59,6 +60,11 @@ ws.onmessage = function(message) {
         case 'log':
             $('.console').append('$ ' + msg['logger'] + ': ' + msg['logging'] + '<br/>');
             $('.console').animate({ scrollTop: $('.console')[0].scrollHeight }, 'fast');
+            break;
+
+        case 'visualization_params':
+            console.log(msg['data']);
+            self.GraphVisualization.set_params(msg['data']['shape_property'], msg['data']['shapes'], msg['data']['colors']);
             break;
 
         default:
@@ -103,6 +109,16 @@ var reset_trials = function() {
 }
 
 var convertJSON = function(json) {
+    // For NetworkX Geometric Graphs get positions
+    json.nodes.forEach(function(node) {
+        var scx = d3.scale.linear().domain([0, 1]).range([0, height]);
+        var scy = d3.scale.linear().domain([0, 1]).range([height, 0]);
+        if ( node.pos ) {
+            node.scx = scx(node.pos[0]);
+            node.scy = scy(node.pos[1]);
+        }
+        delete node.pos;
+    });
     json.links.forEach(function(link) {
         link.source = json.nodes[link.source]
         link.target = json.nodes[link.target]
@@ -136,7 +152,7 @@ var update_statistics_table = function() {
                                         statisticsSorted[i].split('.').pop().split('\'')[0] : statisticsSorted[i];
 
             $('<tr>').addClass('col-sm-12').appendTo('#percentTable > tbody');
-            $('<td>').css('background-color', self.GraphVisualization.color(statisticsSorted[i])).addClass('col-sm-1').appendTo(appendTo);
+            $('<td>').css('background-color', self.GraphVisualization.color($('.config-item #properties').val(), statisticsSorted[i])).addClass('col-sm-1').appendTo(appendTo);
             $('<td>').addClass('text-left col-sm-4').text(self.GraphVisualization.statistics[statisticsSorted[i]] + ' %').appendTo(appendTo);
             $('<td>').addClass('text-right col-sm-6 property-name').text(propertyName).appendTo(appendTo);
         }
@@ -211,6 +227,9 @@ var set_timeline = function(graph) {
     // Draw graph for the first time
     self.GraphVisualization.update_graph($('.config-item #properties').val(), maxUnix, function() {
         update_statistics_table();
+        setTimeout(function() {
+            self.GraphVisualization.fit();
+        }, 100);
     });
 
     // 'Speed' slider

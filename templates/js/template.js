@@ -70,7 +70,7 @@ var initGUI = function(model_params) {
     };
 
     for (var option in model_params) {
-
+        
         var type = typeof(model_params[option]);
         var param_str = String(option);
 
@@ -82,7 +82,7 @@ var initGUI = function(model_params) {
                 addSliderInput(model_params[option]['label'], model_params[option]['value']);
                 break;
             default:
-                console.log(model_params[option]['type'] + ' not defined!');
+                console.log(model_params[option]['label'] + ' not defined!');
                 break;
         }
     }

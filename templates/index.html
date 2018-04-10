@@ -104,7 +104,7 @@
         $('#simulation_modal .btn-success').click(function() {
             if ( !jQuery.isEmptyObject(run_simulation()) ) {
                 self.GraphVisualization.reset();
-                $('#load').show().addClass('loader');;
+                $('#load').show().addClass('loader');
                 _socket.send(run_simulation(), 'run_simulation');
                 $('.console').append('<br/>');
             }
