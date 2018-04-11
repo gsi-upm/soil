@@ -64,6 +64,13 @@ var initGUI = function(model_params) {
         });
     };
 
+    var addNumberInput = function(name, value) {
+        var wrapper = $('<div>').attr('class', 'col-sm-6').height('110px');
+        var label   = $('<div>').width('100%').text(name).css('text-align', 'center').css('font-weight', 'bolder').appendTo(wrapper);
+        var input   = $('<input>').attr('id', name).attr('type', 'number').attr('class', 'form-control').attr('value', value).attr('min', 0).css('margin-top', '18px').appendTo(wrapper);
+        $('#wrapper-settings').append(wrapper);
+    }
+
     var addTextBox = function(param, obj) {
         var well = $('<div class="well">' + obj.value + '</div>')[0];
         sidebar.append(well);
@@ -81,8 +88,11 @@ var initGUI = function(model_params) {
             case 'number':
                 addSliderInput(model_params[option]['label'], model_params[option]['value']);
                 break;
+            case 'great_number':
+                addNumberInput(model_params[option]['label'], model_params[option]['value']);
+                break;
             default:
-                console.log(model_params[option]['label'] + ' not defined!');
+                console.warn(model_params[option]['label'] + ' not defined!');
                 break;
         }
     }

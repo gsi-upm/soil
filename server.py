@@ -94,10 +94,11 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
 
             settings = []
             for key in self.config['environment_params']: 
-                if type(self.config['environment_params'][key]) == float:
-                    setting_type = 'number'
-                elif type(self.config['environment_params'][key]) == int:
-                    setting_type = 'number'
+                if type(self.config['environment_params'][key]) == float or type(self.config['environment_params'][key]) == int:
+                    if self.config['environment_params'][key] <= 1:
+                        setting_type = 'number'
+                    else:
+                        setting_type = 'great_number'
                 elif type(self.config['environment_params'][key]) == bool:
                     setting_type = 'boolean'
                 else:
@@ -122,7 +123,6 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
         elif msg['type'] == 'run_simulation':
             if self.application.verbose:
                 logger.info('Running new simulation for {name}'.format(name=self.config['name']))
-                print(msg['data'])
             self.send_log('INFO.soil', 'Running new simulation for {name}'.format(name=self.config['name']))
             self.config['environment_params'] = msg['data']
             self.run_simulation()
@@ -209,7 +209,7 @@ class ModularServer(tornado.web.Application):
     settings = {'debug': True,
                 'template_path': os.path.dirname(__file__) + '/templates'}
 
-    def __init__(self, model, visualization_element, name='SOIL Model', verbose=True,
+    def __init__(self, model, visualization_element, name='SOIL', verbose=True,
                  *args, **kwargs):
         
         self.verbose = verbose

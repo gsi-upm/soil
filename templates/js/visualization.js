@@ -14,6 +14,7 @@
   // Private constants
   var focus_opacity = 0.1,
       radius = 8,
+      shape_size = 16,
       required_node = ['id', 'index', 'label', 'px', 'py', 'spells', 'weight', 'x', 'y', 'pos', 'scx', 'scy'];
 
   // Private variables
@@ -29,8 +30,10 @@
       zoom,               // Zoom
 
       groot,              // Append sections to svg to have nodes and edges separately
+      graph_wrapper,
       glinks,
       gnodes,
+      background_image,
       data_node,          // Actual node data for the graph
       data_link,          // Actual link data for the graph
 
@@ -38,7 +41,8 @@
       node,               // Circles for the nodes
       shape_property,     // Property to whom the shape will be applied
       shapes,             // Dictionary of shapes for nodes
-      colors;             // Dictionary of colors for nodes
+      colors,             // Dictionary of colors for nodes
+      background;         // Background of the graph
 
   Number.prototype.between = function(min, max) {
     var min = (min || min === 0) ? min : Math.max(),
@@ -221,9 +225,18 @@
                      .size([width, height]);
 
     // Append sections to svg to have nodes and edges separately
-    groot =  svg.append('g')    .attr('id', 'root');
-    glinks = groot.append('g')  .attr('id', 'links');
-    gnodes = groot.append('g')  .attr('id', 'nodes');
+    groot  = svg.append('g').attr('id', 'root');
+
+    // Set background
+    if ( background !== undefined ) {
+      background_image = groot.append('image').attr('href', background).style('opacity', '0.8');
+      graph_wrapper = groot.append('g')   .attr('id', 'graph-wrapper');
+      glinks = graph_wrapper.append('g')  .attr('id', 'links');
+      gnodes = graph_wrapper.append('g')  .attr('id', 'nodes');
+    } else {
+      glinks = groot.append('g')  .attr('id', 'links');
+      gnodes = groot.append('g')  .attr('id', 'nodes');
+    }
 
     // Add patterns for shapes
     var defs = [];
@@ -245,8 +258,8 @@
        .attr('href', function(d) {
           return window.location.protocol + '//' + window.location.host + '/img/svg/' + d + '.svg';
        })
-       .attr('width', 16)
-       .attr('height', 16);
+       .attr('width', shape_size)
+       .attr('height', shape_size);
 
     // Zoom
     zoom = d3.behavior
@@ -447,8 +460,23 @@
       radius = r(distance);
       node.attr('r', radius);
 
+      var s = d3.scale.linear().domain([30, 1000]).range([16, 48]);
+      if ( shapes instanceof Object && shape_property ) {
+        svg.selectAll('pattern image').attr('width', s(distance)).attr('height', s(distance));
+      }
+
       if (callback) { callback(radius); }
     }
+  }
+
+  /**
+   * Set background image.
+   * A function that set a background image.
+   *
+   * @param   {object}    image         Path to image.
+   */
+  function set_background(image) {
+    background = image;
   }
 
   /**
@@ -623,6 +651,7 @@
     update_graph: update_graph,
     set_params: set_params,
     set_link_distance: set_link_distance,
+    set_background: set_background,
     fit: zoom_to_fit,
     reset: reset,
 

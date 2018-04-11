@@ -33,6 +33,25 @@ html, body {
   cursor: pointer;
 }
 
+.wrapper-heading {
+  display: flex;
+  flex-direction: row;
+  padding: 0 !important;
+}
+
+.soil_logo {
+  padding: 0 !important;
+  border-left: none !important;
+  border-right: none !important;
+  display: flex;
+  justify-content: flex-end;
+  background-color: rgb(88, 88, 88);
+}
+
+.soil_logo > img {
+  max-height: 100%;
+}
+
 .node {
   stroke: #fff;
   stroke-width: 1.5px;
@@ -292,7 +311,7 @@ table#link-distance .max {
 
 /* Console */
 
-#update, .console  {
+#update, .console, .soil_logo  {
   padding: 10px 15px;
   height: 135px;
   border: 1px solid #585858;
@@ -317,6 +336,7 @@ table#link-distance .max {
   overflow: auto;
   border-top-left-radius: 5px;
   border-bottom-left-radius: 5px;
+  width: 100%;
 }
 
 .console::-webkit-scrollbar {

@@ -26,12 +26,12 @@ ws.onmessage = function(message) {
             self.GraphVisualization.import(convertJSON(msg['data']), function() {
                 reset_configuration();
                 set_configuration();
-                $('#home_menu').click(function() {
-                    setTimeout(function() {
-                        reset_timeline();
-                        set_timeline(msg['data']);
-                    }, 1000);
-                });
+                // $('#home_menu').click(function() {
+                //     setTimeout(function() {
+                //         reset_timeline();
+                //         set_timeline(msg['data']);
+                //     }, 1000);
+                // });
                 reset_timeline();
                 set_timeline(msg['data']);
                 $('#load').hide();
@@ -52,7 +52,7 @@ ws.onmessage = function(message) {
             break;
 
         case 'error':
-            console.log(msg['error']);
+            console.error(msg['error']);
             _socket.error(msg['error']);
             $('#load').removeClass('loader');
             break;
@@ -65,10 +65,18 @@ ws.onmessage = function(message) {
         case 'visualization_params':
             console.log(msg['data']);
             self.GraphVisualization.set_params(msg['data']['shape_property'], msg['data']['shapes'], msg['data']['colors']);
+
+            if ( msg['data']['background_image'] ) {
+                // $('svg#graph').css('background-image', 'linear-gradient(to bottom, rgba(0,0,0,0.4) 0%,rgba(0,0,0,0.4) 100%), url(img/background/' + msg['data']['background_image'])
+                //               .css('background-size', '130%').css('background-position', '5% 30%').css('background-repeat', 'no-repeat');
+                $('<style>').text('svg line.link { stroke: white !important; stroke-width: 1.5px !important; }').appendTo($('html > head'));
+                $('<style>').text('svg circle.node { stroke-width: 2.5px !important; }').appendTo($('html > head'));
+                self.GraphVisualization.set_background('img/background/' + msg['data']['background_image']);
+            }
             break;
 
         default:
-            console.log('Unexpected message!')
+            console.warn('Unexpected message!')
     }
 
 }
@@ -111,8 +119,8 @@ var reset_trials = function() {
 var convertJSON = function(json) {
     // For NetworkX Geometric Graphs get positions
     json.nodes.forEach(function(node) {
-        var scx = d3.scale.linear().domain([0, 1]).range([0, height]);
-        var scy = d3.scale.linear().domain([0, 1]).range([height, 0]);
+        var scx = d3.scale.linear().domain([0, 1]).range([0, width]);
+        var scy = d3.scale.linear().domain([0, 1]).range([width, 0]);
         if ( node.pos ) {
             node.scx = scx(node.pos[0]);
             node.scy = scy(node.pos[1]);
@@ -227,8 +235,15 @@ var set_timeline = function(graph) {
     // Draw graph for the first time
     self.GraphVisualization.update_graph($('.config-item #properties').val(), maxUnix, function() {
         update_statistics_table();
-        setTimeout(function() {
-            self.GraphVisualization.fit();
+        $('svg #root > image').attr('height', d3.select('#root').node().getBBox().height)
+        setTimeout(function() {           
+            if ( $('svg #root > image').length !== 0 ) {
+                $('svg #root > image').attr('height', d3.select('#root').node().getBBox().height * 1.2);
+                var dx = d3.select('#graph-wrapper').node().getBBox().width - d3.select('svg #root > image').node().getBBox().width;
+                var dy = d3.select('#graph-wrapper').node().getBBox().height - d3.select('svg #root > image').node().getBBox().height;
+                $('svg #root > image').attr('transform', 'translate(' + (dx / 2) + ',' + (dy / 2) + ')');
+            }
+            self.GraphVisualization.fit(); 
         }, 100);
     });
 
@@ -397,7 +412,11 @@ var run_simulation = function() {
             case 'checkbox':
                 environment_variables[this.id] = ($(this).is(':checked')) ? true : false;
                 break;
+            case 'number':
+                environment_variables[this.id] = Number(this.value);
+                break;
             default:
+                console.warn(this.id +  ' not defined when running simulation!');
                 break;
         }
         

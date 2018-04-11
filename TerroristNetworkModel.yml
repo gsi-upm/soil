@@ -1,6 +1,6 @@
 name: TerroristNetworkModel_sim
 load_module: TerroristNetworkModel
-max_time: 100
+max_time: 150
 num_trials: 1
 network_params:
   generator: random_geometric_graph
@@ -30,7 +30,7 @@ environment_params:
   # TerroristSpreadModel
   information_spread_intensity: 0.7
   terrorist_additional_influence: 0.035
-  max_vulnerability: 0.5
+  max_vulnerability: 0.6
   prob_interaction: 0.5
 
   # TrainingAreaModel and HavenModel
@@ -38,7 +38,7 @@ environment_params:
   haven_influence: 0.20
 
   # TerroristNetworkModel
-  vision_range: 0.50
+  vision_range: 0.30
   sphere_influence: 2
   weight_social_distance: 0.035
   weight_link_distance: 0.035
@@ -49,10 +49,12 @@ visualization_params:
   shapes:
     TrainingAreaModel: target
     HavenModel: home
+    TerroristNetworkModel: person
   colors:
     - attr_id: 0
-      color: green
+      color: '#40de40'
     - attr_id: 1
       color: red
     - attr_id: 2
       color: '#c16a6a'
+  background_image: 'map.png'

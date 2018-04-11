@@ -74,7 +74,7 @@
             );
 
             if ( file['type'] !== "application/x-yaml" ) {
-                console.log('File format not supported. Sorry for the inconvenience.');
+                console.error('File format not supported. Sorry for the inconvenience.');
                 _socket.error('File format not supported. Sorry for the inconvenience.');
                 return;
             } else {
@@ -142,13 +142,21 @@
 
 <div class="container-fluid fixed">
 
-    <!-- CONSOLE -->
-    <div class="col-sm-9 console">
-        Please, upload a YAML file that defines all the parameters of a simulation. <br/>
-        If you don't know how to write the file, please visit this page:<br/>
-        http://soilsim.readthedocs.io/en/latest/quickstart.html<br/>
+    <div class="col-sm-9 wrapper-heading">
+        <!-- CONSOLE -->
+        <div class="console">
+            Please, upload a YAML file that defines all the parameters of a simulation. <br/>
+            If you don't know how to write the file, please visit this page:<br/>
+            http://soilsim.readthedocs.io/en/latest/quickstart.html<br/>
+        </div>
+        <!-- //CONSOLE -->
+
+        <!-- SOIL Logo -->
+        <div class="soil_logo" >
+            <img src="img/logo_soil.png" />
+        </div>
+        <!-- //SOIL Logo -->
     </div>
-    <!-- //CONSOLE -->
 
     <div id="update" class="col-sm-3">
         <!-- Load File -->
@@ -210,7 +218,7 @@
             <div class="container-fluid">
 
                 <div id="graph_container">
-                    <svg id="graph" class="col-sm-9"></svg>
+                    <svg id="graph" class="col-sm-9" xmlns="http://www.w3.org/2000/svg"></svg>
                 </div>
 
                 <div id="configuration" class="col-sm-3">

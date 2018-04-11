@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Visualization of a Graph Model')
 
-    parser.add_argument('--name', '-n', nargs=1, default='SOIL Model', help='name of the simulation')
+    parser.add_argument('--name', '-n', nargs=1, default='SOIL', help='name of the simulation')
     parser.add_argument('--dump', '-d', help='dumping results in folder output', action='store_true')
     parser.add_argument('--verbose', '-v', help='verbose mode', action='store_true')
     args = parser.parse_args()
