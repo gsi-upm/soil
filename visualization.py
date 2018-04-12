@@ -25,12 +25,12 @@ class Model():
         
         simulation_results = sim.run_simulation()
 
-        G = simulation_results[0].history_to_graph()
-        for node in G.nodes():
-            if 'pos' in G.node[node]:
-                G.node[node]['viz'] = {"position": {"x": G.node[node]['pos'][0], "y": G.node[node]['pos'][1], "z": 0.0}}
-                del (G.node[node]['pos'])
-        nx.write_gexf(G, 'test.gexf', version='1.2draft')
+        # G = simulation_results[0].history_to_graph()
+        # for node in G.nodes():
+        #     if 'pos' in G.node[node]:
+        #         G.node[node]['viz'] = {"position": {"x": G.node[node]['pos'][0], "y": G.node[node]['pos'][1], "z": 0.0}}
+        #         del (G.node[node]['pos'])
+        # nx.write_gexf(G, 'test.gexf', version='1.2draft')
 
         return simulation_results
 

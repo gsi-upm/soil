@@ -197,6 +197,7 @@
             </ul>
             <ul class="nav navbar-nav navbar-right">
                 <li><a href="#" id="run_simulation" role="button">Run simulation</a></li>
+                <li><a href="#" id="download_simulation" role="button" data-toggle="modal" data-target="#download_modal">Download</a></li>
             </ul>
         </div>
         <script type="text/javascript">
@@ -332,7 +333,7 @@
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
                 <h4 class="modal-title">New simulation</h4>
             </div>
-            <div class="modal-body">
+            <div class="modal-body text-justify">
                 <p>You are going to run a new simulation, all charts and trials are going to be lost. A new ones will be available after the simulation.</p>
                 <p>Check your new environment variables for this simulation.</p>
                 <table class="table">
@@ -341,8 +342,32 @@
                 </table>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-danger" data-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-success">Run</button>
+                <button type="button" class="btn btn-danger" data-dismiss="modal">Cancel</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+
+<div class="modal fade" tabindex="-1" role="dialog" id="download_modal">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">Download Simulation Results</h4>
+            </div>
+            <div class="modal-body text-justify">
+                <p>You can download the results of the selected trial in GEXF or JSON Graph format for your personal purposes.</p>
+                <ul >
+                    <li><b>GEXF</b> <i>(Graph Exchange XML Format)</i> is a language for describing complex network structures, their associated data and dynamics. It can be used to visualize the simulation with Gephi.</li>
+                    <li><b>JSON Graph</b> generate and parse JSON serializable data for NetworkX graphs. It is a convention for modeling graph information as a JSON object that can be parsed by any JSON parser.</li>
+                </ul>
+                <p>For downloading the results of the other trials simulated, please first select them in menu.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" disabled="disabled" id="download_gexf">GEXF</button>
+                <button type="button" class="btn btn-success" disabled="disabled" id="download_json">JSON Graph</button>
+                <button type="button" class="btn btn-danger" data-dismiss="modal">Cancel</button>
             </div>
         </div><!-- /.modal-content -->
     </div><!-- /.modal-dialog -->

@@ -12,6 +12,7 @@ import yaml
 import webbrowser
 from contextlib import contextmanager
 from time import sleep
+from xml.etree.ElementTree import tostring
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -118,7 +119,7 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
                 logger.info('Trial {} requested!'.format(msg['data']))
             self.send_log('INFO.user', 'Trial {} requested!'.format(msg['data']))
             self.write_message({'type': 'get_trial',
-                'data': self.get_trial( int(msg['data'] )) })
+                'data': self.get_trial( int(msg['data']) ) })
 
         elif msg['type'] == 'run_simulation':
             if self.application.verbose:
@@ -126,6 +127,28 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
             self.send_log('INFO.soil', 'Running new simulation for {name}'.format(name=self.config['name']))
             self.config['environment_params'] = msg['data']
             self.run_simulation()
+
+        elif msg['type'] == 'download_gexf':
+            G = self.simulation[ int(msg['data']) ].history_to_graph()
+            for node in G.nodes():
+                if 'pos' in G.node[node]:
+                    G.node[node]['viz'] = {"position": {"x": G.node[node]['pos'][0], "y": G.node[node]['pos'][1], "z": 0.0}}
+                    del (G.node[node]['pos'])
+            writer = nx.readwrite.gexf.GEXFWriter(version='1.2draft')
+            writer.add_graph(G)
+            self.write_message({'type': 'download_gexf',
+                'filename': self.config['name'] + '_trial_' + str(msg['data']),
+                'data': tostring(writer.xml).decode(writer.encoding) })
+
+        elif msg['type'] == 'download_json':
+            G = self.simulation[ int(msg['data']) ].history_to_graph()
+            for node in G.nodes():
+                if 'pos' in G.node[node]:
+                    G.node[node]['viz'] = {"position": {"x": G.node[node]['pos'][0], "y": G.node[node]['pos'][1], "z": 0.0}}
+                    del (G.node[node]['pos'])
+            self.write_message({'type': 'download_json',
+                'filename': self.config['name'] + '_trial_' + str(msg['data']),
+                'data': nx.node_link_data(G) })
 
         else:
             if self.application.verbose:

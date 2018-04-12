@@ -264,7 +264,7 @@
     // Zoom
     zoom = d3.behavior
              .zoom()
-             .scaleExtent([1/10, 10])
+             .scaleExtent([1/5, 10])
              .on('zoom', function () {
                 //console.trace("zoom", d3.event.translate, d3.event.scale);
                 groot.attr('transform',

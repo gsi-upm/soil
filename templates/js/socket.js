@@ -75,6 +75,15 @@ ws.onmessage = function(message) {
             }
             break;
 
+        case 'download_gexf':
+            var xml_declaration = '<?xml version="1.0" encoding="utf-8"?>';
+            download(msg['filename'] + '.gexf', 'xml', xml_declaration + msg['data']);
+            break;
+
+        case 'download_json':
+            download(msg['filename'] + '.json', 'json', JSON.stringify(msg['data'], null, 4));
+            break;
+
         default:
             console.warn('Unexpected message!')
     }
@@ -91,7 +100,8 @@ var _socket = {
     error: function(message) {
         $('#error-message').text(message);
         $('.alert.alert-danger').show();
-    }
+    },
+    current_trial: undefined
 };
 
 var set_trials = function(trials) {
@@ -104,9 +114,11 @@ var set_trials = function(trials) {
         var a = $('.dropdown-toggle .caret');
         $('.dropdown-toggle').text($(this).text() + ' ').append(a);
         _socket.send($(this).val(), 'get_trial');
+        _socket.current_trial = $(this).val();
     });
     // Request first trial as default
     _socket.send(0, 'get_trial')
+    _socket.current_trial = 0
 };
 
 var reset_trials = function() {
@@ -200,6 +212,15 @@ var set_configuration = function() {
 
     // Enable 'Run configuration' button
     $('#run_simulation').attr('data-toggle', 'modal').attr('data-target', '#simulation_modal');
+
+    // Enable 'Download' buttons
+    $('#download_modal .btn-success').prop('disabled', false);
+    $('#download_gexf').on('click', function() {
+        _socket.send(_socket.current_trial, 'download_gexf')
+    });
+    $('#download_json').on('click', function() {
+        _socket.send(_socket.current_trial, 'download_json')
+    });
 }
 
 var reset_configuration = function() {
@@ -212,6 +233,10 @@ var reset_configuration = function() {
 
     // 'Link Distance' slider
     $('#link-distance-slider').slider('disable').slider('setValue', 30);
+
+    // 'Download' buttons
+    $('#download_gexf').off();
+    $('#download_json').off();
 }
 
 var set_timeline = function(graph) {
@@ -421,4 +446,12 @@ var run_simulation = function() {
         
     });
     return environment_variables;
+}
+
+var download = function(filename, filetype, content) {
+    var file = document.createElement('a');
+    file.setAttribute('href', 'data:text/' + filetype + ';charset=utf-8,' + encodeURIComponent(content));
+    file.setAttribute('download', filename);
+    file.click();
+    delete file;
 }
