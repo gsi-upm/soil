@@ -1,13 +1,13 @@
 name: TerroristNetworkModel_sim
 load_module: TerroristNetworkModel
-max_time: 150
+max_time: 500
 num_trials: 1
 network_params:
   generator: random_geometric_graph
   radius: 0.2
   # generator: geographical_threshold_graph
   # theta: 20
-  n: 50
+  n: 150
 network_agents:
   - agent_type: TerroristNetworkModel
     weight: 0.8
@@ -57,4 +57,4 @@ visualization_params:
       color: red
     - attr_id: 2
       color: '#c16a6a'
-  background_image: 'map.png'
+  background_image: 'map_4800x2860.jpg'

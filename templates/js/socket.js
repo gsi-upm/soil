@@ -235,16 +235,15 @@ var set_timeline = function(graph) {
     // Draw graph for the first time
     self.GraphVisualization.update_graph($('.config-item #properties').val(), maxUnix, function() {
         update_statistics_table();
-        $('svg #root > image').attr('height', d3.select('#root').node().getBBox().height)
         setTimeout(function() {           
+            self.GraphVisualization.fit(); 
             if ( $('svg #root > image').length !== 0 ) {
                 $('svg #root > image').attr('height', d3.select('#root').node().getBBox().height * 1.2);
                 var dx = d3.select('#graph-wrapper').node().getBBox().width - d3.select('svg #root > image').node().getBBox().width;
                 var dy = d3.select('#graph-wrapper').node().getBBox().height - d3.select('svg #root > image').node().getBBox().height;
                 $('svg #root > image').attr('transform', 'translate(' + (dx / 2) + ',' + (dy / 2) + ')');
             }
-            self.GraphVisualization.fit(); 
-        }, 100);
+        }, 500);
     });
 
     // 'Speed' slider
