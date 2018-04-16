@@ -1,17 +1,15 @@
 import os
 import networkx as nx
-from server import VisualizationElement
 from soil.simulation import SoilSimulation
-from xml.etree import ElementTree
 
 
-class Model():
+class Simulator():
+    """ Simulator for running simulations. Using SOIL."""
 
     def __init__(self, dump=False, dir_path='output'):
         self.name = 'soil'
         self.dump = dump
         self.dir_path = dir_path
-        self.simulation = list()
 
     def run(self, config):
         name = config['name']
@@ -35,16 +33,4 @@ class Model():
         return simulation_results
 
     def reset(self):
-        pass
-
-
-class GraphVisualization(VisualizationElement):
-    package_includes = []
-
-    # TODO: esta por definir todos los ajustes de simulacion
-    def __init__(self, params=None):
-        new_element = ("new funcion()")
-        self.js_code = "elements.push(" + new_element + ");"
-
-    def render(self, model):
         pass

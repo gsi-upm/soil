@@ -17,41 +17,13 @@ from xml.etree.ElementTree import tostring
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-class VisualizationElement:
-    """
-    Defines an element of the visualization.
-    Attributes:
-        package_includes: A list of external JavaScript files to include that
-                          are part of the packages.
-        local_includes: A list of JavaScript files that are local to the
-                        directory that the server is being run in.
-        js_code: A JavaScript code string to instantiate the element.
-    Methods:
-        render: Takes a model object, and produces JSON data which can be sent
-                to the client.
-    """
-
-    package_includes = []
-    local_includes = []
-    js_code = ''
-    render_args = {}
-
-    def __init__(self):
-        pass
-
-    def render(self, model):
-        return '<b>VisualizationElement goes here</b>.'
-
 
 class PageHandler(tornado.web.RequestHandler):
     """ Handler for the HTML template which holds the visualization. """
 
     def get(self):
         self.render('index.html', port=self.application.port,
-                    model_name=self.application.model_name,
-                    package_includes=self.application.package_includes,
-                    local_includes=self.application.local_includes,
-                    scripts=self.application.js_code)
+                    name=self.application.name)
 
 
 class SocketHandler(tornado.websocket.WebSocketHandler):
@@ -85,7 +57,7 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
                 return
             else:
                 self.config = self.config[0]
-                self.send_log('INFO.soil', 'Using config: {name}'.format(name=self.config['name']))
+                self.send_log('INFO.' + self.application.simulator.name, 'Using config: {name}'.format(name=self.config['name']))
 
             if 'visualization_params' in self.config:
                 self.write_message({'type': 'visualization_params',
@@ -124,7 +96,7 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
         elif msg['type'] == 'run_simulation':
             if self.application.verbose:
                 logger.info('Running new simulation for {name}'.format(name=self.config['name']))
-            self.send_log('INFO.soil', 'Running new simulation for {name}'.format(name=self.config['name']))
+            self.send_log('INFO.' + self.application.simulator.name, 'Running new simulation for {name}'.format(name=self.config['name']))
             self.config['environment_params'] = msg['data']
             self.run_simulation()
 
@@ -158,7 +130,7 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
         try:
             if (not self.log_capture_string.closed and self.log_capture_string.getvalue()):
                 for i in range(len(self.log_capture_string.getvalue().split('\n')) - 1):
-                    self.send_log('INFO.soil', self.log_capture_string.getvalue().split('\n')[i])
+                    self.send_log('INFO.' + self.application.simulator.name, self.log_capture_string.getvalue().split('\n')[i])
                 self.log_capture_string.truncate(0)
                 self.log_capture_string.seek(0)
         finally:
@@ -179,9 +151,9 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
         # Run simulation and capture logs
         if 'visualization_params' in self.config:
             del self.config['visualization_params']
-        with self.logging(self.application.model.name):
+        with self.logging(self.application.simulator.name):
             try:
-                self.simulation = self.application.model.run(self.config)
+                self.simulation = self.application.simulator.run(self.config)
             except:
                 error = 'Something went wrong. Please, try again.'
                 self.write_message({'type': 'error',
@@ -217,10 +189,7 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
 class ModularServer(tornado.web.Application):
     """ Main visualization application. """
 
-    portrayal_method = None
     port = 8001
-    model_args = ()
-    model_kwargs = {}
     page_handler = (r'/', PageHandler)
     socket_handler = (r'/ws', SocketHandler)
     static_handler = (r'/(.*)', tornado.web.StaticFileHandler,
@@ -232,32 +201,14 @@ class ModularServer(tornado.web.Application):
     settings = {'debug': True,
                 'template_path': os.path.dirname(__file__) + '/templates'}
 
-    def __init__(self, model, visualization_element, name='SOIL', verbose=True,
-                 *args, **kwargs):
+    def __init__(self, simulator, name='SOIL', verbose=True, *args, **kwargs):
         
         self.verbose = verbose
-        self.package_includes = set()
-        self.local_includes = set()
-        self.js_code = []
-        
-        self.visualization_element = visualization_element
-
-        self.model_name = name
-        self.model = model
-        self.model_args = args
-        self.model_kwargs = kwargs
-        #self.reset_model()
+        self.name = name
+        self.simulator = simulator
 
         # Initializing the application itself:
         super().__init__(self.handlers, **self.settings)
-
-    '''
-    def reset_model(self):
-        self.model = self.model_cls(*self.model_args, **self.model_kwargs)
-    '''
-
-    def render_model(self):
-        return self.visualization_element.render(self.model)
 
     def launch(self, port=None):
         """ Run the app. """
