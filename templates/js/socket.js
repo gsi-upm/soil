@@ -71,7 +71,7 @@ ws.onmessage = function(message) {
                 //               .css('background-size', '130%').css('background-position', '5% 30%').css('background-repeat', 'no-repeat');
                 $('<style>').text('svg line.link { stroke: white !important; stroke-width: 1.5px !important; }').appendTo($('html > head'));
                 $('<style>').text('svg circle.node { stroke-width: 2.5px !important; }').appendTo($('html > head'));
-                self.GraphVisualization.set_background('img/background/' + msg['data']['background_image']);
+                self.GraphVisualization.set_background('img/background/' + msg['data']['background_image'], msg['data']['background_opacity'], msg['data']['background_filter_color']);
             }
             break;
 
@@ -267,6 +267,9 @@ var set_timeline = function(graph) {
                 var dx = d3.select('#graph-wrapper').node().getBBox().width - d3.select('svg #root > image').node().getBBox().width;
                 var dy = d3.select('#graph-wrapper').node().getBBox().height - d3.select('svg #root > image').node().getBBox().height;
                 $('svg #root > image').attr('transform', 'translate(' + (dx / 2) + ',' + (dy / 2) + ')');
+                $('svg #root > rect').attr('transform', 'translate(' + (dx / 2) + ',' + (dy / 2) + ')')
+                                     .attr('width', d3.select('svg #root > image').node().getBBox().width)
+                                     .attr('height', d3.select('svg #root > image').node().getBBox().height);
             }
         }, 500);
     });

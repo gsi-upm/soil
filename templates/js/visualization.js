@@ -34,6 +34,8 @@
       glinks,
       gnodes,
       background_image,
+      background_opacity,
+      background_filter_color,
       data_node,          // Actual node data for the graph
       data_link,          // Actual link data for the graph
 
@@ -229,7 +231,8 @@
 
     // Set background
     if ( background !== undefined ) {
-      background_image = groot.append('image').attr('href', background).style('opacity', '0.8');
+      var rect = groot.append('rect').attr('fill', background_filter_color);
+      background_image = groot.append('image').attr('href', background).style('opacity', background_opacity);
       graph_wrapper = groot.append('g')   .attr('id', 'graph-wrapper');
       glinks = graph_wrapper.append('g')  .attr('id', 'links');
       gnodes = graph_wrapper.append('g')  .attr('id', 'nodes');
@@ -475,8 +478,10 @@
    *
    * @param   {object}    image         Path to image.
    */
-  function set_background(image) {
+  function set_background(image, set_opacity, set_color) {
     background = image;
+    background_opacity = set_opacity || 0.8;
+    background_filter_color = set_color || 'white';
   }
 
   /**

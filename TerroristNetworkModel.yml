@@ -58,3 +58,5 @@ visualization_params:
     - attr_id: 2
       color: '#c16a6a'
   background_image: 'map_4800x2860.jpg'
+  background_opacity: '0.9'
+  background_filter_color: 'blue'
