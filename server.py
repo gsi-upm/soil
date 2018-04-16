@@ -89,7 +89,7 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
         elif msg['type'] == 'get_trial':
             if self.application.verbose:
                 logger.info('Trial {} requested!'.format(msg['data']))
-            self.send_log('INFO.user', 'Trial {} requested!'.format(msg['data']))
+            self.send_log('INFO.' + __name__, 'Trial {} requested!'.format(msg['data']))
             self.write_message({'type': 'get_trial',
                 'data': self.get_trial( int(msg['data']) ) })
 
@@ -154,16 +154,16 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
         with self.logging(self.application.simulator.name):
             try:
                 self.simulation = self.application.simulator.run(self.config)
+                trials = []
+                for i in range(self.config['num_trials']):
+                    trials.append('{}_trial_{}'.format(self.name, i))
+                self.write_message({'type': 'trials',
+                    'data': trials })
             except:
                 error = 'Something went wrong. Please, try again.'
                 self.write_message({'type': 'error',
                     'error': error})
-
-        trials = []
-        for i in range(self.config['num_trials']):
-            trials.append('{}_trial_{}'.format(self.name, i))
-        self.write_message({'type': 'trials',
-            'data': trials })
+                self.send_log('ERROR.' + self.application.simulator.name, error)
 
     def get_trial(self, trial):
         G = self.simulation[trial].history_to_graph()
