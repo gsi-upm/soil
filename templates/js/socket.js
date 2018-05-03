@@ -271,7 +271,7 @@ var set_timeline = function(graph) {
                                      .attr('width', d3.select('svg #root > image').node().getBBox().width)
                                      .attr('height', d3.select('svg #root > image').node().getBBox().height);
             }
-        }, 500);
+        }, 1000);
     });
 
     // 'Speed' slider

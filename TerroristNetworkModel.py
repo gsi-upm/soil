@@ -186,16 +186,22 @@ class HavenModel(BaseAgent):
         self.max_vulnerability = environment.environment_params['max_vulnerability']
 
     def step(self):
-        if self.count_neighboring_agents(state_id=0) == 0:
-            self.state['id'] = 1       # Terrorism Haven
-            for neighbour in self.get_neighboring_agents():
-                if isinstance(neighbour, TerroristSpreadModel) and neighbour.vulnerability < self.max_vulnerability:
-                    neighbour.vulnerability = neighbour.vulnerability ** ( 1 - self.haven_influence )
-        else:
+        civilian_haven = False
+        if self.state['id'] == 0:
+            for neighbour_agent in self.get_neighboring_agents():
+                if isinstance(neighbour_agent, TerroristSpreadModel) and neighbour_agent.state['id'] == 0:
+                    civilian_haven = True
+
+        if civilian_haven:
             self.state['id'] = 0       # Civilian Haven
             for neighbour in self.get_neighboring_agents():
                 if isinstance(neighbour, TerroristSpreadModel) and neighbour.vulnerability > self.min_vulnerability:
                     neighbour.vulnerability = neighbour.vulnerability * ( 1 - self.haven_influence )
+        else:
+            self.state['id'] = 1       # Terrorism Haven
+            for neighbour in self.get_neighboring_agents():
+                if isinstance(neighbour, TerroristSpreadModel) and neighbour.vulnerability < self.max_vulnerability:
+                    neighbour.vulnerability = neighbour.vulnerability ** ( 1 - self.haven_influence )
 
         
 class TerroristNetworkModel(TerroristSpreadModel):
@@ -234,7 +240,7 @@ class TerroristNetworkModel(TerroristSpreadModel):
                 social_distance = 1 / self.shortest_path_length(self.global_topology, self.id, agent.id)
                 spatial_proximity = ( 1 - self.get_distance(self.global_topology, self.id, agent.id) )
                 prob_new_interaction = self.weight_social_distance * social_distance + self.weight_link_distance * spatial_proximity
-                if random.random() < prob_new_interaction:
+                if agent.state['id'] == 0 and random.random() < prob_new_interaction:
                     self.add_edge(self.global_topology, self, agent)
                     break
 

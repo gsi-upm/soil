@@ -1,13 +1,13 @@
 name: TerroristNetworkModel_sim
 load_module: TerroristNetworkModel
-max_time: 500
+max_time: 200
 num_trials: 1
 network_params:
   generator: random_geometric_graph
   radius: 0.2
   # generator: geographical_threshold_graph
   # theta: 20
-  n: 150
+  n: 100
 network_agents:
   - agent_type: TerroristNetworkModel
     weight: 0.8
@@ -30,7 +30,7 @@ environment_params:
   # TerroristSpreadModel
   information_spread_intensity: 0.7
   terrorist_additional_influence: 0.035
-  max_vulnerability: 0.6
+  max_vulnerability: 0.7
   prob_interaction: 0.5
 
   # TrainingAreaModel and HavenModel
