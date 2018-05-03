@@ -162,13 +162,15 @@ class TrainingAreaModel(BaseAgent):
     def step(self):
         for neighbour in self.get_neighboring_agents():
             if isinstance(neighbour, TerroristSpreadModel) and neighbour.vulnerability > self.min_vulnerability:
-                neighbour.vulnerability = neighbour.vulnerability * ( 1 - self.training_influence )
+                neighbour.vulnerability = neighbour.vulnerability ** ( 1 - self.training_influence )
 
 
 class HavenModel(BaseAgent):
     """
     Settings:
         haven_influence
+
+        min_vulnerability
 
         max_vulnerability
 
@@ -178,19 +180,24 @@ class HavenModel(BaseAgent):
     def __init__(self, environment=None, agent_id=0, state=()):
         super().__init__(environment=environment, agent_id=agent_id, state=state)
         self.haven_influence = environment.environment_params['haven_influence']
+        if 'min_vulnerability' in environment.environment_params:
+            self.min_vulnerability = environment.environment_params['min_vulnerability']
+        else: self.min_vulnerability = 0
         self.max_vulnerability = environment.environment_params['max_vulnerability']
 
     def step(self):
         if self.count_neighboring_agents(state_id=0) == 0:
             self.state['id'] = 1       # Terrorism Haven
+            for neighbour in self.get_neighboring_agents():
+                if isinstance(neighbour, TerroristSpreadModel) and neighbour.vulnerability < self.max_vulnerability:
+                    neighbour.vulnerability = neighbour.vulnerability ** ( 1 - self.haven_influence )
         else:
             self.state['id'] = 0       # Civilian Haven
+            for neighbour in self.get_neighboring_agents():
+                if isinstance(neighbour, TerroristSpreadModel) and neighbour.vulnerability > self.min_vulnerability:
+                    neighbour.vulnerability = neighbour.vulnerability * ( 1 - self.training_influence )
 
-        for neighbour in self.get_neighboring_agents():
-            if isinstance(neighbour, TerroristSpreadModel) and neighbour.vulnerability < self.max_vulnerability:
-                neighbour.vulnerability = neighbour.vulnerability ** ( 1 - self.haven_influence )
-
-
+        
 class TerroristNetworkModel(TerroristSpreadModel):
     """
     Settings:
