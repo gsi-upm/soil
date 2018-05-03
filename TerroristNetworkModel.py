@@ -195,7 +195,7 @@ class HavenModel(BaseAgent):
             self.state['id'] = 0       # Civilian Haven
             for neighbour in self.get_neighboring_agents():
                 if isinstance(neighbour, TerroristSpreadModel) and neighbour.vulnerability > self.min_vulnerability:
-                    neighbour.vulnerability = neighbour.vulnerability * ( 1 - self.training_influence )
+                    neighbour.vulnerability = neighbour.vulnerability * ( 1 - self.haven_influence )
 
         
 class TerroristNetworkModel(TerroristSpreadModel):
