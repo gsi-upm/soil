@@ -15,13 +15,13 @@ class History:
 
     def __init__(self, db_path=None, name=None, dir_path=None, backup=True):
         if db_path is None and name:
-            db_path = os.path.join(dir_path or os.getcwd(), '{}.db.sqlite'.format(name))
-
+            db_path = os.path.join(dir_path or os.getcwd(),
+                                   '{}.db.sqlite'.format(name))
         if db_path is None:
             db_path = ":memory:"
         else:
             if backup and os.path.exists(db_path):
-                newname = db_path.replace('db.sqlite', 'backup{}.sqlite'.format(time.time()))
+                newname = db_path + '.backup{}.sqlite'.format(time.time())
                 os.rename(db_path, newname)
         self._db_path = db_path
         if isinstance(db_path, str):

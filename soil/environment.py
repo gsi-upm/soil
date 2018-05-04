@@ -56,22 +56,8 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         # executed before network agents
         self.environment_agents = environment_agents or []
         self.network_agents = network_agents or []
-        if self.dry_run:
-            self._db_path = ":memory:"
-        else:
-            self._db_path = os.path.join(self.get_path(), '{}.db.sqlite'.format(self.name))
-        self.create_db(self._db_path)
         self['SEED'] = seed or time.time()
         random.seed(self['SEED'])
-
-    def create_db(self, db_path=None):
-        db_path = db_path or self._db_path
-        if os.path.exists(db_path):
-            newname = db_path.replace('db.sqlite', 'backup{}.sqlite'.format(time.time()))
-            os.rename(db_path, newname)
-        self._db = sqlite3.connect(db_path)
-        with self._db:
-            self._db.execute('''CREATE TABLE IF NOT EXISTS history (agent_id text, t_step int, key text, value text, value_type text)''')
 
     @property
     def agents(self):

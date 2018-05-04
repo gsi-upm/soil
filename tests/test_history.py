@@ -1,30 +1,40 @@
 from unittest import TestCase
 
 import os
-import pandas as pd
+import shutil
+from glob import glob
 
-from soil import history, analysis
+from soil import history
 
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
+DBROOT = os.path.join(ROOT, 'testdb')
 
 
 class TestHistory(TestCase):
+
+    def setUp(self):
+        if not os.path.exists(DBROOT):
+            os.makedirs(DBROOT)
+
+    def tearDown(self):
+        if os.path.exists(DBROOT):
+            shutil.rmtree(DBROOT)
 
     def test_history(self):
         """
         """
         tuples = (
-            ('a_0', 0, 'id', 'h',  ),
-            ('a_0', 1, 'id', 'e',  ),
-            ('a_0', 2, 'id', 'l',  ),
-            ('a_0', 3, 'id', 'l',  ),
-            ('a_0', 4, 'id', 'o',  ),
-            ('a_1', 0, 'id', 'v',  ),
-            ('a_1', 1, 'id', 'a',  ),
-            ('a_1', 2, 'id', 'l',  ),
-            ('a_1', 3, 'id', 'u',  ),
-            ('a_1', 4, 'id', 'e',  ),
+            ('a_0', 0, 'id', 'h'),
+            ('a_0', 1, 'id', 'e'),
+            ('a_0', 2, 'id', 'l'),
+            ('a_0', 3, 'id', 'l'),
+            ('a_0', 4, 'id', 'o'),
+            ('a_1', 0, 'id', 'v'),
+            ('a_1', 1, 'id', 'a'),
+            ('a_1', 2, 'id', 'l'),
+            ('a_1', 3, 'id', 'u'),
+            ('a_1', 4, 'id', 'e'),
             ('env', 1, 'prob', 1),
             ('env', 3, 'prob', 2),
             ('env', 5, 'prob', 3),
@@ -55,11 +65,11 @@ class TestHistory(TestCase):
         """
         """
         tuples = (
-            ('a_1', 0, 'id', 'v',  ),
-            ('a_1', 1, 'id', 'a',  ),
-            ('a_1', 2, 'id', 'l',  ),
-            ('a_1', 3, 'id', 'u',  ),
-            ('a_1', 4, 'id', 'e',  ),
+            ('a_1', 0, 'id', 'v'),
+            ('a_1', 1, 'id', 'a'),
+            ('a_1', 2, 'id', 'l'),
+            ('a_1', 3, 'id', 'u'),
+            ('a_1', 4, 'id', 'e'),
             ('env', 1, 'prob', 1),
             ('env', 2, 'prob', 2),
             ('env', 3, 'prob', 3),
@@ -80,11 +90,44 @@ class TestHistory(TestCase):
                 assert value == 'e'
             elif agent_id == 'a_2':
                 assert key == 'finished'
-                assert value == True
+                assert value
             else:
                 assert key == 'prob'
                 assert value == 3
 
-
         records = h['a_1', 7, None]
         assert records['id'] == 'e'
+
+    def test_history_file(self):
+        """
+        History should be saved to a file
+        """
+        tuples = (
+            ('a_1', 0, 'id', 'v'),
+            ('a_1', 1, 'id', 'a'),
+            ('a_1', 2, 'id', 'l'),
+            ('a_1', 3, 'id', 'u'),
+            ('a_1', 4, 'id', 'e'),
+            ('env', 1, 'prob', 1),
+            ('env', 2, 'prob', 2),
+            ('env', 3, 'prob', 3),
+            ('a_2', 7, 'finished', True),
+        )
+        db_path = os.path.join(DBROOT, 'test')
+        h = history.History(db_path=db_path)
+        h.save_tuples(tuples)
+        assert os.path.exists(db_path)
+
+        # Recover the data
+        recovered = history.History(db_path=db_path, backup=False)
+        assert recovered['a_1', 0, 'id'] == 'v'
+        assert recovered['a_1', 4, 'id'] == 'e'
+
+        # Using the same name should create a backup copy
+        newhistory = history.History(db_path=db_path, backup=True)
+        backuppaths = glob(db_path + '.backup*.sqlite')
+        assert len(backuppaths) == 1
+        backuppath = backuppaths[0]
+        assert newhistory._db_path == h._db_path
+        assert os.path.exists(backuppath)
+        assert not len(newhistory[None, None, None])
