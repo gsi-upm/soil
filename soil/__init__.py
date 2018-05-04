@@ -4,7 +4,7 @@ import os
 import pdb
 import logging
 
-__version__ = "0.10.1"
+from .version import __version__
 
 try:
     basestring
