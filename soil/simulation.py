@@ -20,7 +20,7 @@ class SoilSimulation(NetworkSimulation):
     """
     Subclass of nsim.NetworkSimulation with three main differences:
         1) agent type can be specified by name or by class.
-        2) instead of just one type, an network_agents can be used.
+        2) instead of just one type, a network agents distribution can be used.
            The distribution specifies the weight (or probability) of each
            agent type in the topology. This is an example distribution: ::
 
@@ -95,16 +95,16 @@ class SoilSimulation(NetworkSimulation):
     def run_simulation_gen(self, *args, parallel=False, dry_run=False,
                            **kwargs):
         p = Pool()
-        with utils.timer('simulation'):
+        with utils.timer('simulation {}'.format(self.name)):
             if parallel:
-                func = partial(self.run_trial, dry_run=dry_run,
+                func = partial(self.run_trial, dry_run=dry_run or self.dry_run,
                                return_env=not parallel, **kwargs)
                 for i in p.imap_unordered(func, range(self.num_trials)):
                     yield i
             else:
                 for i in range(self.num_trials):
-                    yield self.run_trial(i, dry_run=dry_run, **kwargs)
-            if not dry_run or self.dry_run:
+                    yield self.run_trial(i, dry_run=dry_run or self.dry_run, **kwargs)
+            if not (dry_run or self.dry_run):
                 logger.info('Dumping results to {}'.format(self.dir_path))
                 self.dump_pickle(self.dir_path)
                 self.dump_yaml(self.dir_path)
@@ -192,7 +192,7 @@ class SoilSimulation(NetworkSimulation):
         return state
 
 
-def from_config(config, G=None):
+def from_config(config):
     config = list(utils.load_config(config))
     if len(config) > 1:
         raise AttributeError('Provide only one configuration')
@@ -201,9 +201,10 @@ def from_config(config, G=None):
     return sim
 
 
-def run_from_config(*configs, results_dir='soil_output', dump=None, timestamp=False,  **kwargs):
+def run_from_config(*configs, results_dir='soil_output', dry_run=False, dump=None, timestamp=False,  **kwargs):
     for config_def in configs:
-        for config, cpath in utils.load_config(config_def):
+        # logger.info("Found {} config(s)".format(len(ls)))
+        for config, _ in utils.load_config(config_def):
             name = config.get('name', 'unnamed')
             logger.info("Using config(s): {name}".format(name=name))
 
@@ -215,4 +216,4 @@ def run_from_config(*configs, results_dir='soil_output', dump=None, timestamp=Fa
             dir_path = os.path.join(results_dir, sim_folder)
             sim = SoilSimulation(dir_path=dir_path, dump=dump, **config)
             logger.info('Dumping results to {} : {}'.format(sim.dir_path, sim.dump))
-            results = sim.run_simulation(**kwargs)
+            sim.run_simulation(**kwargs)

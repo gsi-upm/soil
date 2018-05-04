@@ -62,7 +62,7 @@ def main():
         simulation.run_from_config(args.file,
                                    dry_run=args.dry_run,
                                    dump=dump,
-                                   parallel=(not args.synchronous),
+                                   parallel=(not args.synchronous and not args.pdb),
                                    results_dir=args.output)
     except Exception as ex:
         if args.pdb:

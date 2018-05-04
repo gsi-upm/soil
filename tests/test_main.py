@@ -22,6 +22,7 @@ class TestMain(TestCase):
         Raise an exception otherwise.
         """
         config = {
+            'dry_run': True,
             'network_params': {
                 'path': join(ROOT, 'test.gexf')
             }
@@ -31,6 +32,7 @@ class TestMain(TestCase):
         assert len(G) == 2
         with self.assertRaises(AttributeError):
             config = {
+            'dry_run': True,
                 'network_params': {
                     'path': join(ROOT, 'unknown.extension')
                 }
@@ -44,6 +46,7 @@ class TestMain(TestCase):
         should be used to generate a network
         """
         config = {
+            'dry_run': True,
             'network_params': {
                 'generator': 'barabasi_albert_graph'
             }
@@ -58,6 +61,7 @@ class TestMain(TestCase):
     def test_empty_simulation(self):
         """A simulation with a base behaviour should do nothing"""
         config = {
+            'dry_run': True,
             'network_params': {
                 'path': join(ROOT, 'test.gexf')
             },
@@ -74,11 +78,12 @@ class TestMain(TestCase):
         agent should be able to update its state."""
         config = {
             'name': 'CounterAgent',
+            'dry_run': True,
             'network_params': {
                 'path': join(ROOT, 'test.gexf')
             },
             'agent_type': 'CounterModel',
-            'states': [{'neighbors': 10}, {'total': 12}],
+            'states': [{'times': 10}, {'times': 20}],
             'max_time': 2,
             'num_trials': 1,
             'environment_params': {
@@ -86,10 +91,10 @@ class TestMain(TestCase):
         }
         s = simulation.from_config(config)
         env = s.run_simulation(dry_run=True)[0]
-        assert env.get_agent(0)['neighbors', 0] == 10
-        assert env.get_agent(0)['neighbors', 1] == 1
-        assert env.get_agent(1)['total', 0] == 12
-        assert env.get_agent(1)['neighbors', 1] == 1
+        assert env.get_agent(0)['times', 0] == 11
+        assert env.get_agent(0)['times', 1] == 12
+        assert env.get_agent(1)['times', 0] == 21
+        assert env.get_agent(1)['times', 1] == 22
 
     def test_counter_agent_history(self):
         """
@@ -97,6 +102,7 @@ class TestMain(TestCase):
         """
         config = {
             'name': 'CounterAgent',
+            'dry_run': True,
             'network_params': {
                 'path': join(ROOT, 'test.gexf')
             },
@@ -114,11 +120,10 @@ class TestMain(TestCase):
         env = s.run_simulation(dry_run=True)[0]
         for agent in env.network_agents:
             last = 0
-            assert len(agent[None, None]) == 11
-            for step, total in agent['total', None].items():
-                if step > 0:
-                    assert total == last + 2
-                    last = total
+            assert len(agent[None, None]) == 10
+            for step, total in sorted(agent['total', None]):
+                assert total == last + 2
+                last = total
 
     def test_custom_agent(self):
         """Allow for search of neighbors with a certain state_id"""
@@ -127,6 +132,7 @@ class TestMain(TestCase):
                 self.state['neighbors'] = self.count_agents(state_id=0,
                                                             limit_neighbors=True)
         config = {
+            'dry_run': True,
             'network_params': {
                 'path': join(ROOT, 'test.gexf')
             },
@@ -150,7 +156,8 @@ class TestMain(TestCase):
         config['network_params']['path'] = join(EXAMPLES,
                                                 config['network_params']['path'])
         s = simulation.from_config(config)
-        env = s.run_simulation(dry_run=True)[0]
+        s.dry_run = True
+        env = s.run_simulation()[0]
         for a in env.network_agents:
             skill_level = a.state['skill_level']
             if a.id == 'Torvalds':
@@ -174,14 +181,15 @@ class TestMain(TestCase):
         with utils.timer('loading'):
             config = utils.load_file(join(EXAMPLES, 'complete.yml'))[0]
             s = simulation.from_config(config)
+            s.dry_run = True
         with utils.timer('serializing'):
             serial = s.to_yaml()
         with utils.timer('recovering'):
             recovered = yaml.load(serial)
         with utils.timer('deleting'):
             del recovered['topology']
-            del recovered['dry_run']
             del recovered['load_module']
+            del recovered['dry_run']
         assert config == recovered
 
     def test_configuration_changes(self):
@@ -191,6 +199,7 @@ class TestMain(TestCase):
         """
         config = utils.load_file('examples/complete.yml')[0]
         s = simulation.from_config(config)
+        s.dry_run = True
         for i in range(5):
             s.run_simulation(dry_run=True)
             nconfig = s.to_dict()
@@ -206,17 +215,14 @@ class TestMain(TestCase):
         pass
 
     def test_row_conversion(self):
-        sim = simulation.SoilSimulation()
         env = environment.SoilEnvironment(dry_run=True)
         env['test'] = 'test_value'
-        env._save_state(now=0)
 
         res = list(env.history_to_tuples())
         assert len(res) == len(env.environment_params)
-        assert ('env', 0, 'test', 'test_value', 'str') in res
 
+        env._now = 1
         env['test'] = 'second_value'
-        env._save_state(now=1)
         res = list(env.history_to_tuples())
 
         assert env['env', 0, 'test' ] == 'test_value'

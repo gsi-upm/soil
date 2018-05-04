@@ -1,0 +1,16 @@
+agent_id,t_step,key,value,value_type
+a0,0,hello,w,str
+a0,1,hello,o,str
+a0,2,hello,r,str
+a0,3,hello,l,str
+a0,4,hello,d,str
+a0,5,hello,!,str
+env,1,started,,bool
+env,2,started,True,bool
+env,7,started,,bool
+a0,0,hello,w,str
+a0,1,hello,o,str
+a0,2,hello,r,str
+a0,3,hello,l,str
+a0,4,hello,d,str
+a0,5,hello,!,str

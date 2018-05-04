@@ -4,7 +4,7 @@ import glob
 import yaml
 from os.path import join
 
-from . import utils
+from . import utils, history
 
 
 def read_data(*args, group=False, **kwargs):
@@ -15,8 +15,9 @@ def read_data(*args, group=False, **kwargs):
         return list(iterable)
 
 
-def _read_data(pattern, keys=None, convert_types=False,
-               process=None, from_csv=False, **kwargs):
+def _read_data(pattern, *args, from_csv=False, process_args=None, **kwargs):
+    if not process_args:
+        process_args = {}
     for folder in glob.glob(pattern):
         config_file = glob.glob(join(folder, '*.yml'))[0]
         config = yaml.load(open(config_file))
@@ -24,17 +25,18 @@ def _read_data(pattern, keys=None, convert_types=False,
         if from_csv:
             for trial_data in sorted(glob.glob(join(folder,
                                                     '*.environment.csv'))):
-                df = read_csv(trial_data, convert_types=convert_types)
-                if process:
-                    df = process(df, **kwargs)
+                df = read_csv(trial_data, **kwargs)
                 yield config_file, df, config
         else:
             for trial_data in sorted(glob.glob(join(folder, '*.db.sqlite'))):
-                df = read_sql(trial_data, convert_types=convert_types,
-                              keys=keys)
-                if process:
-                    df = process(df, **kwargs)
+                df = read_sql(trial_data, **kwargs)
                 yield config_file, df, config
+
+
+def read_sql(db, *args, **kwargs):
+    h = history.History(db, backup=False)
+    df = h.read_sql(*args, **kwargs)
+    return df
 
 
 def read_csv(filename, keys=None, convert_types=False, **kwargs):
@@ -49,18 +51,7 @@ def read_csv(filename, keys=None, convert_types=False, **kwargs):
         df = convert_types_slow(df)
     if keys:
         df = df[df['key'].isin(keys)]
-    return df
-
-
-def read_sql(filename, keys=None, convert_types=False, limit=-1):
-    condition = ''
-    if keys:
-        k = map(lambda x: "\'{}\'".format(x), keys)
-        condition = 'where key in ({})'.format(','.join(k))
-    query = 'select * from history {} limit {}'.format(condition, limit)
-    df = pd.read_sql_query(query, 'sqlite:///{}'.format(filename))
-    if convert_types:
-        df = convert_types_slow(df)
+    df = process_one(df)
     return df
 
 
@@ -108,8 +99,9 @@ def get_types(df):
     return {k:v[0] for k,v in dtypes.iteritems()}
 
 
-def process_one(df, *keys, columns=['key'], values='value',
-                index=['t_step', 'agent_id'], aggfunc='first', **kwargs):
+def process_one(df, *keys, columns=['key', 'agent_id'], values='value',
+                fill=True, index=['t_step',],
+                aggfunc='first', **kwargs):
     '''
     Process a dataframe in canonical form ``(t_step, agent_id, key, value, value_type)`` into
     a dataframe with a column per key
@@ -119,35 +111,29 @@ def process_one(df, *keys, columns=['key'], values='value',
     if keys:
         df = df[df['key'].isin(keys)]
 
-    dtypes = get_types(df)
-
     df = df.pivot_table(values=values, index=index, columns=columns,
                         aggfunc=aggfunc, **kwargs)
-    df = df.fillna(0).astype(dtypes)
+    if fill:
+        df = fillna(df)
     return df
-
-
-def get_count_processed(df, *keys):
-    if keys:
-        df = df[list(keys)]
-    # p = df.groupby(level=0).apply(pd.Series.value_counts)
-    p = df.unstack().apply(pd.Series.value_counts, axis=1)
-    return p
 
 
 def get_count(df, *keys):
     if keys:
-        df = df[df['key'].isin(keys)]
-    p = df.groupby(by=['t_step', 'key', 'value']).size().unstack(level=[1,2]).fillna(0)
-    return p
+        df = df[list(keys)]
+    counts = pd.DataFrame()
+    for key in df.columns.levels[0]:
+        g = df[key].apply(pd.Series.value_counts, axis=1).fillna(0)
+        for value, series in g.iteritems():
+            counts[key, value] = series
+    counts.columns = pd.MultiIndex.from_tuples(counts.columns)
+    return counts
 
 
 def get_value(df, *keys, aggfunc='sum'):
     if keys:
-        df = df[df['key'].isin(keys)]
-    p = process_one(df, *keys)
-    p = p.groupby(level='t_step').agg(aggfunc)
-    return p
+        df = df[list(keys)]
+    return df.groupby(axis=1, level=0).agg(aggfunc, axis=1)
 
 
 def plot_all(*args, **kwargs):
@@ -175,4 +161,6 @@ def group_trials(trials, aggfunc=['mean', 'min', 'max', 'std']):
     return pd.concat(trials).groupby(level=0).agg(aggfunc).reorder_levels([2, 0,1] ,axis=1)
 
 
-
+def fillna(df):
+    new_df = df.ffill(axis=0)
+    return new_df

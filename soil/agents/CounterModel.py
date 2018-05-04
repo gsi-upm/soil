@@ -11,9 +11,9 @@ class CounterModel(BaseAgent):
         # Outside effects
         total = len(list(self.get_all_agents()))
         neighbors = len(list(self.get_neighboring_agents()))
-        self.state['times'] = self.state.get('times', 0) + 1
-        self.state['neighbors'] = neighbors
-        self.state['total'] = total
+        self['times'] = self.get('times', 0) + 1
+        self['neighbors'] = neighbors
+        self['total'] = total
 
 
 class AggregatedCounter(BaseAgent):
@@ -26,7 +26,7 @@ class AggregatedCounter(BaseAgent):
         # Outside effects
         total = len(list(self.get_all_agents()))
         neighbors = len(list(self.get_neighboring_agents()))
-        self.state['times'] = self.state.get('times', 0) + 1
-        self.state['neighbors'] = self.state.get('neighbors', 0) + neighbors
-        self.state['total'] = total = self.state.get('total', 0) + total
+        self['times'] = self.get('times', 0) + 1
+        self['neighbors'] = self.get('neighbors', 0) + neighbors
+        self['total'] = total = self.get('total', 0) + total
         self.debug('Running for step: {}. Total: {}'.format(self.now, total))

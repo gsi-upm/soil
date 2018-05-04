@@ -3,7 +3,7 @@ from setuptools import setup
 
 
 with open(os.path.join('soil', 'VERSION')) as f:
-    __version__ = f.read().strip()
+    __version__ = f.readlines()[0].strip()
     assert __version__
 
 

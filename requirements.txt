@@ -1,6 +1,6 @@
 nxsim
 simpy
-networkx
+networkx>=2.0
 numpy
 matplotlib
 pyyaml

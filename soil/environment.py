@@ -5,16 +5,26 @@ import csv
 import random
 import simpy
 import tempfile
+import pandas as pd
 from copy import deepcopy
 from networkx.readwrite import json_graph
 
 import networkx as nx
 import nxsim
 
-from . import utils, agents
+from . import utils, agents, analysis, history
 
 
 class SoilEnvironment(nxsim.NetworkEnvironment):
+    """
+    The environment is key in a simulation. It contains the network topology,
+    a reference to network and environment agents, as well as the environment
+    params, which are used as shared state between agents.
+
+    The environment parameters and the state of every agent can be accessed
+    both by using the environment as a dictionary or with the environment's 
+    :meth:`soil.environment.SoilEnvironment.get` method.
+    """
 
     def __init__(self, name=None,
                  network_agents=None,
@@ -38,19 +48,21 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         self._env_agents = {}
         self.dry_run = dry_run
         self.interval = interval
+        self.dir_path = dir_path or tempfile.mkdtemp('soil-env')
+        self.get_path()
+        self._history = history.History(name=self.name if not dry_run else None,
+                                        dir_path=self.dir_path)
         # Add environment agents first, so their events get
         # executed before network agents
-        self['SEED'] = seed or time.time()
-        random.seed(self['SEED'])
-        self.process(self.save_state())
         self.environment_agents = environment_agents or []
         self.network_agents = network_agents or []
-        self.dir_path = dir_path or tempfile.mkdtemp('soil-env')
         if self.dry_run:
             self._db_path = ":memory:"
         else:
             self._db_path = os.path.join(self.get_path(), '{}.db.sqlite'.format(self.name))
         self.create_db(self._db_path)
+        self['SEED'] = seed or time.time()
+        random.seed(self['SEED'])
 
     def create_db(self, db_path=None):
         db_path = db_path or self._db_path
@@ -95,10 +107,8 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         if not network_agents:
             return
         for ix in self.G.nodes():
-            i = ix
-            node = self.G.node[i]
             agent, state = agents._agent_from_distribution(network_agents)
-            self.set_agent(i, agent_type=agent, state=state)
+            self.set_agent(ix, agent_type=agent, state=state)
 
     def set_agent(self, agent_id, agent_type, state=None):
         node = self.G.nodes[agent_id]
@@ -125,16 +135,21 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         return self.G.add_edge(agent1, agent2)
 
     def run(self, *args, **kwargs):
+        self._save_state()
         super().run(*args, **kwargs)
+        self._history.flush_cache()
 
     def _save_state(self, now=None):
         # for agent in self.agents:
         #     agent.save_state()
         utils.logger.debug('Saving state @{}'.format(self.now))
-        with self._db:
-            self._db.executemany("insert into history(agent_id, t_step, key, value, value_type) values (?, ?, ?, ?, ?)", self.state_to_tuples(now=now))
+        self._history.save_records(self.state_to_tuples(now=now))
 
     def save_state(self):
+        '''
+        :DEPRECATED:
+        Periodically save the state of the environment and the agents.
+        '''
         self._save_state()
         while self.peek() != simpy.core.Infinity:
             delay = max(self.peek() - self.now, self.interval)
@@ -149,64 +164,44 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
 
     def __getitem__(self, key):
         if isinstance(key, tuple):
-            values = [("agent_id", key[0]),
-                      ("t_step", key[1]),
-                      ("key", key[2]),
-                      ("value", None),
-                      ("value_type", None)]
-            fields = list(k for k, v in values if v is None)
-            conditions = " and ".join("{}='{}'".format(k, v) for k, v in values if v is not None)
-
-            query = """SELECT {fields} from history""".format(fields=",".join(fields))
-            if conditions:
-                query = """{query} where {conditions}""".format(query=query,
-                                                                conditions=conditions)
-            with self._db:
-                rows = self._db.execute(query).fetchall()
-
-            utils.logger.debug(rows)
-            results = self.rows_to_dict(rows)
-            return results
+            self._history.flush_cache()
+            return self._history[key]
 
         return self.environment_params[key]
 
-    def rows_to_dict(self, rows):
-        if len(rows) < 1:
-            return None
-
-        level = len(rows[0])-2
-
-        if level == 0:
-            if len(rows) != 1:
-                raise ValueError('Cannot convert {} to dictionaries'.format(rows))
-            value, value_type = rows[0]
-            return utils.convert(value, value_type)
-
-        results = {}
-        for row in rows:
-            item = results
-            for i in range(level-1):
-                key = row[i]
-                if key not in item:
-                    item[key] = {}
-                item = item[key]
-            key, value, value_type = row[level-1:]
-            item[key] = utils.convert(value, value_type)
-        return results
-
     def __setitem__(self, key, value):
+        if isinstance(key, tuple):
+            k = history.Key(*key)
+            self._history.save_record(*k,
+                                      value=value)
+            return
         self.environment_params[key] = value
+        self._history.save_record(agent_id='env',
+                                  t_step=self.now,
+                                  key=key,
+                                  value=value)
 
     def __contains__(self, key):
         return key in self.environment_params
 
     def get(self, key, default=None):
+        '''
+        Get the value of an environment attribute in a
+        given point in the simulation (history).
+        If key is an attribute name, this method returns
+        the current value.
+        To get values at other times, use a
+        :meth: `soil.history.Key` tuple.
+        '''
         return self[key] if key in self else default
 
     def get_path(self, dir_path=None):
         dir_path = dir_path or self.dir_path
         if not os.path.exists(dir_path):
-            os.makedirs(dir_path)
+            try:
+                os.makedirs(dir_path)
+            except FileExistsError:
+                pass
         return dir_path
 
     def get_agent(self, agent_id):
@@ -255,17 +250,19 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         if now is None:
             now = self.now
         for k, v in self.environment_params.items():
-            v, v_t = utils.repr(v)
-            yield 'env', now, k, v, v_t
+            yield history.Record(agent_id='env',
+                                 t_step=now,
+                                 key=k,
+                                 value=v)
         for agent in self.agents:
             for k, v in agent.state.items():
-                v, v_t = utils.repr(v)
-                yield agent.id, now, k, v, v_t
+                yield history.Record(agent_id=agent.id,
+                                     t_step=now,
+                                     key=k,
+                                     value=v)
 
     def history_to_tuples(self):
-        with self._db:
-            res = self._db.execute("select agent_id, t_step, key, value, value_type from history ").fetchall()
-        yield from res
+        return self._history.to_tuples()
 
     def history_to_graph(self):
         G = nx.Graph(self.G)
@@ -317,14 +314,10 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
     def __getstate__(self):
         state = self.__dict__.copy()
         state['G'] = json_graph.node_link_data(self.G)
-        state['network_agents'] = agents.serialize_distribution(self.network_agents)
+        state['network_agents'] = agents._serialize_distribution(self.network_agents)
         state['environment_agents'] = agents._convert_agent_types(self.environment_agents,
                                                                  to_string=True)
         del state['_queue']
-        import inspect
-        for k, v in state.items():
-            if inspect.isgeneratorfunction(v):
-                print(k, v, type(v))
         return state
 
     def __setstate__(self, state):

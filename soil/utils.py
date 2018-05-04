@@ -1,6 +1,7 @@
 import os
 import yaml
 import logging
+import importlib
 from time import time
 from glob import glob
 from random import random
@@ -72,13 +73,22 @@ def timer(name='task', pre="", function=logger.info, to_object=None):
 
 
 def repr(v):
-    if isinstance(v, bool):
-        v = "true" if v else ""
-        return v, bool.__name__
-    return v, type(v).__name__
+    func = serializer(v)
+    tname = name(v)
+    return func(v), tname
 
-def convert(value, type_):
-    import importlib
+
+def name(v):
+    return type(v).__name__
+
+
+def serializer(type_):
+    if type_ == 'bool':
+        return lambda x:  "true" if x else ""
+    return lambda x: x
+
+
+def deserializer(type_):
     try:
         # Check if it's a builtin type
         module = importlib.import_module('builtins')
@@ -88,4 +98,8 @@ def convert(value, type_):
         module, type_ = type_.rsplit(".", 1)
         module = importlib.import_module(module)
         cls = getattr(module, type_)
-    return cls(value)
+    return cls
+
+
+def convert(value, type_):
+    return deserializer(type_)(value)

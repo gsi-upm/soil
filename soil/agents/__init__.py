@@ -14,7 +14,7 @@ import json
 
 from functools import wraps
 
-from .. import utils
+from .. import utils, history
 
 agent_types = {}
 
@@ -32,33 +32,67 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
 
     defaults = {}
 
-    def __init__(self, **kwargs):
+    def __init__(self, environment=None, agent_id=None, state=None,
+                 name='network_process', interval=None, **state_params):
+        # Check for REQUIRED arguments
+        assert environment is not None, TypeError('__init__ missing 1 required keyword argument: \'environment\'. '
+                                                  'Cannot be NoneType.')
+        # Initialize agent parameters
+        self.id = agent_id
+        self.name = name
+        self.state_params = state_params
+
+        # Global parameters
+        self.global_topology = environment.G
+        self.environment_params = environment.environment_params
+
+        # Register agent to environment
+        self.env = environment
+
         self._neighbors = None
         self.alive = True
-        state = deepcopy(self.defaults)
-        state.update(kwargs.pop('state', {}))
-        kwargs['state'] = state
-        super().__init__(**kwargs)
+        real_state = deepcopy(self.defaults)
+        real_state.update(state or {})
+        self._state = real_state
+        self.interval = interval
+
         if not hasattr(self, 'level'):
             self.level = logging.DEBUG
-        self.logger = logging.getLogger('{}-Agent-{}'.format(self.env.name, self.id))
+        self.logger = logging.getLogger('{}-Agent-{}'.format(self.env.name,
+                                                             self.id))
         self.logger.setLevel(self.level)
 
+        # initialize every time an instance of the agent is created
+        self.action = self.env.process(self.run())
+
+    @property
+    def state(self):
+        return self._state
+
+    @state.setter
+    def state(self, value):
+        for k, v in value.items():
+            self[k] = v
 
     def __getitem__(self, key):
         if isinstance(key, tuple):
-            k, t_step = key
-            return self.env[self.id, t_step, k]
+            key, t_step = key
+            k = history.Key(key=key, t_step=t_step, agent_id=self.id)
+            return self.env[k]
         return self.state.get(key, None)
 
     def __delitem__(self, key):
-        del self.state[key]
+        self.state[key] = None
 
     def __contains__(self, key):
         return key in self.state
 
     def __setitem__(self, key, value):
         self.state[key] = value
+        k = history.Key(t_step=self.now,
+                        agent_id=self.id,
+                        key=key)
+        self.env[k] = value
 
     def get(self, key, default=None):
         return self[key] if key in self else default
@@ -72,7 +106,12 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
             return None
 
     def run(self):
-        interval = self.env.interval
+        if self.interval is not None:
+            interval = self.interval
+        elif 'interval' in self:
+            interval = self['interval']
+        else:
+            interval = self.env.interval
         while self.alive:
             res = self.step()
             yield res or self.env.timeout(interval)
@@ -95,7 +134,7 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
             agents = self.global_topology.nodes()
         count = 0
         for agent in agents:
-            if state_id and state_id != self.global_topology.node[agent]['agent'].state['id']:
+            if state_id and state_id != self.global_topology.node[agent]['agent']['id']:
                 continue
             count += 1
         return count
@@ -197,11 +236,13 @@ class FSM(BaseAgent, metaclass=MetaFSM):
     def __init__(self, *args, **kwargs):
         super(FSM, self).__init__(*args, **kwargs)
         if 'id' not in self.state:
-            self.state['id'] = self.default_state.id
+            if not self.default_state:
+                raise ValueError('No default state specified for {}'.format(self.id))
+            self['id'] = self.default_state.id
 
     def step(self):
         if 'id' in self.state:
-            next_state = self.state['id']
+            next_state = self['id']
         elif self.default_state:
             next_state = self.default_state.id
         else:
@@ -215,7 +256,7 @@ class FSM(BaseAgent, metaclass=MetaFSM):
             state = state.id
         if state not in self.states:
             raise ValueError('{} is not a valid state'.format(state))
-        self.state['id'] = state
+        self['id'] = state
         return state
 
 
