@@ -263,31 +263,30 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
             history = self[agent.id, None, None]
             if not history:
                 continue
-            for t_step, state in reversed(sorted(list(history.items()))):
-                for attribute, value in state.items():
-                    if attribute == 'visible':
-                        nowvisible = state[attribute]
-                        if nowvisible and not lastvisible:
-                            laststep = t_step
-                        if not nowvisible and lastvisible:
-                            spells.append((laststep, t_step))
+            for t_step, attribute, value in sorted(list(history)):
+                if attribute == 'visible':
+                    nowvisible = value
+                    if nowvisible and not lastvisible:
+                        laststep = t_step
+                    if not nowvisible and lastvisible:
+                        spells.append((laststep, t_step))
 
-                        lastvisible = nowvisible
-                    else:
-                        key = 'attr_' + attribute
-                        if key not in attributes:
-                            attributes[key] = list()
-                        if key not in lastattributes:
-                            lastattributes[key] = (state[attribute], t_step)
-                        elif lastattributes[key][0] != value:
-                            last_value, laststep = lastattributes[key]
-                            value = (last_value, t_step, laststep)
-                            if key not in attributes:
-                                attributes[key] = list()
-                            attributes[key].append(value)
-                            lastattributes[key] = (state[attribute], t_step)
+                    lastvisible = nowvisible
+                    continue
+                key = 'attr_' + attribute
+                if key not in attributes:
+                    attributes[key] = list()
+                if key not in lastattributes:
+                    lastattributes[key] = (value, t_step)
+                elif lastattributes[key][0] != value:
+                    last_value, laststep = lastattributes[key]
+                    commit_value = (last_value, laststep, t_step)
+                    if key not in attributes:
+                        attributes[key] = list()
+                    attributes[key].append(commit_value)
+                    lastattributes[key] = (value, t_step)
             for k, v in lastattributes.items():
-                attributes[k].append((v[0], 0, v[1]))
+                attributes[k].append((v[0], v[1], None))
             if lastvisible:
                 spells.append((laststep, None))
             if spells:

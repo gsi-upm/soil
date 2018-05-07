@@ -102,7 +102,9 @@ class History:
                            t_steps=t_steps,
                            keys=keys)
         r = Records(df, filter=key, dtypes=self._dtypes)
-        return r.value()
+        if r.resolved:
+            return r.value()
+        return r
 
 
 
@@ -216,15 +218,22 @@ class Records():
                 return i.iloc[ix]
             except KeyError:
                 return self.dtypes[f.key][2]()
-        return self
+        return list(self)
 
     def __getitem__(self, k):
         n = copy.copy(self)
         n.filter(k)
-        return n.value()
+        if n.resolved:
+            return n.value()
+        return n
 
     def __len__(self):
         return len(self._df)
+
+    def __str__(self):
+        if self.resolved:
+            return str(self.value())
+        return '<Records for [{}]>'.format(self._filter)
 
 
 Key = namedtuple('Key', ['agent_id', 't_step', 'key'])

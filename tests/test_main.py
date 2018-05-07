@@ -233,9 +233,25 @@ class TestMain(TestCase):
         There is a bug in networkx that prevents it from creating a GEXF file 
         from geometric models. We should work around it.
         """
-        G = nx.random_geometric_graph(20,0.1)
+        G = nx.random_geometric_graph(20, 0.1)
         env = environment.SoilEnvironment(topology=G, dry_run=True)
         env.dump_gexf('/tmp/dump-gexf')
+
+    def test_save_graph(self):
+        '''
+        The history_to_graph method should return a valid networkx graph.
+
+        The state of the agent should be encoded as intervals in the nx graph.
+        '''
+        G = nx.cycle_graph(5)
+        distribution = agents.calculate_distribution(None, agents.BaseAgent)
+        env = environment.SoilEnvironment(topology=G, network_agents=distribution, dry_run=True)
+        env[0, 0, 'testvalue'] = 'start'
+        env[0, 10, 'testvalue'] = 'finish'
+        nG = env.history_to_graph()
+        values = nG.node[0]['attr_testvalue']
+        assert ('start', 0, 10) in values
+        assert ('finish', 10, None) in values
 
 
 def make_example_test(path, config):

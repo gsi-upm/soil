@@ -53,7 +53,7 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
         self.alive = True
         real_state = deepcopy(self.defaults)
         real_state.update(state or {})
-        self._state = real_state
+        self.state = real_state
         self.interval = interval
 
         if not hasattr(self, 'level'):
@@ -67,10 +67,17 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
 
     @property
     def state(self):
-        return self._state
+        '''
+        Return the agent itself, which behaves as a dictionary.
+        Changes made to `agent.state` will be reflected in the history.
+
+        This method shouldn't be used, but is kept here for backwards compatibility.
+        '''
+        return self
 
     @state.setter
     def state(self, value):
+        self._state = {}
         for k, v in value.items():
             self[k] = v
 
@@ -79,20 +86,23 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
             key, t_step = key
             k = history.Key(key=key, t_step=t_step, agent_id=self.id)
             return self.env[k]
-        return self.state.get(key, None)
+        return self._state.get(key, None)
 
     def __delitem__(self, key):
-        self.state[key] = None
+        self._state[key] = None
 
     def __contains__(self, key):
-        return key in self.state
+        return key in self._state
 
     def __setitem__(self, key, value):
-        self.state[key] = value
+        self._state[key] = value
         k = history.Key(t_step=self.now,
                         agent_id=self.id,
                         key=key)
         self.env[k] = value
+
+    def items(self):
+        return self._state.items()
 
     def get(self, key, default=None):
         return self[key] if key in self else default
