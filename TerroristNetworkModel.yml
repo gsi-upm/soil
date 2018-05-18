@@ -1,6 +1,6 @@
 name: TerroristNetworkModel_sim
 load_module: TerroristNetworkModel
-max_time: 100
+max_time: 100 
 num_trials: 1
 network_params:
   generator: random_geometric_graph

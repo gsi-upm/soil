@@ -1,6 +1,6 @@
 import random
 import networkx as nx
-from soil.agents import BaseAgent, FSM, state
+from soil.agents import BaseAgent, FSM, state, default_state
 from scipy.spatial import cKDTree as KDTree
 
 global betweenness_centrality_global
@@ -133,7 +133,7 @@ class TerroristSpreadModel(FSM):
         return [ G.nodes()[index]['agent'] for index in nodes ]
 
 
-class TrainingAreaModel(BaseAgent):
+class TrainingAreaModel(FSM):
     """
     Settings:
         training_influence
@@ -150,13 +150,15 @@ class TrainingAreaModel(BaseAgent):
             self.min_vulnerability = environment.environment_params['min_vulnerability']
         else: self.min_vulnerability = 0
 
-    def step(self):
+    @default_state
+    @state
+    def terrorist(self):
         for neighbour in self.get_neighboring_agents():
             if isinstance(neighbour, TerroristSpreadModel) and neighbour.vulnerability > self.min_vulnerability:
-                neighbour.vulnerability = neighbour.vulnerability ** ( 1 - self.training_influence )
+                neighbour.vulnerability = neighbour.vulnerability ** ( 1 - self.training_influence )        
 
 
-class HavenModel(BaseAgent):
+class HavenModel(FSM):
     """
     Settings:
         haven_influence
@@ -176,23 +178,22 @@ class HavenModel(BaseAgent):
         else: self.min_vulnerability = 0
         self.max_vulnerability = environment.environment_params['max_vulnerability']
 
-    def step(self):
-        civilian_haven = False
-        if self.state['id'] == 0:
-            for neighbour_agent in self.get_neighboring_agents():
-                if isinstance(neighbour_agent, TerroristSpreadModel) and neighbour_agent['id'] == neighbor_agent.civilian.id:
-                    civilian_haven = True
+    @state
+    def civilian(self):
+        for neighbour_agent in self.get_neighboring_agents():
+            if isinstance(neighbour_agent, TerroristSpreadModel) and neighbour_agent['id'] == neighbour_agent.civilian.id:
+                for neighbour in self.get_neighboring_agents():
+                    if isinstance(neighbour, TerroristSpreadModel) and neighbour.vulnerability > self.min_vulnerability:
+                        neighbour.vulnerability = neighbour.vulnerability * ( 1 - self.haven_influence )
+                return self.civilian
+        return self.terrorist
 
-        if civilian_haven:
-            self.state['id'] = 0       # Civilian Haven
-            for neighbour in self.get_neighboring_agents():
-                if isinstance(neighbour, TerroristSpreadModel) and neighbour.vulnerability > self.min_vulnerability:
-                    neighbour.vulnerability = neighbour.vulnerability * ( 1 - self.haven_influence )
-        else:
-            self.state['id'] = 1       # Terrorism Haven
-            for neighbour in self.get_neighboring_agents():
-                if isinstance(neighbour, TerroristSpreadModel) and neighbour.vulnerability < self.max_vulnerability:
-                    neighbour.vulnerability = neighbour.vulnerability ** ( 1 - self.haven_influence )
+    @state
+    def terrorist(self):
+        for neighbour in self.get_neighboring_agents():
+            if isinstance(neighbour, TerroristSpreadModel) and neighbour.vulnerability < self.max_vulnerability:
+                neighbour.vulnerability = neighbour.vulnerability ** ( 1 - self.haven_influence )
+        return self.terrorist
 
         
 class TerroristNetworkModel(TerroristSpreadModel):
