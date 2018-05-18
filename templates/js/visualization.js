@@ -53,14 +53,14 @@
     return ( this > min && this <= max ) || ( min === 0 && this === 0 );
   };
 
-  Number.prototype.type = function() {
+  Number.prototype.is_type = function() {
     if ( typeof(this) === 'number' )
       return ( Number.isInteger(this) ) ? 'int' :  'float';
     else 
       return false;
   }
 
-  String.prototype.type = function() {
+  String.prototype.is_type = function() {
     return "string";
   }
 
@@ -389,7 +389,7 @@
     graph['nodes'].forEach(function(node) {
       for ( var att in node ) {
         if (!required_node.includes(att)) {
-          if ( Array.isArray(node[att]) ) _helpers.push_once(models['dynamic'], { 'title': att, 'type': node[att][0][0].type() }, 'title');
+          if ( Array.isArray(node[att]) ) _helpers.push_once(models['dynamic'], { 'title': att, 'type': node[att][0][0].is_type() }, 'title');
           else _helpers.push_once(models['static'], { 'title': att, 'type': typeof(node[att]) }, 'title');
         }
       }
