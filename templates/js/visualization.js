@@ -60,6 +60,10 @@
       return false;
   }
 
+  String.prototype.type = function() {
+    return "string";
+  }
+
   var lastFocusNode;
   var _helpers = {
     set_node: function(node, property, time) {
