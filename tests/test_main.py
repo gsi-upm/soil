@@ -6,13 +6,11 @@ import networkx as nx
 from functools import partial
 
 from os.path import join
-from soil import simulation, environment, agents, utils
+from soil import simulation, Environment, agents, utils, history
 
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
-
 EXAMPLES = join(ROOT, '..', 'examples')
-
 
 class TestMain(TestCase):
 
@@ -188,8 +186,6 @@ class TestMain(TestCase):
             recovered = yaml.load(serial)
         with utils.timer('deleting'):
             del recovered['topology']
-            del recovered['load_module']
-            del recovered['dry_run']
         assert config == recovered
 
     def test_configuration_changes(self):
@@ -197,25 +193,17 @@ class TestMain(TestCase):
         The configuration should not change after running
          the simulation.
         """
-        config = utils.load_file('examples/complete.yml')[0]
+        config = utils.load_file(join(EXAMPLES, 'complete.yml'))[0]
         s = simulation.from_config(config)
         s.dry_run = True
         for i in range(5):
             s.run_simulation(dry_run=True)
             nconfig = s.to_dict()
             del nconfig['topology']
-            del nconfig['dry_run']
-            del nconfig['load_module']
             assert config == nconfig
 
-    def test_examples(self):
-        """
-        Make sure all examples in the examples folder are correct
-        """
-        pass
-
     def test_row_conversion(self):
-        env = environment.SoilEnvironment(dry_run=True)
+        env = Environment(dry_run=True)
         env['test'] = 'test_value'
 
         res = list(env.history_to_tuples())
@@ -234,7 +222,7 @@ class TestMain(TestCase):
         from geometric models. We should work around it.
         """
         G = nx.random_geometric_graph(20, 0.1)
-        env = environment.SoilEnvironment(topology=G, dry_run=True)
+        env = Environment(topology=G, dry_run=True)
         env.dump_gexf('/tmp/dump-gexf')
 
     def test_save_graph(self):
@@ -245,7 +233,7 @@ class TestMain(TestCase):
         '''
         G = nx.cycle_graph(5)
         distribution = agents.calculate_distribution(None, agents.BaseAgent)
-        env = environment.SoilEnvironment(topology=G, network_agents=distribution, dry_run=True)
+        env = Environment(topology=G, network_agents=distribution, dry_run=True)
         env[0, 0, 'testvalue'] = 'start'
         env[0, 10, 'testvalue'] = 'finish'
         nG = env.history_to_graph()
@@ -253,33 +241,58 @@ class TestMain(TestCase):
         assert ('start', 0, 10) in values
         assert ('finish', 10, None) in values
 
+    def test_serialize_class(self):
+        ser, name = utils.serialize(agents.BaseAgent)
+        assert name == 'soil.agents.BaseAgent'
+        assert ser == agents.BaseAgent
 
-def make_example_test(path, config):
-    def wrapped(self):
-        root = os.getcwd()
-        os.chdir(os.path.dirname(path))
-        s = simulation.from_config(config)
-        envs = s.run_simulation(dry_run=True)
-        assert envs
-        for env in envs:
-            assert env
-            try:
-                n = config['network_params']['n']
-                assert len(env.get_agents()) == n
-            except KeyError:
-                pass
-        os.chdir(root)
-    return wrapped
+        class CustomAgent(agents.BaseAgent):
+            pass
 
+        ser, name = utils.serialize(CustomAgent)
+        assert name == 'test_main.CustomAgent'
+        assert ser == CustomAgent
 
-def add_example_tests():
-    for config, path in utils.load_config(join(EXAMPLES, '*.yml')):
-        p = make_example_test(path=path, config=config)
-        fname = os.path.basename(path)
-        p.__name__ = 'test_example_file_%s' % fname
-        p.__doc__ = '%s should be a valid configuration' % fname
-        setattr(TestMain, p.__name__, p)
-        del p
+    def test_serialize_builtin_types(self):
 
+        for i in [1, None, True, False, {}, [], list(), dict()]:
+            ser, name = utils.serialize(i)
+            assert type(ser) == str
+            des = utils.deserialize(name, ser)
+            assert i == des
 
-add_example_tests()
+    def test_deserialize_agent_distribution(self):
+        agent_distro = [
+            {
+                'agent_type': 'CounterModel',
+                'weight': 1
+            },
+            {
+                'agent_type': 'BaseAgent',
+                'weight': 2
+            },
+        ]
+        converted = agents.deserialize_distribution(agent_distro)
+        assert converted[0]['agent_type'] == agents.CounterModel
+        assert converted[1]['agent_type'] == agents.BaseAgent
+
+    def test_serialize_agent_distribution(self):
+        agent_distro = [
+            {
+                'agent_type': agents.CounterModel,
+                'weight': 1
+            },
+            {
+                'agent_type': agents.BaseAgent,
+                'weight': 2
+            },
+        ]
+        converted = agents.serialize_distribution(agent_distro)
+        assert converted[0]['agent_type'] == 'CounterModel'
+        assert converted[1]['agent_type'] == 'BaseAgent'
+
+    def test_history(self):
+        '''Test storing in and retrieving from history (sqlite)'''
+        h = history.History()
+        h.save_record(agent_id=0, t_step=0, key="test", value="hello")
+        assert h[0, 0, "test"] == "hello"

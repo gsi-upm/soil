@@ -15,7 +15,7 @@ import nxsim
 from . import utils, agents, analysis, history
 
 
-class SoilEnvironment(nxsim.NetworkEnvironment):
+class Environment(nxsim.NetworkEnvironment):
     """
     The environment is key in a simulation. It contains the network topology,
     a reference to network and environment agents, as well as the environment
@@ -23,7 +23,7 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
 
     The environment parameters and the state of every agent can be accessed
     both by using the environment as a dictionary or with the environment's 
-    :meth:`soil.environment.SoilEnvironment.get` method.
+    :meth:`soil.environment.Environment.get` method.
     """
 
     def __init__(self, name=None,
@@ -49,7 +49,8 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         self.dry_run = dry_run
         self.interval = interval
         self.dir_path = dir_path or tempfile.mkdtemp('soil-env')
-        self.get_path()
+        if not dry_run:
+            self.get_path()
         self._history = history.History(name=self.name if not dry_run else None,
                                         dir_path=self.dir_path)
         # Add environment agents first, so their events get
@@ -93,17 +94,35 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         if not network_agents:
             return
         for ix in self.G.nodes():
-            agent, state = agents._agent_from_distribution(network_agents)
-            self.set_agent(ix, agent_type=agent, state=state)
+            self.init_agent(ix, agent_distribution=network_agents)
+
+    def init_agent(self, agent_id, agent_distribution):
+        node = self.G.nodes[agent_id]
+        init = False
+        state = dict(node)
+
+        agent_type = None
+        if 'agent_type' in self.states.get(agent_id, {}):
+            agent_type = self.states[agent_id]
+        elif 'agent_type' in node:
+            agent_type = node['agent_type']
+        elif 'agent_type' in self.default_state:
+            agent_type = self.default_state['agent_type']
+
+        if agent_type:
+            agent_type = agents.deserialize_agent_type(agent_type)
+        else:
+            agent_type, state = agents._agent_from_distribution(agent_distribution)
+        return self.set_agent(agent_id, agent_type, state)
 
     def set_agent(self, agent_id, agent_type, state=None):
         node = self.G.nodes[agent_id]
-        defstate = deepcopy(self.default_state)
+        defstate = deepcopy(self.default_state) or {}
         defstate.update(self.states.get(agent_id, {}))
+        defstate.update(node.get('state', {}))
         if state:
             defstate.update(state)
         state = defstate
-        state.update(node.get('state', {}))
         a = agent_type(environment=self,
                        agent_id=agent_id,
                        state=state)
@@ -118,6 +137,10 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         return a
 
     def add_edge(self, agent1, agent2, attrs=None):
+        if hasattr(agent1, 'id'):
+            agent1 = agent1.id
+        if hasattr(agent2, 'id'):
+            agent2 = agent2.id
         return self.G.add_edge(agent1, agent2)
 
     def run(self, *args, **kwargs):
@@ -202,7 +225,7 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
 
         with open(csv_name, 'w') as f:
             cr = csv.writer(f)
-            cr.writerow(('agent_id', 't_step', 'key', 'value', 'value_type'))
+            cr.writerow(('agent_id', 't_step', 'key', 'value'))
             for i in self.history_to_tuples():
                 cr.writerow(i)
 
@@ -302,7 +325,6 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         state['network_agents'] = agents._serialize_distribution(self.network_agents)
         state['environment_agents'] = agents._convert_agent_types(self.environment_agents,
                                                                  to_string=True)
-        del state['_queue']
         return state
 
     def __setstate__(self, state):
@@ -311,3 +333,6 @@ class SoilEnvironment(nxsim.NetworkEnvironment):
         self.network_agents = self.calculate_distribution(self._convert_agent_types(self.network_agents))
         self.environment_agents = self._convert_agent_types(self.environment_agents)
         return state
+
+
+SoilEnvironment = Environment

@@ -6,7 +6,7 @@
 Welcome to Soil's documentation!
 ================================
 
-Soil is an Agent-based Social Simulator in Python for modelling and simulation of Social Networks.
+Soil is an Agent-based Social Simulator in Python focused on Social Networks.
 
 If you use Soil in your research, do not forget to cite this paper:
 
@@ -39,6 +39,7 @@ If you use Soil in your research, do not forget to cite this paper:
 
    installation
    quickstart
+   configuration
    Tutorial <soil_tutorial>
 
 ..

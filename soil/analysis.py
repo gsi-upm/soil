@@ -56,7 +56,7 @@ def read_csv(filename, keys=None, convert_types=False, **kwargs):
 
 
 def convert_row(row):
-    row['value'] = utils.convert(row['value'], row['value_type'])
+    row['value'] = utils.deserialize(row['value_type'], row['value'])
     return row
 
 

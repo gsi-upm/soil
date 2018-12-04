@@ -14,11 +14,10 @@ except NameError:
 logging.basicConfig()
 
 from . import agents
-from . import simulation
-from . import environment
+from .simulation import *
+from .environment import Environment
 from . import utils
 from . import analysis
-
 
 def main():
     import argparse
@@ -46,11 +45,12 @@ def main():
 
     args = parser.parse_args()
 
-    if args.module:
+    if os.getcwd() not in sys.path:
         sys.path.append(os.getcwd())
+    if args.module:
         importlib.import_module(args.module)
 
-    logging.info('Loading config file: {}'.format(args.file, args.output))
+    logging.info('Loading config file: {}'.format(args.file))
 
     try:
         dump = []
@@ -64,7 +64,7 @@ def main():
                                    dump=dump,
                                    parallel=(not args.synchronous and not args.pdb),
                                    results_dir=args.output)
-    except Exception as ex:
+    except Exception:
         if args.pdb:
             pdb.post_mortem()
         else:
