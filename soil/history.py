@@ -23,16 +23,14 @@ class History:
             if backup and os.path.exists(db_path):
                 newname = db_path + '.backup{}.sqlite'.format(time.time())
                 os.rename(db_path, newname)
-        self._db_path = db_path
-        if isinstance(db_path, str):
-            self._db = sqlite3.connect(db_path)
-        else:
-            self._db = db_path
+        self.db_path = db_path
 
-        with self._db:
-            self._db.execute('''CREATE TABLE IF NOT EXISTS history (agent_id text, t_step int, key text, value text text)''')
-            self._db.execute('''CREATE TABLE IF NOT EXISTS value_types (key text, value_type text)''')
-            self._db.execute('''CREATE UNIQUE INDEX IF NOT EXISTS idx_history ON history (agent_id, t_step, key);''')
+        self.db = db_path
+
+        with self.db:
+            self.db.execute('''CREATE TABLE IF NOT EXISTS history (agent_id text, t_step int, key text, value text text)''')
+            self.db.execute('''CREATE TABLE IF NOT EXISTS value_types (key text, value_type text)''')
+            self.db.execute('''CREATE UNIQUE INDEX IF NOT EXISTS idx_history ON history (agent_id, t_step, key);''')
         self._dtypes = {}
         self._tups = []
 
@@ -41,6 +39,22 @@ class History:
         if key not in self._dtypes:
             self.read_types()
         return self._dtypes[key]
+    
+    @property
+    def db(self):
+        try:
+            self._db.cursor()
+        except sqlite3.ProgrammingError:
+            self.db = None  # Reset the database
+        return self._db
+
+    @db.setter
+    def db(self, db_path=None):
+        db_path = db_path or self.db_path
+        if isinstance(db_path, str):
+            self._db = sqlite3.connect(db_path)
+        else:
+            self._db = db_path
 
     @property
     def dtypes(self):
@@ -50,7 +64,7 @@ class History:
         self.save_records(Record(*tup) for tup in tuples)
 
     def save_records(self, records):
-        with self._db:
+        with self.db:
             for rec in records:
                 if not isinstance(rec, Record):
                     rec = Record(*rec)
@@ -59,8 +73,8 @@ class History:
                     serializer = utils.serializer(name)
                     deserializer = utils.deserializer(name)
                     self._dtypes[rec.key] = (name, serializer, deserializer)
-                    self._db.execute("replace into value_types (key, value_type) values (?, ?)", (rec.key, name))
-                self._db.execute("replace into history(agent_id, t_step, key, value) values (?, ?, ?, ?)", (rec.agent_id, rec.t_step, rec.key, rec.value))
+                    self.db.execute("replace into value_types (key, value_type) values (?, ?)", (rec.key, name))
+                self.db.execute("replace into history(agent_id, t_step, key, value) values (?, ?, ?, ?)", (rec.agent_id, rec.t_step, rec.key, rec.value))
 
     def save_record(self, *args, **kwargs):
         self._tups.append(Record(*args, **kwargs))
@@ -77,16 +91,16 @@ class History:
 
     def to_tuples(self):
             self.flush_cache()
-            with self._db:
-                res = self._db.execute("select agent_id, t_step, key, value from history ").fetchall()
+            with self.db:
+                res = self.db.execute("select agent_id, t_step, key, value from history ").fetchall()
             for r in res:
                 agent_id, t_step, key, value = r
                 _, _ , des = self.conversors(key)
                 yield agent_id, t_step, key, des(value)
 
     def read_types(self):
-            with self._db:
-                res = self._db.execute("select key, value_type from value_types ").fetchall()
+            with self.db:
+                res = self.db.execute("select key, value_type from value_types ").fetchall()
             for k, v in res:
                 serializer = utils.serializer(v)
                 deserializer = utils.deserializer(v)
@@ -143,7 +157,7 @@ class History:
                h1.key      = h2.key       and
                h1.t_step   = h2.t_step
             '''.format(condition=condition)
-            last_df = pd.read_sql_query(last_query, self._db)
+            last_df = pd.read_sql_query(last_query, self.db)
 
             filters.append("t_step >= '{}' and t_step <= '{}'".format(min_step, max(t_steps)))
 
@@ -151,7 +165,7 @@ class History:
         if filters:
             condition = 'where {} '.format(' and '.join(filters))
         query = 'select * from history {} limit {}'.format(condition, limit)
-        df = pd.read_sql_query(query, self._db)
+        df = pd.read_sql_query(query, self.db)
         if last_df is not None:
             df = pd.concat([df, last_df])
 

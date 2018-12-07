@@ -6,3 +6,5 @@ services:
       - .:/usr/src/app
     tty: true
     entrypoint: /bin/bash
+    ports:
+      - '8001:8001'

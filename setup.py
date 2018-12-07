@@ -40,10 +40,15 @@ setup(
         'Operating System :: POSIX',
         'Programming Language :: Python :: 3'],
     install_requires=install_reqs,
+    extras_require={
+        'web': ['tornado']
+
+    },
     tests_require=test_reqs,
     setup_requires=['pytest-runner', ],
     include_package_data=True,
     entry_points={
         'console_scripts':
-        ['soil = soil.__init__:main']
+        ['soil = soil.__init__:main',
+        'soil-web = soil.web.__init__:main']
     })

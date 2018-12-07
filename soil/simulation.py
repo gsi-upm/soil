@@ -49,7 +49,7 @@ class SoilSimulation(NetworkSimulation):
                  default_state=None, interval=1, dump=None, dry_run=False,
                  dir_path=None, num_trials=1, max_time=100,
                  agent_module=None, load_module=None, seed=None,
-                 environment_agents=None, environment_params=None):
+                 environment_agents=None, environment_params=None, **kwargs):
 
         if topology is None:
             topology = utils.load_network(network_params,

@@ -239,17 +239,19 @@ var reset_configuration = function() {
     $('#download_json').off();
 }
 
+var slider;
+
 var set_timeline = function(graph) {
     // 'Timeline' slider
     var [min, max] = get_limits(graph);
 
-    var stepUnix = (max - min) / 200;
+    var stepUnix = 1;
     var minUnix  = (min !== Math.min()) ? min : 0;
     var maxUnix  = (max !== Math.max()) ? max : minUnix + 20;
 
     slider = d3.slider();
     d3.select('#slider3').attr('width', width).call(
-        slider.axis(true).min(minUnix).max(maxUnix).step(stepUnix).value(maxUnix)
+        slider.axis(true).min(minUnix).max(maxUnix).step(stepUnix).value(minUnix)
         .on('slide', function(evt, value) {
             self.GraphVisualization.update_graph($('.config-item #properties').val(), value, function() {
                 update_statistics_table();
@@ -281,54 +283,53 @@ var set_timeline = function(graph) {
 
     // Button 'Play'
     $('button#button_play').on('click', function() {
+        play();
 
-        $('button#button_play').addClass('pressed').prop("disabled", true);
-        $('#speed-slider').slider('disable');
-        slider.step( 1 / speed );
-        
-        if (slider.value() >= maxUnix) {
-            slider.value(minUnix);
-            self.GraphVisualization.update_graph($('.config-item #properties').val(), slider.value(), function() {
-                update_statistics_table();
-            });
-            setTimeout(player, 1000);
-        } else {
-            player();
-        }
-
-        var i = slider.value();
-        function player() {
-            clearInterval(play);
-            play = setInterval(function() {
-                self.GraphVisualization.update_graph($('.config-item #properties').val(), slider.value(), function() {
-                    update_statistics_table();
-                });
-
-                if (slider.value() + slider.step() >= maxUnix) {
-                    slider.value(maxUnix);
-                    slider.step(stepUnix);
-                    clearInterval(play);
-                    $('button#button_play').removeClass('pressed').prop("disabled", false);
-                    $('#speed-slider').slider('enable');
-                } else {
-                    slider.value(i);
-                    i += slider.step();
-                }
-
-            }, 5);
-        }
     });
 
     // Button 'Pause'
     $('button#button_pause').on('click', function() {
-        clearInterval(play);
-        slider.step(stepUnix);
+        stop();
         $('button#button_play').removeClass('pressed').prop("disabled", false);
-        $('#speed-slider').slider('enable');
     });
 
     // Button 'Zoom to Fit'
     $('button#button_zoomFit').click(function() { self.GraphVisualization.fit(); });
+}
+
+var player;
+
+function play(){
+    $('button#button_play').addClass('pressed').prop("disabled", true);
+
+    if (slider.value() >= slider.max()) {
+        slider.value(slider.min());
+    }
+
+    var FRAME_INTERVAL = 100;
+    var speed_ratio = FRAME_INTERVAL / 1000 // speed=1 => 1 step per second
+    
+    nextStep = function() {
+        newvalue = Math.min(slider.value() + speed*speed_ratio, slider.max());
+        console.log("new time value", newvalue);
+        slider.value(newvalue);
+
+        self.GraphVisualization.update_graph($('.config-item #properties').val(), slider.value(), function () {
+            update_statistics_table();
+        });
+
+        if (newvalue < slider.max()) {
+            player = setTimeout(nextStep, FRAME_INTERVAL);
+        } else {
+            $('button#button_play').removeClass('pressed').prop("disabled", false);
+        }
+    }
+
+    player = setTimeout(nextStep, FRAME_INTERVAL);
+}
+
+function stop() {
+    clearTimeout(player);
 }
 
 var reset_timeline = function() {
@@ -336,10 +337,10 @@ var reset_timeline = function() {
     $('#slider3').html('');
 
     // 'Speed' slider
-    $('#speed-slider').slider('disable').slider('setValue', 1000);
+    // $('#speed-slider').slider('disable').slider('setValue', 1000);
 
     // Buttons
-    clearInterval(play);
+    stop();
     $('button#button_play').off().removeClass('pressed').prop("disabled", false);
     $('button#button_pause').off();
     $('button#button_zoomFit').off();
