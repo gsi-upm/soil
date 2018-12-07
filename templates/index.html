@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+
+<head>
+  <!-- FAVICON -->
+  <link rel="shortcut icon" href="http://gsi.dit.upm.es/templates/purity_iii/favicon.ico" type="image/x-icon">
+  <link rel="icon" href="http://gsi.dit.upm.es/templates/purity_iii/favicon.ico" type="image/x-icon">
+
+  <!-- JQUERY -->
+  <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+
+  <!-- BOOTSTRAP 3.3.7 -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+  <!-- BOOTSTRAP SLIDER -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.9.0/css/bootstrap-slider.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.9.0/bootstrap-slider.js"></script>
+
+  <!-- D3.js // DATA-DRIVEN DOCUMENTS -->
+  <script type="text/javascript" src="http://d3js.org/d3.v3.js"></script>
+  <script type="text/javascript" src="http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js"></script>
+
+  <!-- C3.js // D3-based reusable chart library -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/c3/0.4.18/c3.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/c3/0.4.18/c3.min.js"></script>
+
+  <!-- JAVASCRIPTS -->
+  <script type="text/javascript" src="js/visualization.js"></script>
+  <script type="text/javascript" src="js/timeline.js"></script>
+  <script type="text/javascript" src="js/socket.js"></script>
+  <script type="text/javascript" src="js/template.js"></script>
+
+  <!-- STYLESHEETS -->
+  <link rel="stylesheet" type="text/css" href="css/main.css">
+  <link rel="stylesheet" type="text/css" href="css/timeline.css">
+  <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Ubuntu+Mono" />
+  
+  <title>{{ name }}</title>
+
+  <script type="text/javascript">//<![CDATA[
+
+    var width   = window.innerWidth * 0.75,
+        height  = window.innerHeight * 3 / 5,
+        speed   = 1000,
+        play,
+        slider;
+
+    var width_chart  = (window.innerWidth - 30) / 2 - 15,
+        height_chart = (window.innerHeight - 230) / 2,
+        chart_nodes,
+        chart_attrs;
+
+    window.onload = function() {
+        "use strict";
+
+        // Create svg, timeline and settings
+        self.GraphVisualization.create('graph', height, width);
+        $('<div>').attr('id', 'load').appendTo('#graph_container').css('left', width / 2 - 25).css('top', height / 2);
+        $('#configuration').css("height", height);
+        d3.select('#slider3').attr("width", width).call(
+            d3.slider().axis(true).min(0).max(100)
+        );
+
+        // Load a file
+        $('#update #file').change(function() { 
+
+            var file = $('#file')[0].files[0];
+            $('.console').append('<br/>');
+            self.GraphVisualization.reset();
+            $('#load').show();
+
+            $('.custom-file-control').attr("data-content", 
+                file['name'] || "Choose file..."
+            );
+
+            if ( file['type'] !== "application/x-yaml" ) {
+                console.error('File format not supported. Sorry for the inconvenience.');
+                _socket.error('File format not supported. Sorry for the inconvenience.');
+                return;
+            } else {
+                $('.alert.alert-danger').hide();
+            }
+
+            var fileReader = new FileReader();
+            if (fileReader && file) {
+                fileReader.readAsText(file);
+                fileReader.onload = function () {
+                    var content = fileReader.result;
+                    $('#load').show().addClass('loader');
+                    _socket.send(content, 'config_file');
+                };
+            }
+
+        });
+
+        // Select 'attributes'
+        $('.config-item #properties').change(function() {
+            self.GraphVisualization.update_graph($(this).val(), slider.value(), function() {
+                update_statistics_table();
+            });
+        });
+
+        // Run simulation
+        $('#simulation_modal .btn-success').click(function() {
+            if ( !jQuery.isEmptyObject(run_simulation()) ) {
+                self.GraphVisualization.reset();
+                $('#load').show().addClass('loader');
+                _socket.send(run_simulation(), 'run_simulation');
+                $('.console').append('<br/>');
+            }
+            $('#simulation_modal').modal('hide')
+        });
+
+        chart_nodes = create_chart(width_chart, height_chart, 'Time', 'Number of nodes', '#chart_nodes');
+        chart_attrs = create_chart(width_chart, height_chart, 'Time', 'Attributes', '#chart_attrs');
+
+        // Fill modal window
+        $('#simulation_modal').on('show.bs.modal', function(e) {
+            var variables = run_simulation()
+            var x = 0,
+                row;
+            for (var i in variables) {
+                if ( x % 2 === 0 ) row = $('<tr>').appendTo('#simulation_modal table tbody');
+                $('<td>').text(i).appendTo(row);
+                $('<td>').text(variables[i]).appendTo(row);
+                x++;
+            }
+        });
+
+        $('#simulation_modal').on('hide.bs.modal', function(e) {
+            $('#simulation_modal table tbody').empty();
+        });
+    }
+
+    ///]]
+
+  </script>
+
+</head>
+
+<body>
+
+<div class="container-fluid fixed">
+
+    <div class="col-sm-9 wrapper-heading">
+        <!-- CONSOLE -->
+        <div class="console">
+            Please, upload a YAML file that defines all the parameters of a simulation. <br/>
+            If you don't know how to write the file, please visit this page:<br/>
+            http://soilsim.readthedocs.io/en/latest/quickstart.html<br/>
+        </div>
+        <!-- //CONSOLE -->
+
+        <!-- SOIL Logo -->
+        <div class="soil_logo" >
+            <img src="img/logo_soil.png" />
+        </div>
+        <!-- //SOIL Logo -->
+    </div>
+
+    <div id="update" class="col-sm-3">
+        <!-- Load File -->
+        <form enctype="multipart/form-data">
+            <label class="custom-file">
+                <input type="file" id="file" name="file" class="custom-file-input">
+                <span class="custom-file-control" data-content="Choose file..."></span>
+            </label>
+        </form>  
+        <!-- //Load File -->
+
+        <!-- Atributos -->
+        <div class="config-item">
+            Attributes: 
+            <select id="properties" class="form-control form-control-sm">
+                <optgroup id="properties-dynamic" label="Dynamics"></optgroup>
+                <optgroup id="properties-static" label="Statics"></optgroup>
+            </select>
+        </div>
+        <!-- //Atributos -->
+    </div>
+
+</div>
+
+<nav class="navbar navbar-default navbar-fixed-bottom">
+    <div class="container-fluid">
+        <div class="navbar-header">
+            <a class="navbar-brand" href="#">{{ name }}</a>
+        </div>
+        <div class="collapse navbar-collapse">
+            <ul class="nav navbar-nav">
+                <li data-target="#myCarousel" data-slide-to="0" class="active" id="home_menu"><a href='#'>Home</a></li>
+                <li data-target="#myCarousel" data-slide-to="1" id="settings_menu"><a href="#">Settings &amp; Charts</a></li>
+                <li class="dropdown" id="trials">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Trials <span class="caret"></span></a>
+                    <ul class="dropdown-menu"></ul>
+                </li>
+            </ul>
+            <ul class="nav navbar-nav navbar-right">
+                <li><a href="#" id="run_simulation" role="button">Run simulation</a></li>
+                <li><a href="#" id="download_simulation" role="button" data-toggle="modal" data-target="#download_modal">Download</a></li>
+            </ul>
+        </div>
+        <script type="text/javascript">
+            $('.nav li[data-target="#myCarousel"]').click(function() {
+                $('.nav li').removeClass('active');
+                $(this).addClass('active');
+            });
+        </script>
+    </div>
+</nav>
+
+<div id="myCarousel" class="carousel slide">
+
+    <!-- Wrapper for slides -->
+    <div class="carousel-inner">
+
+        <!-- Wrapper Graph Container -->
+        <div class="item active">
+            <div class="container-fluid">
+
+                <div id="graph_container">
+                    <svg id="graph" class="col-sm-9" xmlns="http://www.w3.org/2000/svg"></svg>
+                </div>
+
+                <div id="configuration" class="col-sm-3">
+                    <!-- Graph Info -->
+                    <div class="config-item" style="margin-top: 0 !important;">
+                        <table id="info-graph">
+                            <tbody>
+                                <tr id="nodes"><th>Nodes:</th></tr>
+                                <tr id="links"><th>Links:</th></tr>
+                            </tbody>
+                        </table>
+                        <div class="logo pull-right">
+                            <img src="img/logo_gsi.svg" style="height: 40px;">
+                        </div>
+                    </div>
+                    <hr />
+                    <!-- //Graph Info --> 
+                    
+                    <!-- PROPIEDADES -->
+                    <div class="config-item">
+                        <table id="percentTable">
+                            <tbody><tr><th class="no-data-table">No data</th></tr></tbody>
+                        </table>
+                    </div>
+                    <hr />
+                    <!-- //PROPIEDADES -->
+
+                    <!-- SPEED -->
+                    <div class="config-item">
+                        <table id="speed"><tbody><tr>
+                            <th class="text-left min">min</th>
+                            <th class="text-center">Speed</th>
+                            <th class="text-right max">max</th>
+                        </tr></tbody></table>
+                        <div class="speed-slider">
+                            <input id="speed-slider" type="text" data-slider-min="1" data-slider-max="1000" data-slider-step="0.01" data-slider-value="1000" data-slider-tooltip="hide" data-slider-reversed="true" data-slider-enabled="false" data-slider-scale="logarithmic"/> 
+                        </div>
+                    </div>
+                    <hr />
+                    <script type="text/javascript">
+                        $('#speed-slider').slider();
+                    </script>
+                    <!-- //SPEED -->
+
+                    <!-- LINK DISTANCE -->
+                    <div class="config-item">
+                        <table id="link-distance"><tbody><tr>
+                            <th class="text-left min">min</th>
+                            <th class="text-center">Link Distance</th>
+                            <th class="text-right max">max</th>
+                        </tr></tbody></table>
+                        <div class="link-distance-slider">
+                            <input id="link-distance-slider" type="text" data-slider-min="30" data-slider-max="1000" data-slider-step="0.01" data-slider-value="30" data-slider-tooltip="hide" data-slider-reversed="false" data-slider-enabled="false" data-slider-scale="logarithmic"/> 
+                        </div>
+                    </div>
+                    <script type="text/javascript">
+                        $('#link-distance-slider').slider();
+                    </script>
+                    <!-- //LINK DISTANCE -->
+                </div>
+                
+                <!-- TIMELINE -->
+                <div id="timeline" class="col-sm-12">
+                    <div id="slider3" class="pull-left col-sm-9"></div>
+
+                    <div class="btn-toolbar controls">
+                        <button type="button" id="button_play" class="btn btn-lg">
+                            <span class="glyphicon glyphicon-play" aria-hidden="true"></span>
+                        </button>
+                        <button type="button" id="button_pause" class="btn btn-lg">
+                            <span class="glyphicon glyphicon-pause" aria-hidden="true"></span>
+                        </button>
+                        <button type="button" id="button_zoomFit" class="btn btn-lg">
+                            <span class="glyphicon glyphicon-fullscreen" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <!-- //TIMELINE -->
+
+                <!-- ERROR ALERT -->
+                <div class="alert alert-danger alert-dismissable fade in" style="display: none;">
+                    <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
+                    <strong>Error! </strong><span id="error-message"></span>
+                </div>
+                <!-- //ERROR ALERT -->
+
+            </div>
+        </div>
+        <!-- //Wrapper Graph Container -->
+
+        <!-- Wrapper Settings -->
+        <div class="item" id="settings">
+            <div class="container-fluid">
+                <div class="col-sm-6" id="charts">
+                    <div id="chart_nodes" class="chart no-data"></div>
+                    <div id="chart_attrs" class="chart no-data"></div>
+                </div>
+                <div class="col-sm-6 none" id="wrapper-settings"></div>
+            </div>
+        </div>
+
+    </div>
+    <!-- //Wrapper for slides -->
+
+</div>
+
+<div class="modal fade" tabindex="-1" role="dialog" id="simulation_modal">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">New simulation</h4>
+            </div>
+            <div class="modal-body text-justify">
+                <p>You are going to run a new simulation, all charts and trials are going to be lost. A new ones will be available after the simulation.</p>
+                <p>Check your new environment variables for this simulation.</p>
+                <table class="table">
+                    <thead><tr><th>Variable</th><th>Value</th><th>Variable</th><th>Value</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success">Run</button>
+                <button type="button" class="btn btn-danger" data-dismiss="modal">Cancel</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+
+<div class="modal fade" tabindex="-1" role="dialog" id="download_modal">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">Download Simulation Results</h4>
+            </div>
+            <div class="modal-body text-justify">
+                <p>You can download the results of the selected trial in GEXF or JSON Graph format for your personal purposes.</p>
+                <ul >
+                    <li><b>GEXF</b> <i>(Graph Exchange XML Format)</i> is a language for describing complex network structures, their associated data and dynamics. It can be used to visualize the simulation with Gephi.</li>
+                    <li><b>JSON Graph</b> generate and parse JSON serializable data for NetworkX graphs. It is a convention for modeling graph information as a JSON object that can be parsed by any JSON parser.</li>
+                </ul>
+                <p>For downloading the results of the other trials simulated, please first select them in menu.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" disabled="disabled" id="download_gexf">GEXF</button>
+                <button type="button" class="btn btn-success" disabled="disabled" id="download_json">JSON Graph</button>
+                <button type="button" class="btn btn-danger" data-dismiss="modal">Cancel</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+
+
+</body>
+</html>

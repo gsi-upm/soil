@@ -1,0 +1,25 @@
+name: ControlModelM2_sim
+max_time: 50
+num_trials: 2
+network_params:
+  generator: barabasi_albert_graph
+  n: 100
+  m: 2
+network_agents:
+  - agent_type: ControlModelM2
+    weight: 0.1
+    state:
+      id: 1
+  - agent_type: ControlModelM2
+    weight: 0.9
+    state:
+      id: 0
+environment_params:
+  prob_neutral_making_denier: 0.035
+  prob_infect: 0.075
+  prob_cured_healing_infected: 0.035
+  prob_cured_vaccinate_neutral: 0.035
+  prob_vaccinated_healing_infected: 0.035
+  prob_vaccinated_vaccinate_neutral: 0.035
+  prob_generate_anti_rumor: 0.035
+  standard_variance: 0.055

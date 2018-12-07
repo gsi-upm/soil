@@ -1,0 +1,431 @@
+
+html, body {
+  height: 100%;
+}
+
+.carousel {
+  height: calc(100% - 150px);
+}
+
+.carousel-inner {
+  height: calc(100% - 50px) !important;
+}
+
+.carousel-inner .item,
+.carousel-inner .item .container-fluid {
+  height: 100%;
+}
+
+.navbar {
+  box-shadow: 0px 0px 5px 2px rgba(0, 0, 0, .2)
+}
+
+.nav.navbar-right {
+  margin-right: 10px !important;
+}
+
+.nav.navbar-right a {
+  outline: none !important;
+}
+
+.dropdown-menu > li > a:hover {
+  background-color: #d4d3d3;
+  cursor: pointer;
+}
+
+.wrapper-heading {
+  display: flex;
+  flex-direction: row;
+  padding: 0 !important;
+}
+
+.soil_logo {
+  padding: 0 !important;
+  border-left: none !important;
+  border-right: none !important;
+  display: flex;
+  justify-content: flex-end;
+  background-color: rgb(88, 88, 88);
+}
+
+.soil_logo > img {
+  max-height: 100%;
+}
+
+.node {
+  stroke: #fff;
+  stroke-width: 1.5px;
+}
+
+.link {
+  stroke: #999;
+  stroke-opacity: .6;
+}
+
+svg#graph, #configuration {
+	background-color: white;
+	margin-top: 15px;
+	border-style: double;
+	border-color: rgba(0, 0, 0, 0.35);
+	border-radius: 5px;
+	padding: 0px;
+}
+
+#timeline {
+	padding: 0;
+	margin-top: 20px;
+}
+
+#configuration {
+	margin-top: 15px;
+	padding: 15px;
+	border-left: none !important;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: inherit;
+  justify-content: space-evenly;
+}
+
+button {
+	outline: none !important;
+}
+
+.btn-toolbar.controls {
+	position: absolute;
+	right: 0;
+}
+
+.controls > .btn {
+	margin-left: 10px !important;
+}
+
+button.pressed {
+	background-color: rgb(167, 242, 168);
+	-webkit-animation: background 1s cubic-bezier(1,0,0,1) infinite;
+	animation: background 1s cubic-bezier(1,0,0,1) infinite;
+	cursor: default !important;
+}
+
+@-webkit-keyframes background {
+  50% { background-color: #dddddd; }
+  100% { background-color: rgb(167, 242, 168); }
+}
+
+@keyframes background { 
+  50% { background-color: #dddddd; }
+  100% { background-color: rgb(167, 242, 168); }
+}
+
+#slider3 {
+	background: repeating-linear-gradient( 90deg, white 27px, white 30px, #fff 32px, #aaa 33px );
+	background-color: white;
+}
+
+hr {
+	margin-top: 15px !important;
+  margin-bottom: 15px !important;
+  width: 100%;
+}
+
+#update .config-item {
+  margin-top: 15px !important;
+}
+
+/** LOADER **/
+#load {
+  position: absolute;
+  font-weight: bold;
+}
+
+#load.loader {
+  border: 5px solid #f3f3f3;
+  border-radius: 50%;
+  border-top: 5px solid #3498db;
+  border-bottom: 5px solid #3498db;
+  width: 30px;
+  height: 30px;
+  -webkit-animation: spin 1s linear infinite;
+  animation: spin 1s linear infinite;
+  position: absolute;
+}
+
+#load:before {
+  content: 'No file'
+}
+
+#load.loader:before {
+  content: '' !important;
+}
+
+@-webkit-keyframes spin {
+  0% { -webkit-transform: rotate(0deg); }
+  100% { -webkit-transform: rotate(360deg); }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/** ALERT **/
+.alert-danger {
+	position: absolute;
+	margin-top: 20px;
+	margin-left: 5px;
+}
+
+/** FILE BROWSER **/
+.custom-file {
+	position: relative;
+  display: inline-block;
+  width: 100%;
+  height: 35px;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.custom-file-input {
+	min-width: 14rem;
+  max-width: 100%;
+  height: 35px;
+  margin: 0;
+  filter: alpha(opacity=0);
+  opacity: 0;
+}
+
+.custom-file-control {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 5;
+  height: 35px;
+  padding: .5rem 1rem;
+  overflow: hidden;
+  line-height: 1.5;
+  color: #464a4c;
+  pointer-events: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  background-color: #fff;
+  border: 1px solid rgba(0,0,0,.15);
+  border-radius: .25rem;
+}
+
+.custom-file-control::before {
+	content: "Browse";
+	position: absolute;
+  top: -1px;
+  right: -1px;
+  bottom: -1px;
+  z-index: 6;
+  display: block;
+  height: 35px;
+  padding: .5rem 1rem;
+  line-height: 1.5;
+  color: #464a4c;
+  background-color: #eceeef;
+  border: 1px solid rgba(0,0,0,.15);
+  border-radius: 0 .25rem .25rem 0;
+}
+
+.custom-file-control::after {
+	content: attr(data-content);
+}
+
+/** TABLES **/
+#percentTable {
+	height: 150px !important;
+	width: 100% !important;
+}
+
+#percentTable tr {
+	padding: 5px 2px;
+}
+
+#percentTable .no-data-table {
+  font-size: 10px;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+  flex: 1;
+  height: 100%;
+  font-weight: 100;
+}
+
+hr {
+	margin-top: 15px !important;
+	margin-bottom: 15px !important;
+}
+
+#info-graph {
+	width: 70% !important;
+}
+
+.logo {
+	margin-top: -40px;
+  position: absolute;
+  right: 15px;
+}
+
+/** SLIDER **/
+.speed-slider, 
+.link-distance-slider {
+	padding: 0 10px !important;
+	margin-top: 5px !important;
+	width: 100% !important;
+}
+
+.slider {
+	width: 100% !important;
+}
+
+.slider .slider-selection {
+	background-image: linear-gradient(to bottom, 
+                    rgba(36, 110, 162, 0.5) 0%, 
+                    rgba(3, 169, 224, 0.5) 100%) !important;
+}
+
+.slider-disabled .slider-selection {
+  opacity: 0.5;
+}
+
+.slider.slider-disabled .slider-track {
+	cursor: default !important;
+}
+
+table#speed,
+table#link-distance {
+	width: 100%;
+}
+
+table#speed .min,
+table#speed .max,
+table#link-distance .min,
+table#link-distance .max {
+	font-weight: normal !important;
+}
+
+/* Console */
+
+#update, .console, .soil_logo  {
+  padding: 10px 15px;
+  height: 135px;
+  border: 1px solid #585858;
+}
+
+#update {
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
+}
+
+.container-fluid.fixed {
+  padding-top: 15px;
+}
+
+.console {
+  background-color: rgb(88,88,88);
+  font-family: "Ubuntu Mono";
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  line-height: 14px;
+  overflow: auto;
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+  width: 100%;
+}
+
+.console::-webkit-scrollbar {
+  width: 6px;
+  background-color: #F5F5F5;
+}
+
+.console::-webkit-scrollbar-thumb {
+  -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,.3);
+  background-color: #555;
+}
+
+/** FORMS **/
+.checkbox {
+  margin-left: 10px !important;
+}
+
+#wrapper-settings {
+  padding: 15px !important;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#wrapper-settings.none {
+  font-weight: bold;
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+}
+
+#wrapper-settings.none:before {
+  content: 'No configuration provided';
+}
+
+#wrapper-settings .btn-group button:focus {
+  background: initial;
+  border-color: #ccc;
+}
+
+#wrapper-settings .btn-group button {
+  font-size: xx-small;
+  padding: 3px 6px;
+}
+
+.item.settings .container-fluid {
+  padding-top: 10px !important;
+}
+
+#wrapper-settings::-webkit-scrollbar {
+  width: 6px;
+  background-color: #F5F5F5;
+}
+
+#wrapper-settings::-webkit-scrollbar-thumb {
+  -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,.3);
+  background-color: #ccc;
+}
+
+/** CHARTS **/
+#charts {
+  height: 100%;
+  padding-left: 0 !important;
+  padding-top: 15px !important;
+  padding-bottom: 15px !important;
+}
+
+.chart {
+  height: 50%;
+}
+
+.chart.no-data:before {
+  content: 'No data';
+  position: absolute;
+  font-size: 10px;
+  padding-bottom: 35px;
+}
+
+.chart.no-data {
+  font-weight: bold;
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+}
+
+/** MODAL **/
+.modal-footer, 
+.modal-header {
+  border: none !important;
+}
