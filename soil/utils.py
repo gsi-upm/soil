@@ -92,8 +92,10 @@ def name(value, known_modules=[]):
         return tname
     if known_modules and modname in known_modules:
         return tname
-    for mod_name in known_modules:
-        module = importlib.import_module(mod_name)
+    for kmod in known_modules:
+        if not kmod:
+            continue
+        module = importlib.import_module(kmod)
         if hasattr(module, tname):
             return tname
     return '{}.{}'.format(modname, tname)
@@ -124,21 +126,22 @@ def deserializer(type_, known_modules=[]):
     options = []
 
     for mod in modules:
-        options.append((mod, type_))
+        if mod:
+            options.append((mod, type_))
 
     if '.' in type_:  # Fully qualified module
         module, type_ = type_.rsplit(".", 1)
         options.append ((module, type_))
 
     errors = []
-    for module, name in options:
+    for modname, tname in options:
         try:
-            module = importlib.import_module(module)
-            cls = getattr(module, name)
+            module = importlib.import_module(modname)
+            cls = getattr(module, tname)
             return getattr(cls, 'deserialize', cls)
         except (ImportError, AttributeError) as ex:
-            errors.append((module, name, ex))
-    raise Exception('Could not find module {}. Tried: {}'.format(type_, errors))
+            errors.append((modname, tname, ex))
+    raise Exception('Could not find type {}. Tried: {}'.format(type_, errors))
 
 
 def deserialize(type_, value=None, **kwargs):

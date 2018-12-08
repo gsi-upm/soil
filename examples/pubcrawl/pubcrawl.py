@@ -4,6 +4,8 @@ from random import random, shuffle
 from itertools import islice
 import logging
 
+import other_module
+
 
 class CityPubs(Environment):
     '''Environment with Pubs'''

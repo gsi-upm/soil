@@ -129,7 +129,7 @@ class TestHistory(TestCase):
         backuppaths = glob(db_path + '.backup*.sqlite')
         assert len(backuppaths) == 1
         backuppath = backuppaths[0]
-        assert newhistory._db_path == h._db_path
+        assert newhistory.db_path == h.db_path
         assert os.path.exists(backuppath)
         assert not len(newhistory[None, None, None])
 

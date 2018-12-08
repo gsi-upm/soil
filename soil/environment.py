@@ -110,7 +110,7 @@ class Environment(nxsim.NetworkEnvironment):
             agent_type = self.default_state['agent_type']
 
         if agent_type:
-            agent_type = agents.deserialize_agent_type(agent_type)
+            agent_type = agents.deserialize_type(agent_type)
         else:
             agent_type, state = agents._agent_from_distribution(agent_distribution)
         return self.set_agent(agent_id, agent_type, state)

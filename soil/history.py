@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import sqlite3
 import copy
-from collections import UserDict, Iterable, namedtuple
+from collections import UserDict, namedtuple
 
 from . import utils
 

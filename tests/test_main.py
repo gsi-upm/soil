@@ -12,6 +12,12 @@ from soil import simulation, Environment, agents, utils, history
 ROOT = os.path.abspath(os.path.dirname(__file__))
 EXAMPLES = join(ROOT, '..', 'examples')
 
+
+class CustomAgent(agents.BaseAgent):
+    def step(self):
+        self.state['neighbors'] = self.count_agents(state_id=0,
+                                                    limit_neighbors=True)
+
 class TestMain(TestCase):
 
     def test_load_graph(self):
@@ -125,10 +131,6 @@ class TestMain(TestCase):
 
     def test_custom_agent(self):
         """Allow for search of neighbors with a certain state_id"""
-        class CustomAgent(agents.BaseAgent):
-            def step(self):
-                self.state['neighbors'] = self.count_agents(state_id=0,
-                                                            limit_neighbors=True)
         config = {
             'dry_run': True,
             'network_params': {
@@ -261,6 +263,13 @@ class TestMain(TestCase):
             des = utils.deserialize(name, ser)
             assert i == des
 
+    def test_serialize_agent_type(self):
+        '''A class from soil.agents should be serialized without the module part'''
+        ser = agents.serialize_type(CustomAgent)
+        assert ser == 'test_main.CustomAgent'
+        ser = agents.serialize_type(agents.BaseAgent)
+        assert ser == 'BaseAgent'
+
     def test_deserialize_agent_distribution(self):
         agent_distro = [
             {
@@ -268,13 +277,13 @@ class TestMain(TestCase):
                 'weight': 1
             },
             {
-                'agent_type': 'BaseAgent',
+                'agent_type': 'test_main.CustomAgent',
                 'weight': 2
             },
         ]
         converted = agents.deserialize_distribution(agent_distro)
         assert converted[0]['agent_type'] == agents.CounterModel
-        assert converted[1]['agent_type'] == agents.BaseAgent
+        assert converted[1]['agent_type'] == CustomAgent
 
     def test_serialize_agent_distribution(self):
         agent_distro = [
@@ -283,13 +292,13 @@ class TestMain(TestCase):
                 'weight': 1
             },
             {
-                'agent_type': agents.BaseAgent,
+                'agent_type': CustomAgent,
                 'weight': 2
             },
         ]
         converted = agents.serialize_distribution(agent_distro)
         assert converted[0]['agent_type'] == 'CounterModel'
-        assert converted[1]['agent_type'] == 'BaseAgent'
+        assert converted[1]['agent_type'] == 'test_main.CustomAgent'
 
     def test_history(self):
         '''Test storing in and retrieving from history (sqlite)'''

@@ -324,15 +324,14 @@ def calculate_distribution(network_agents=None,
     return network_agents
 
 
-def serialize_agent_type(agent_type):
+def serialize_type(agent_type, known_modules=[], **kwargs):
     if isinstance(agent_type, str):
         return agent_type
-    type_name = agent_type.__name__
-    if type_name not in globals():
-        type_name = utils.name(agent_type)
-    return type_name
+    known_modules += ['soil.agents']
+    return utils.serialize(agent_type, known_modules=known_modules, **kwargs)[1] # Get the name of the class
 
-def serialize_distribution(network_agents):
+
+def serialize_distribution(network_agents, known_modules=[]):
     '''
     When serializing an agent distribution, remove the thresholds, in order
     to avoid cluttering the YAML definition file.
@@ -341,25 +340,23 @@ def serialize_distribution(network_agents):
     for v in d:
         if 'threshold' in v:
             del v['threshold']
-        v['agent_type'] = serialize_agent_type(v['agent_type'])
+        v['agent_type'] = serialize_type(v['agent_type'],
+                                         known_modules=known_modules)
     return d
 
 
 def deserialize_type(agent_type, known_modules=[]):
     if not isinstance(agent_type, str):
         return agent_type
-    if agent_type in globals():
-        agent_type = globals()[agent_type]
-    else:
-        known = known_modules + ['soil.agents', 'soil.agents.custom' ]
-        agent_type = utils.deserializer(agent_type, known_modules=known)
+    known = known_modules + ['soil.agents', 'soil.agents.custom' ]
+    agent_type = utils.deserializer(agent_type, known_modules=known)
     return agent_type
 
 
-def deserialize_distribution(ind):
+def deserialize_distribution(ind, **kwargs):
     d = deepcopy(ind)
     for v in d:
-        v['agent_type'] = deserialize_type(v['agent_type'])
+        v['agent_type'] = deserialize_type(v['agent_type'], **kwargs)
     return d
 
 
@@ -374,11 +371,11 @@ def _validate_states(states, topology):
     return states
 
 
-def _convert_agent_types(ind, to_string=False):
+def _convert_agent_types(ind, to_string=False, **kwargs):
     '''Convenience method to allow specifying agents by class or class name.'''
     if to_string:
-        return serialize_distribution(ind)
-    return deserialize_distribution(ind)
+        return serialize_distribution(ind, **kwargs)
+    return deserialize_distribution(ind, **kwargs)
 
 
 def _agent_from_distribution(distribution, value=-1):
