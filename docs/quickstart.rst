@@ -21,12 +21,16 @@ The configuration is the following:
 .. literalinclude:: quickstart.yml
    :language: yaml
 
+Configuration
+=============
 
 You may :download:`download the file <quickstart.yml>` directly.
 The agent type used, SISa, is a very simple model.
 It only has three states (neutral, content and discontent),
 Its parameters are the probabilities to change from one state to another, either spontaneously or because of contagion from neighboring agents.
 
+Running the simulation
+======================
 
 To see the simulation in action, simply point soil to the configuration, and tell it to store the graph and the history of agent states and environment parameters at every point.
 
@@ -59,6 +63,8 @@ The ``CSV`` file should look like this:
    env,0,variance_d_c,0.05
    env,0,variance_c_d,0.1
 
+Results and visualization
+=========================
 
 The environment variables are marked as ``agent_id`` env.
 Th exported values are only stored when they change.
@@ -69,3 +75,20 @@ The dynamic graph is exported as a .gexf file which could be visualized with
 Now it is your turn to experiment with the simulation.
 Change some of the parameters, such as the number of agents, the probability of becoming content, or the type of network, and see how the results change.
 
+
+Soil also includes a web server that allows you to upload your simulations, change parameters, and visualize the results, including a timeline of the network.
+To make it work, you have to install soil like this:
+
+```
+pip install soil[web]
+```
+
+Once installed, the soil web UI can be run in two ways:
+
+```
+soil-web
+
+OR
+
+python -m soil.web
+```
