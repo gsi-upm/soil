@@ -18,4 +18,4 @@ build:
 
 test:
   script:
-    python -m setup.py test
+    python setup.py test

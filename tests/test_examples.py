@@ -17,6 +17,9 @@ def make_example_test(path, config):
         root = os.getcwd()
         os.chdir(os.path.dirname(path))
         s = simulation.from_config(config)
+        iterations = s.max_time * s.num_trials
+        if iterations > 1000:
+            self.skipTest('This example would probably take too long')
         envs = s.run_simulation(dry_run=True)
         assert envs
         for env in envs:
