@@ -322,7 +322,7 @@ class Environment(nxsim.NetworkEnvironment):
     def __getstate__(self):
         state = self.__dict__.copy()
         state['G'] = json_graph.node_link_data(self.G)
-        state['network_agents'] = agents._serialize_distribution(self.network_agents)
+        state['network_agents'] = agents.serialize_distribution(self.network_agents)
         state['environment_agents'] = agents._convert_agent_types(self.environment_agents,
                                                                  to_string=True)
         return state
