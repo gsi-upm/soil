@@ -1,6 +1,6 @@
 image: python:3.7
 
-steps:
+stages:
   - build
   - test
 
@@ -17,5 +17,6 @@ build:
 
 
 test:
+  stage: test
   script:
-    python setup.py test
+    - python setup.py test
