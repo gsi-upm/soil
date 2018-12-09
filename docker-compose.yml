@@ -2,6 +2,8 @@ version: '3'
 services:
   dev:
     build: .
+    environment:
+      PYTHONDONTWRITEBYTECODE: 1
     volumes:
       - .:/usr/src/app
     tty: true

@@ -116,6 +116,7 @@ class TestHistory(TestCase):
         db_path = os.path.join(DBROOT, 'test')
         h = history.History(db_path=db_path)
         h.save_tuples(tuples)
+        h.flush_cache()
         assert os.path.exists(db_path)
 
         # Recover the data
@@ -128,6 +129,28 @@ class TestHistory(TestCase):
         backuppaths = glob(db_path + '.backup*.sqlite')
         assert len(backuppaths) == 1
         backuppath = backuppaths[0]
-        assert newhistory._db_path == h._db_path
+        assert newhistory.db_path == h.db_path
         assert os.path.exists(backuppath)
         assert not len(newhistory[None, None, None])
+
+    def test_history_tuples(self):
+        """
+        The data recovered should be equal to the one recorded.
+        """
+        tuples = (
+            ('a_1', 0, 'id', 'v'),
+            ('a_1', 1, 'id', 'a'),
+            ('a_1', 2, 'id', 'l'),
+            ('a_1', 3, 'id', 'u'),
+            ('a_1', 4, 'id', 'e'),
+            ('env', 1, 'prob', 1),
+            ('env', 2, 'prob', 2),
+            ('env', 3, 'prob', 3),
+            ('a_2', 7, 'finished', True),
+        )
+        h = history.History()
+        h.save_tuples(tuples)
+        recovered = list(h.to_tuples())
+        assert recovered
+        for i in recovered:
+            assert i in tuples

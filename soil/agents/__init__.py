@@ -16,23 +16,15 @@ from functools import wraps
 
 from .. import utils, history
 
-agent_types = {}
 
-
-class MetaAgent(type):
-    def __init__(cls, name, bases, nmspc):
-        super(MetaAgent, cls).__init__(name, bases, nmspc)
-        agent_types[name] = cls
-
-
-class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
+class BaseAgent(nxsim.BaseAgent):
     """
     A special simpy BaseAgent that keeps track of its state history.
     """
 
     defaults = {}
 
-    def __init__(self, environment=None, agent_id=None, state=None,
+    def __init__(self, environment, agent_id=None, state=None,
                  name='network_process', interval=None, **state_params):
         # Check for REQUIRED arguments
         assert environment is not None, TypeError('__init__ missing 1 required keyword argument: \'environment\'. '
@@ -152,14 +144,18 @@ class BaseAgent(nxsim.BaseAgent, metaclass=MetaAgent):
     def count_neighboring_agents(self, state_id=None):
         return len(super().get_agents(state_id, limit_neighbors=True))
 
-    def get_agents(self, state_id=None, limit_neighbors=False, iterator=False, **kwargs):
+    def get_agents(self, state_id=None, agent_type=None, limit_neighbors=False, iterator=False, **kwargs):
+        agents = self.env.agents
         if limit_neighbors:
             agents = super().get_agents(state_id, limit_neighbors)
-        else:
-            agents = filter(lambda x: state_id is None or x.state.get('id', None) == state_id,
-                            self.env.agents)
 
         def matches_all(agent):
+            if state_id is not None:
+                if agent.state.get('id', None) != state_id:
+                    return False
+            if agent_type is not None:
+                if type(agent) != agent_type:
+                    return False
             state = agent.state
             for k, v in kwargs.items():
                 if state.get(k, None) != v:
@@ -219,7 +215,7 @@ def default_state(func):
     return func
 
 
-class MetaFSM(MetaAgent):
+class MetaFSM(type):
     def __init__(cls, name, bases, nmspc):
         super(MetaFSM, cls).__init__(name, bases, nmspc)
         states = {}
@@ -328,16 +324,39 @@ def calculate_distribution(network_agents=None,
     return network_agents
 
 
-def _serialize_distribution(network_agents):
-    d = _convert_agent_types(network_agents,
-                             to_string=True)
+def serialize_type(agent_type, known_modules=[], **kwargs):
+    if isinstance(agent_type, str):
+        return agent_type
+    known_modules += ['soil.agents']
+    return utils.serialize(agent_type, known_modules=known_modules, **kwargs)[1] # Get the name of the class
+
+
+def serialize_distribution(network_agents, known_modules=[]):
     '''
     When serializing an agent distribution, remove the thresholds, in order
     to avoid cluttering the YAML definition file.
     '''
+    d = deepcopy(network_agents)
     for v in d:
         if 'threshold' in v:
             del v['threshold']
+        v['agent_type'] = serialize_type(v['agent_type'],
+                                         known_modules=known_modules)
+    return d
+
+
+def deserialize_type(agent_type, known_modules=[]):
+    if not isinstance(agent_type, str):
+        return agent_type
+    known = known_modules + ['soil.agents', 'soil.agents.custom' ]
+    agent_type = utils.deserializer(agent_type, known_modules=known)
+    return agent_type
+
+
+def deserialize_distribution(ind, **kwargs):
+    d = deepcopy(ind)
+    for v in d:
+        v['agent_type'] = deserialize_type(v['agent_type'], **kwargs)
     return d
 
 
@@ -352,16 +371,11 @@ def _validate_states(states, topology):
     return states
 
 
-def _convert_agent_types(ind, to_string=False):
+def _convert_agent_types(ind, to_string=False, **kwargs):
     '''Convenience method to allow specifying agents by class or class name.'''
-    d = deepcopy(ind)
-    for v in d:
-        agent_type = v['agent_type']
-        if to_string and not isinstance(agent_type, str):
-            v['agent_type'] = str(agent_type.__name__)
-        elif not to_string and isinstance(agent_type, str):
-            v['agent_type'] = agent_types[agent_type]
-    return d
+    if to_string:
+        return serialize_distribution(ind, **kwargs)
+    return deserialize_distribution(ind, **kwargs)
 
 
 def _agent_from_distribution(distribution, value=-1):

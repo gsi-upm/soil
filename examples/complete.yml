@@ -2,6 +2,7 @@
 name: simple
 dir_path: "/tmp/"
 num_trials: 3
+dry_run: True
 max_time: 100
 interval: 1
 seed: "CompleteSeed!"
@@ -17,6 +18,7 @@ network_agents:
   - agent_type: AggregatedCounter
     weight: 0.2
 environment_agents: []
+environment_class: Environment
 environment_params:
   am_i_complete: true
 default_state:

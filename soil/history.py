@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import sqlite3
 import copy
-from collections import UserDict, Iterable, namedtuple
+from collections import UserDict, namedtuple
 
 from . import utils
 
@@ -17,12 +17,12 @@ class History:
         if db_path is None and name:
             db_path = os.path.join(dir_path or os.getcwd(),
                                    '{}.db.sqlite'.format(name))
-        if db_path is None:
-            db_path = ":memory:"
-        else:
+        if db_path:
             if backup and os.path.exists(db_path):
                 newname = db_path + '.backup{}.sqlite'.format(time.time())
                 os.rename(db_path, newname)
+        else:
+            db_path = ":memory:"
         self.db_path = db_path
 
         self.db = db_path
@@ -34,12 +34,6 @@ class History:
         self._dtypes = {}
         self._tups = []
 
-    def conversors(self, key):
-        """Get the serializer and deserializer for a given key."""
-        if key not in self._dtypes:
-            self.read_types()
-        return self._dtypes[key]
-    
     @property
     def db(self):
         try:
@@ -58,55 +52,88 @@ class History:
 
     @property
     def dtypes(self):
+        self.read_types()
         return {k:v[0] for k, v in self._dtypes.items()}
 
     def save_tuples(self, tuples):
+        '''
+        Save a series of tuples, converting them to records if necessary
+        '''
         self.save_records(Record(*tup) for tup in tuples)
 
     def save_records(self, records):
-        with self.db:
-            for rec in records:
-                if not isinstance(rec, Record):
-                    rec = Record(*rec)
-                if rec.key not in self._dtypes:
-                    name = utils.name(rec.value)
-                    serializer = utils.serializer(name)
-                    deserializer = utils.deserializer(name)
-                    self._dtypes[rec.key] = (name, serializer, deserializer)
-                    self.db.execute("replace into value_types (key, value_type) values (?, ?)", (rec.key, name))
-                self.db.execute("replace into history(agent_id, t_step, key, value) values (?, ?, ?, ?)", (rec.agent_id, rec.t_step, rec.key, rec.value))
+        '''
+        Save a collection of records
+        '''
+        for record in records:
+            if not isinstance(record, Record):
+                record = Record(*record)
+            self.save_record(*record)
 
-    def save_record(self, *args, **kwargs):
-        self._tups.append(Record(*args, **kwargs))
+    def save_record(self, agent_id, t_step, key, value):
+        '''
+        Save a collection of records to the database.
+        Database writes are cached.
+        '''
+        value = self.convert(key, value)
+        self._tups.append(Record(agent_id=agent_id,
+                                 t_step=t_step,
+                                 key=key,
+                                 value=value))
         if len(self._tups) > 100:
             self.flush_cache()
+
+    def convert(self, key, value):
+        """Get the serialized value for a given key."""
+        if key not in self._dtypes:
+            self.read_types()
+            if key not in self._dtypes:
+                name = utils.name(value)
+                serializer = utils.serializer(name)
+                deserializer = utils.deserializer(name)
+                self._dtypes[key] = (name, serializer, deserializer)
+                with self.db:
+                    self.db.execute("replace into value_types (key, value_type) values (?, ?)", (key, name))
+        return self._dtypes[key][1](value)
+
+    def recover(self, key, value):
+        """Get the deserialized value for a given key, and the serialized version."""
+        if key not in self._dtypes:
+            self.read_types()
+        if key not in self._dtypes:
+            raise ValueError("Unknown datatype for {} and {}".format(key, value))
+        return self._dtypes[key][2](value)
+
 
     def flush_cache(self):
         '''
         Use a cache to save state changes to avoid opening a session for every change.
         The cache will be flushed at the end of the simulation, and when history is accessed.
         '''
-        self.save_records(self._tups)
+        with self.db:
+            for rec in self._tups:
+                self.db.execute("replace into history(agent_id, t_step, key, value) values (?, ?, ?, ?)", (rec.agent_id, rec.t_step, rec.key, rec.value))
         self._tups = list()
 
     def to_tuples(self):
-            self.flush_cache()
-            with self.db:
-                res = self.db.execute("select agent_id, t_step, key, value from history ").fetchall()
-            for r in res:
-                agent_id, t_step, key, value = r
-                _, _ , des = self.conversors(key)
-                yield agent_id, t_step, key, des(value)
+        self.flush_cache()
+        with self.db:
+            res = self.db.execute("select agent_id, t_step, key, value from history ").fetchall()
+        for r in res:
+            agent_id, t_step, key, value = r
+            value = self.recover(key, value)
+            yield agent_id, t_step, key, value
 
     def read_types(self):
-            with self.db:
-                res = self.db.execute("select key, value_type from value_types ").fetchall()
-            for k, v in res:
-                serializer = utils.serializer(v)
-                deserializer = utils.deserializer(v)
-                self._dtypes[k] = (v, serializer, deserializer)
+        with self.db:
+            res = self.db.execute("select key, value_type from value_types ").fetchall()
+        for k, v in res:
+            serializer = utils.serializer(v)
+            deserializer = utils.deserializer(v)
+            self._dtypes[k] = (v, serializer, deserializer)
 
     def __getitem__(self, key):
+        self.flush_cache()
         key = Key(*key)
         agent_ids = [key.agent_id] if key.agent_id is not None else []
         t_steps = [key.t_step] if key.t_step is not None else []
@@ -176,7 +203,7 @@ class History:
         for k, v in self._dtypes.items():
             if k in df_p:
                 dtype, _, deserial = v
-                df_p[k] = df_p[k].fillna(method='ffill').fillna(deserial()).astype(dtype)
+                df_p[k] = df_p[k].fillna(method='ffill').astype(dtype)
         if t_steps:
             df_p = df_p.reindex(t_steps, method='ffill')
         return df_p.ffill()

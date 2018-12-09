@@ -214,7 +214,7 @@ nodes in that network. Notice how node 0 is the only one with a TV.
     MAX_TIME = 100
     EVENT_TIME = 10
     
-    sim = soil.simulation.SoilSimulation(topology=G,
+    sim = soil.Simulation(topology=G,
                                          num_trials=1,
                                          max_time=MAX_TIME,
                                          environment_agents=[{'agent_type': NewsEnvironmentAgent,

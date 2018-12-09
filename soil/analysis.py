@@ -56,7 +56,7 @@ def read_csv(filename, keys=None, convert_types=False, **kwargs):
 
 
 def convert_row(row):
-    row['value'] = utils.convert(row['value'], row['value_type'])
+    row['value'] = utils.deserialize(row['value_type'], row['value'])
     return row
 
 
@@ -123,7 +123,7 @@ def get_count(df, *keys):
         df = df[list(keys)]
     counts = pd.DataFrame()
     for key in df.columns.levels[0]:
-        g = df[key].apply(pd.Series.value_counts, axis=1).fillna(0)
+        g = df[[key]].apply(pd.Series.value_counts, axis=1).fillna(0)
         for value, series in g.iteritems():
             counts[key, value] = series
     counts.columns = pd.MultiIndex.from_tuples(counts.columns)
