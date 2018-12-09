@@ -38,7 +38,7 @@ class History:
     def db(self):
         try:
             self._db.cursor()
-        except sqlite3.ProgrammingError:
+        except (sqlite3.ProgrammingError, AttributeError):
             self.db = None  # Reset the database
         return self._db
 
@@ -207,6 +207,16 @@ class History:
         if t_steps:
             df_p = df_p.reindex(t_steps, method='ffill')
         return df_p.ffill()
+    
+    def __getstate__(self):
+        state = dict(**self.__dict__)
+        del state['_db']
+        del state['_dtypes']
+        return state
+    
+    def __setstate__(self, state):
+        self.__dict__ = state
+        self._dtypes = {}
 
 
 class Records():

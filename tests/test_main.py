@@ -2,6 +2,7 @@ from unittest import TestCase
 
 import os
 import yaml
+import pickle
 import networkx as nx
 from functools import partial
 
@@ -248,12 +249,10 @@ class TestMain(TestCase):
         assert name == 'soil.agents.BaseAgent'
         assert ser == agents.BaseAgent
 
-        class CustomAgent(agents.BaseAgent):
-            pass
-
         ser, name = utils.serialize(CustomAgent)
         assert name == 'test_main.CustomAgent'
         assert ser == CustomAgent
+        pickle.dumps(ser)
 
     def test_serialize_builtin_types(self):
 
@@ -269,7 +268,8 @@ class TestMain(TestCase):
         assert ser == 'test_main.CustomAgent'
         ser = agents.serialize_type(agents.BaseAgent)
         assert ser == 'BaseAgent'
-
+        pickle.dumps(ser)
+    
     def test_deserialize_agent_distribution(self):
         agent_distro = [
             {
@@ -284,6 +284,7 @@ class TestMain(TestCase):
         converted = agents.deserialize_distribution(agent_distro)
         assert converted[0]['agent_type'] == agents.CounterModel
         assert converted[1]['agent_type'] == CustomAgent
+        pickle.dumps(converted)
 
     def test_serialize_agent_distribution(self):
         agent_distro = [
@@ -299,6 +300,20 @@ class TestMain(TestCase):
         converted = agents.serialize_distribution(agent_distro)
         assert converted[0]['agent_type'] == 'CounterModel'
         assert converted[1]['agent_type'] == 'test_main.CustomAgent'
+        pickle.dumps(converted)
+
+    def test_pickle_agent_environment(self):
+        env = Environment(name='Test')
+        a = agents.BaseAgent(environment=env, agent_id=25)
+
+        a['key'] = 'test'
+
+        pickled = pickle.dumps(a)
+        recovered = pickle.loads(pickled)
+
+        assert recovered.env.name == 'Test'
+        assert recovered['key'] == 'test'
+        assert recovered['key', 0] == 'test'
 
     def test_history(self):
         '''Test storing in and retrieving from history (sqlite)'''

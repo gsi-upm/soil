@@ -14,6 +14,14 @@ import nxsim
 
 from . import utils, agents, analysis, history
 
+# These properties will be copied when pickling/unpickling the environment
+_CONFIG_PROPS = [ 'name',
+                 'states',
+                 'default_state',
+                 'interval',
+                 'dry_run',
+                 'dir_path',
+                 ]
 
 class Environment(nxsim.NetworkEnvironment):
     """
@@ -318,21 +326,22 @@ class Environment(nxsim.NetworkEnvironment):
                 G.add_node(agent.id, **attributes)
 
         return G
-
+    
     def __getstate__(self):
-        state = self.__dict__.copy()
+        state = {}
+        for prop in _CONFIG_PROPS:
+            state[prop] = self.__dict__[prop]
         state['G'] = json_graph.node_link_data(self.G)
-        state['network_agents'] = agents.serialize_distribution(self.network_agents)
-        state['environment_agents'] = agents._convert_agent_types(self.environment_agents,
-                                                                 to_string=True)
+        state['environment_agents'] = self._env_agents
+        state['history'] = self._history
         return state
 
     def __setstate__(self, state):
-        self.__dict__ = state
+        for prop in _CONFIG_PROPS:
+            self.__dict__[prop] = state[prop]
+        self._env_agents = state['environment_agents']
         self.G = json_graph.node_link_graph(state['G'])
-        self.network_agents = self.calculate_distribution(self._convert_agent_types(self.network_agents))
-        self.environment_agents = self._convert_agent_types(self.environment_agents)
-        return state
+        self._history = state['history']
 
 
 SoilEnvironment = Environment

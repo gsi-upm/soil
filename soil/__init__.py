@@ -11,8 +11,6 @@ try:
 except NameError:
     basestring = str
 
-logging.basicConfig()
-
 from . import agents
 from .simulation import *
 from .environment import Environment
@@ -22,6 +20,9 @@ from . import analysis
 def main():
     import argparse
     from . import simulation
+
+    logging.basicConfig(level=logging.INFO)
+    logging.info('Running SOIL version: {}'.format(__version__))
 
     parser = argparse.ArgumentParser(description='Run a SOIL simulation')
     parser.add_argument('file', type=str,
@@ -62,7 +63,7 @@ def main():
         simulation.run_from_config(args.file,
                                    dry_run=args.dry_run,
                                    dump=dump,
-                                   parallel=(not args.synchronous and not args.pdb),
+                                   parallel=(not args.synchronous),
                                    results_dir=args.output)
     except Exception:
         if args.pdb:

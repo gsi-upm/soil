@@ -24,7 +24,7 @@ class BaseAgent(nxsim.BaseAgent):
 
     defaults = {}
 
-    def __init__(self, environment, agent_id=None, state=None,
+    def __init__(self, environment, agent_id, state=None,
                  name='network_process', interval=None, **state_params):
         # Check for REQUIRED arguments
         assert environment is not None, TypeError('__init__ missing 1 required keyword argument: \'environment\'. '
@@ -33,10 +33,6 @@ class BaseAgent(nxsim.BaseAgent):
         self.id = agent_id
         self.name = name
         self.state_params = state_params
-
-        # Global parameters
-        self.global_topology = environment.G
-        self.environment_params = environment.environment_params
 
         # Register agent to environment
         self.env = environment
@@ -72,6 +68,18 @@ class BaseAgent(nxsim.BaseAgent):
         self._state = {}
         for k, v in value.items():
             self[k] = v
+
+    @property
+    def global_topology(self):
+        return self.env.G
+    
+    @property
+    def environment_params(self):
+        return self.env.environment_params
+    
+    @environment_params.setter
+    def environment_params(self, value):
+        self.env.environment_params = value
 
     def __getitem__(self, key):
         if isinstance(key, tuple):
@@ -126,9 +134,6 @@ class BaseAgent(nxsim.BaseAgent):
     def step(self):
         pass
 
-    def to_json(self):
-        return json.dumps(self.state)
-
     def count_agents(self, state_id=None, limit_neighbors=False):
         if limit_neighbors:
             agents = self.global_topology.neighbors(self.id)
@@ -182,6 +187,26 @@ class BaseAgent(nxsim.BaseAgent):
 
     def info(self, *args, **kwargs):
         return self.log(*args, level=logging.INFO, **kwargs)
+    
+    def __getstate__(self):
+        '''
+        Serializing an agent will lose all its running information (you cannot
+        serialize an iterator), but it keeps the state and link to the environment,
+        so it can be used for inspection and dumping to a file
+        '''
+        state = {}
+        state['id'] = self.id
+        state['environment'] = self.env
+        state['_state'] = self._state
+        return state
+
+    def __setstate__(self, state):
+        '''
+        Get back a serialized agent and try to re-compose it
+        '''
+        self.id = state['id']
+        self._state = state['_state']
+        self.env = state['environment']
 
 
 def state(func):
@@ -336,7 +361,7 @@ def serialize_distribution(network_agents, known_modules=[]):
     When serializing an agent distribution, remove the thresholds, in order
     to avoid cluttering the YAML definition file.
     '''
-    d = deepcopy(network_agents)
+    d = deepcopy(list(network_agents))
     for v in d:
         if 'threshold' in v:
             del v['threshold']
