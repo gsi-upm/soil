@@ -16,15 +16,14 @@ The configuration includes things such as number of agents to use and their type
 
 Soil includes several agent classes in the ``soil.agents`` module, and we will use them in this quickstart.
 If you are interested in developing your own agents classes, see :doc:`soil_tutorial`.
-The configuration is the following:
+
+Configuration
+=============
+To get you started, we will use this configuration (:download:`download the file <quickstart.yml>` directly):
 
 .. literalinclude:: quickstart.yml
    :language: yaml
 
-Configuration
-=============
-
-You may :download:`download the file <quickstart.yml>` directly.
 The agent type used, SISa, is a very simple model.
 It only has three states (neutral, content and discontent),
 Its parameters are the probabilities to change from one state to another, either spontaneously or because of contagion from neighboring agents.
@@ -79,16 +78,16 @@ Change some of the parameters, such as the number of agents, the probability of 
 Soil also includes a web server that allows you to upload your simulations, change parameters, and visualize the results, including a timeline of the network.
 To make it work, you have to install soil like this:
 
-```
-pip install soil[web]
-```
+.. code::
+
+  pip install soil[web]
 
 Once installed, the soil web UI can be run in two ways:
 
-```
-soil-web
+.. code::
 
-OR
+  soil-web
 
-python -m soil.web
-```
+  # OR
+
+  python -m soil.web
