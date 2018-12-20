@@ -1,5 +1,3 @@
-image: python:3.7
-
 stages:
   - build
   - test
