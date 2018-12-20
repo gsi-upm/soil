@@ -1,6 +1,6 @@
 stages:
-  - build
   - test
+  - build
 
 build:
   stage: build
@@ -18,6 +18,8 @@ build:
 
 
 test:
+  except:
+    - tags  # Avoid running tests for tags, because they are already run for the branch
   tags:
     - docker
   image: python:3.7
