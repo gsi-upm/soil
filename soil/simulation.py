@@ -88,14 +88,8 @@ class Simulation(NetworkSimulation):
                  environment_agents=None, environment_params=None,
                  environment_class=None, **kwargs):
 
-        if topology is None:
-            topology = utils.load_network(network_params,
-                                          dir_path=dir_path)
-        elif isinstance(topology, basestring) or isinstance(topology, dict):
-            topology = json_graph.node_link_graph(topology)
-
+        self.seed = str(seed) or str(time.time())
         self.load_module = load_module
-        self.topology = nx.Graph(topology)
         self.network_params = network_params
         self.name = name or 'UnnamedSimulation'
         self.num_trials = num_trials
@@ -103,11 +97,18 @@ class Simulation(NetworkSimulation):
         self.default_state = default_state or {}
         self.dir_path = dir_path or os.getcwd()
         self.interval = interval
-        self.seed = str(seed) or str(time.time())
         self.dump = dump
         self.dry_run = dry_run
 
         sys.path += [self.dir_path, os.getcwd()]
+
+        if topology is None:
+            topology = utils.load_network(network_params,
+                                          dir_path=self.dir_path)
+        elif isinstance(topology, basestring) or isinstance(topology, dict):
+            topology = json_graph.node_link_graph(topology)
+        self.topology = nx.Graph(topology)
+
 
         self.environment_params = environment_params or {}
         self.environment_class = utils.deserialize(environment_class,

@@ -26,7 +26,7 @@ But before that, let's import the soil module and networkx.
     %autoreload 2
     
     %pylab inline
-    # To display plots in the notebooed_
+    # To display plots in the notebook_
 
 
 .. parsed-literal::

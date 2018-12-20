@@ -1,5 +1,6 @@
 import os
 import ast
+import sys
 import yaml
 import logging
 import importlib
@@ -36,9 +37,14 @@ def load_network(network_params, dir_path=None):
         return method(path, **kwargs)
 
     net_args = network_params.copy()
-    net_type = net_args.pop('generator')
+    net_gen = net_args.pop('generator')
 
-    method = getattr(nx.generators, net_type)
+    if dir_path not in sys.path:
+        sys.path.append(dir_path)
+
+    method = deserializer(net_gen,
+                          known_modules=['networkx.generators',])
+
     return method(**net_args)
 
 
@@ -114,6 +120,8 @@ def serialize(v, known_modules=[]):
     return func(v), tname
 
 def deserializer(type_, known_modules=[]):
+    if type(type_) != str:  # Already deserialized
+        return type_
     if type_ == 'str':
         return lambda x='': x
     if type_ == 'None':
