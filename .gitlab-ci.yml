@@ -6,7 +6,7 @@ build:
   stage: build
   image:
     name: gcr.io/kaniko-project/executor:debug
-    entrypoint: ["/busybox/sh"]
+    entrypoint: [""]
   tags:
     - docker
   script:
