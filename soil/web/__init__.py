@@ -19,7 +19,7 @@ from xml.etree.ElementTree import tostring
 from tornado.concurrent import run_on_executor
 from concurrent.futures import ThreadPoolExecutor
 
-from ..simulation import SoilSimulation
+from ..simulation import Simulation
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -168,7 +168,7 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
 
     @run_on_executor
     def nonblocking(self, config):
-        simulation = SoilSimulation(**config)
+        simulation = Simulation(**config)
         return simulation.run()
 
     @tornado.gen.coroutine
