@@ -25,13 +25,13 @@ class BaseAgent(nxsim.BaseAgent):
     defaults = {}
 
     def __init__(self, environment, agent_id, state=None,
-                 name='network_process', interval=None, **state_params):
+                 name=None, interval=None, **state_params):
         # Check for REQUIRED arguments
         assert environment is not None, TypeError('__init__ missing 1 required keyword argument: \'environment\'. '
                                                   'Cannot be NoneType.')
         # Initialize agent parameters
         self.id = agent_id
-        self.name = name
+        self.name = name or '{}[{}]'.format(type(self).__name__, self.id)
         self.state_params = state_params
 
         # Register agent to environment
@@ -46,8 +46,8 @@ class BaseAgent(nxsim.BaseAgent):
 
         if not hasattr(self, 'level'):
             self.level = logging.DEBUG
-        self.logger = logging.getLogger('{}-Agent-{}'.format(self.env.name,
-                                                             self.id))
+        self.logger = logging.getLogger('{}.{}'.format(self.env.name,
+                                                       self.id))
         self.logger.setLevel(self.level)
 
         # initialize every time an instance of the agent is created
@@ -174,7 +174,7 @@ class BaseAgent(nxsim.BaseAgent):
 
     def log(self, message, *args, level=logging.INFO, **kwargs):
         message = message + " ".join(str(i) for i in args)
-        message = "\t@{:>5}:\t{}".format(self.now, message)
+        message = "\t{:10}@{:>5}:\t{}".format(self.name, self.now, message)
         for k, v in kwargs:
             message += " {k}={v} ".format(k, v)
         extra = {}
@@ -280,7 +280,7 @@ class FSM(BaseAgent, metaclass=MetaFSM):
             raise Exception('{} has no valid state id or default state'.format(self))
         if next_state not in self.states:
             raise Exception('{} is not a valid id for {}'.format(next_state, self))
-        self.states[next_state](self)
+        return self.states[next_state](self)
 
     def set_state(self, state):
         if hasattr(state, 'id'):
@@ -304,6 +304,9 @@ def prob(prob=1):
     '''
     r = random.random()
     return r < prob
+
+
+STATIC_THRESHOLD = (-1, -1)
 
 
 def calculate_distribution(network_agents=None,
@@ -343,6 +346,9 @@ def calculate_distribution(network_agents=None,
     total = sum(x.get('weight', 1) for x in network_agents)
     acc = 0
     for v in network_agents:
+        if 'ids' in v:
+            v['threshold'] = STATIC_THRESHOLD
+            continue
         upper = acc + (v.get('weight', 1)/total)
         v['threshold'] = [acc, upper]
         acc = upper
@@ -403,17 +409,20 @@ def _convert_agent_types(ind, to_string=False, **kwargs):
     return deserialize_distribution(ind, **kwargs)
 
 
-def _agent_from_distribution(distribution, value=-1):
+def _agent_from_distribution(distribution, value=-1, agent_id=None):
     """Used in the initialization of agents given an agent distribution."""
     if value < 0:
         value = random.random()
-    for d in distribution:
+    for d in sorted(distribution, key=lambda x: x['threshold']):
         threshold = d['threshold']
-        if value >= threshold[0] and value < threshold[1]:
-            state = {}
-            if 'state' in d:
-                state = deepcopy(d['state'])
-            return d['agent_type'], state
+        # Check if the definition matches by id (first) or by threshold
+        if not ((agent_id is not None and threshold == STATIC_THRESHOLD and agent_id in d['ids']) or \
+                (value >= threshold[0] and value < threshold[1])):
+            continue
+        state = {}
+        if 'state' in d:
+            state = deepcopy(d['state'])
+        return d['agent_type'], state
 
     raise Exception('Distribution for value {} not found in: {}'.format(value, distribution))
 

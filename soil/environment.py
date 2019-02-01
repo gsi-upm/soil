@@ -4,9 +4,11 @@ import time
 import csv
 import random
 import simpy
+import yaml
 import tempfile
 import pandas as pd
 from copy import deepcopy
+from collections import Counter
 from networkx.readwrite import json_graph
 
 import networkx as nx
@@ -60,7 +62,8 @@ class Environment(nxsim.NetworkEnvironment):
         if not dry_run:
             self.get_path()
         self._history = history.History(name=self.name if not dry_run else None,
-                                        dir_path=self.dir_path)
+                                        dir_path=self.dir_path,
+                                        backup=True)
         # Add environment agents first, so their events get
         # executed before network agents
         self.environment_agents = environment_agents or []
@@ -111,7 +114,7 @@ class Environment(nxsim.NetworkEnvironment):
 
         agent_type = None
         if 'agent_type' in self.states.get(agent_id, {}):
-            agent_type = self.states[agent_id]
+            agent_type = self.states[agent_id]['agent_type']
         elif 'agent_type' in node:
             agent_type = node['agent_type']
         elif 'agent_type' in self.default_state:
@@ -119,8 +122,8 @@ class Environment(nxsim.NetworkEnvironment):
 
         if agent_type:
             agent_type = agents.deserialize_type(agent_type)
-        else:
-            agent_type, state = agents._agent_from_distribution(agent_distribution)
+        elif agent_distribution:
+            agent_type, state = agents._agent_from_distribution(agent_distribution, agent_id=agent_id)
         return self.set_agent(agent_id, agent_type, state)
 
     def set_agent(self, agent_id, agent_type, state=None):
@@ -130,10 +133,12 @@ class Environment(nxsim.NetworkEnvironment):
         defstate.update(node.get('state', {}))
         if state:
             defstate.update(state)
-        state = defstate
-        a = agent_type(environment=self,
-                       agent_id=agent_id,
-                       state=state)
+        a = None
+        if agent_type:
+            state = defstate
+            a = agent_type(environment=self,
+                           agent_id=agent_id,
+                           state=state)
         node['agent'] = a
         return a
 
@@ -153,8 +158,10 @@ class Environment(nxsim.NetworkEnvironment):
 
     def run(self, *args, **kwargs):
         self._save_state()
+        self.log_stats()
         super().run(*args, **kwargs)
         self._history.flush_cache()
+        self.log_stats()
 
     def _save_state(self, now=None):
         # for agent in self.agents:
@@ -326,6 +333,25 @@ class Environment(nxsim.NetworkEnvironment):
                 G.add_node(agent.id, **attributes)
 
         return G
+    
+    def stats(self):
+        stats = {}
+        stats['network'] = {}
+        stats['network']['n_nodes'] = self.G.number_of_nodes()
+        stats['network']['n_edges'] = self.G.number_of_edges()
+        c = Counter()
+        c.update(a.__class__.__name__ for a in self.network_agents)
+        stats['agents'] = {}
+        stats['agents']['model_count'] = dict(c)
+        c2 = Counter()
+        c2.update(a['id'] for a in self.network_agents)
+        stats['agents']['state_count'] = dict(c2)
+        stats['params'] = self.environment_params
+        return stats
+
+    def log_stats(self):
+        stats = self.stats()
+        utils.logger.info('Environment stats: \n{}'.format(yaml.dump(stats, default_flow_style=False)))
     
     def __getstate__(self):
         state = {}

@@ -14,6 +14,7 @@ except NameError:
 from . import agents
 from .simulation import *
 from .environment import Environment
+from .history import History
 from . import utils
 from . import analysis
 

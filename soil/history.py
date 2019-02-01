@@ -3,6 +3,10 @@ import os
 import pandas as pd
 import sqlite3
 import copy
+import logging
+
+logger = logging.getLogger(__name__)
+
 from collections import UserDict, namedtuple
 
 from . import utils
@@ -13,7 +17,7 @@ class History:
     Store and retrieve values from a sqlite database.
     """
 
-    def __init__(self, db_path=None, name=None, dir_path=None, backup=True):
+    def __init__(self, db_path=None, name=None, dir_path=None, backup=False):
         if db_path is None and name:
             db_path = os.path.join(dir_path or os.getcwd(),
                                    '{}.db.sqlite'.format(name))
@@ -28,6 +32,7 @@ class History:
         self.db = db_path
 
         with self.db:
+            logger.debug('Creating database {}'.format(self.db_path))
             self.db.execute('''CREATE TABLE IF NOT EXISTS history (agent_id text, t_step int, key text, value text text)''')
             self.db.execute('''CREATE TABLE IF NOT EXISTS value_types (key text, value_type text)''')
             self.db.execute('''CREATE UNIQUE INDEX IF NOT EXISTS idx_history ON history (agent_id, t_step, key);''')
@@ -46,6 +51,7 @@ class History:
     def db(self, db_path=None):
         db_path = db_path or self.db_path
         if isinstance(db_path, str):
+            logger.debug('Connecting to database {}'.format(db_path))
             self._db = sqlite3.connect(db_path)
         else:
             self._db = db_path
@@ -110,6 +116,7 @@ class History:
         Use a cache to save state changes to avoid opening a session for every change.
         The cache will be flushed at the end of the simulation, and when history is accessed.
         '''
+        logger.debug('Flushing cache {}'.format(self.db_path))
         with self.db:
             for rec in self._tups:
                 self.db.execute("replace into history(agent_id, t_step, key, value) values (?, ?, ?, ?)", (rec.agent_id, rec.t_step, rec.key, rec.value))

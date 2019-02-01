@@ -120,18 +120,18 @@ class TestHistory(TestCase):
         assert os.path.exists(db_path)
 
         # Recover the data
-        recovered = history.History(db_path=db_path, backup=False)
+        recovered = history.History(db_path=db_path)
         assert recovered['a_1', 0, 'id'] == 'v'
         assert recovered['a_1', 4, 'id'] == 'e'
 
-        # Using the same name should create a backup copy
+        # Using backup=True should create a backup copy, and initialize an empty history
         newhistory = history.History(db_path=db_path, backup=True)
         backuppaths = glob(db_path + '.backup*.sqlite')
         assert len(backuppaths) == 1
         backuppath = backuppaths[0]
         assert newhistory.db_path == h.db_path
         assert os.path.exists(backuppath)
-        assert not len(newhistory[None, None, None])
+        assert len(newhistory[None, None, None]) == 0
 
     def test_history_tuples(self):
         """
