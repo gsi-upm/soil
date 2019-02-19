@@ -102,8 +102,7 @@ class Environment(nxsim.NetworkEnvironment):
 
     @network_agents.setter
     def network_agents(self, network_agents):
-        if not network_agents:
-            return
+        self._network_agents = network_agents
         for ix in self.G.nodes():
             self.init_agent(ix, agent_distribution=network_agents)
 
@@ -124,6 +123,9 @@ class Environment(nxsim.NetworkEnvironment):
             agent_type = agents.deserialize_type(agent_type)
         elif agent_distribution:
             agent_type, state = agents._agent_from_distribution(agent_distribution, agent_id=agent_id)
+        else:
+            utils.logger.debug('Skipping node {}'.format(agent_id))
+            return
         return self.set_agent(agent_id, agent_type, state)
 
     def set_agent(self, agent_id, agent_type, state=None):
@@ -149,12 +151,13 @@ class Environment(nxsim.NetworkEnvironment):
         a['visible'] = True
         return a
 
-    def add_edge(self, agent1, agent2, attrs=None):
+    def add_edge(self, agent1, agent2, start=None, **attrs):
         if hasattr(agent1, 'id'):
             agent1 = agent1.id
         if hasattr(agent2, 'id'):
             agent2 = agent2.id
-        return self.G.add_edge(agent1, agent2)
+        start = start or self.now
+        return self.G.add_edge(agent1, agent2, **attrs)
 
     def run(self, *args, **kwargs):
         self._save_state()
@@ -231,8 +234,10 @@ class Environment(nxsim.NetworkEnvironment):
     def get_agent(self, agent_id):
         return self.G.node[agent_id]['agent']
 
-    def get_agents(self):
-        return list(self.agents)
+    def get_agents(self, nodes=None):
+        if nodes is None:
+            return list(self.agents)
+        return [self.G.node[i]['agent'] for i in nodes]
 
     def dump_csv(self, dir_path=None):
         csv_name = os.path.join(self.get_path(dir_path),

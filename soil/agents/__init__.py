@@ -10,11 +10,18 @@ import logging
 from collections import OrderedDict
 from copy import deepcopy
 from functools import partial
+from scipy.spatial import cKDTree as KDTree
 import json
 
 from functools import wraps
 
 from .. import utils, history
+
+
+def as_node(agent):
+    if isinstance(agent, BaseAgent):
+        return agent.id
+    return agent
 
 
 class BaseAgent(nxsim.BaseAgent):
@@ -46,8 +53,7 @@ class BaseAgent(nxsim.BaseAgent):
 
         if not hasattr(self, 'level'):
             self.level = logging.DEBUG
-        self.logger = logging.getLogger('{}.{}'.format(self.env.name,
-                                                       self.id))
+        self.logger = logging.getLogger(self.env.name)
         self.logger.setLevel(self.level)
 
         # initialize every time an instance of the agent is created
@@ -134,43 +140,21 @@ class BaseAgent(nxsim.BaseAgent):
     def step(self):
         pass
 
-    def count_agents(self, state_id=None, limit_neighbors=False):
+    def count_agents(self, **kwargs):
+        return len(list(self.get_agents(**kwargs)))
+
+    def count_neighboring_agents(self, state_id=None, **kwargs):
+        return len(super().get_neighboring_agents(state_id=state_id, **kwargs))
+
+    def get_neighboring_agents(self, state_id=None, **kwargs):
+        return self.get_agents(limit_neighbors=True, state_id=state_id, **kwargs)
+
+    def get_agents(self, agents=None, limit_neighbors=False, **kwargs):
         if limit_neighbors:
-            agents = self.global_topology.neighbors(self.id)
+            agents = super().get_agents(limit_neighbors=limit_neighbors)
         else:
-            agents = self.global_topology.nodes()
-        count = 0
-        for agent in agents:
-            if state_id and state_id != self.global_topology.node[agent]['agent']['id']:
-                continue
-            count += 1
-        return count
-
-    def count_neighboring_agents(self, state_id=None):
-        return len(super().get_agents(state_id, limit_neighbors=True))
-
-    def get_agents(self, state_id=None, agent_type=None, limit_neighbors=False, iterator=False, **kwargs):
-        agents = self.env.agents
-        if limit_neighbors:
-            agents = super().get_agents(state_id, limit_neighbors)
-
-        def matches_all(agent):
-            if state_id is not None:
-                if agent.state.get('id', None) != state_id:
-                    return False
-            if agent_type is not None:
-                if type(agent) != agent_type:
-                    return False
-            state = agent.state
-            for k, v in kwargs.items():
-                if state.get(k, None) != v:
-                    return False
-            return True
-
-        f = filter(matches_all, agents)
-        if iterator:
-            return f
-        return list(f)
+            agents = self.env.get_agents(agents)
+        return select(agents, **kwargs)
 
     def log(self, message, *args, level=logging.INFO, **kwargs):
         message = message + " ".join(str(i) for i in args)
@@ -208,31 +192,76 @@ class BaseAgent(nxsim.BaseAgent):
         self._state = state['_state']
         self.env = state['environment']
 
+    def add_edge(self, node1, node2, **attrs):
+        node1 = as_node(node1)
+        node2 = as_node(node2)
 
-def state(func):
-    '''
-    A state function should return either a state id, or a tuple (state_id, when)
-    The default value for state_id is the current state id.
-    The default value for when is the interval defined in the nevironment.
-    '''
+        for n in [node1, node2]:
+            if n not in self.global_topology.nodes(data=False):
+                raise ValueError('"{}" not in the graph'.format(n))
+        return self.global_topology.add_edge(node1, node2, **attrs)
 
-    @wraps(func)
-    def func_wrapper(self):
-        next_state = func(self)
-        when = None
-        if next_state is None:
+    def subgraph(self, center=True, **kwargs):
+        include = [self] if center else []
+        return self.global_topology.subgraph(n.id for n in self.get_agents(**kwargs)+include)
+
+
+class NetworkAgent(BaseAgent):
+
+    def add_edge(self, other, **kwargs):
+        return super(NetworkAgent, self).add_edge(node1=self.id, node2=other, **kwargs)
+
+    def ego_search(self, steps=1, center=False, node=None, **kwargs):
+        '''Get a list of nodes in the ego network of *node* of radius *steps*'''
+        node = as_node(node if node is not None else self)
+        G = self.subgraph(**kwargs)
+        return nx.ego_graph(G, node, center=center, radius=steps).nodes()
+
+    def degree(self, node, force=False):
+        node = as_node(node)
+        if force or (not hasattr(self.env, '_degree')) or getattr(self.env, '_last_step', 0) < self.now:
+            self.env._degree = nx.degree_centrality(self.global_topology)
+            self.env._last_step = self.now
+        return self.env._degree[node]
+
+    def betweenness(self, node, force=False):
+        node = as_node(node)
+        if force or (not hasattr(self.env, '_betweenness')) or getattr(self.env, '_last_step', 0) < self.now:
+            self.env._betweenness = nx.betweenness_centrality(self.global_topology)
+            self.env._last_step = self.now
+        return self.env._betweenness[node]
+
+
+def state(name=None):
+    def decorator(func, name=None):
+        '''
+        A state function should return either a state id, or a tuple (state_id, when)
+        The default value for state_id is the current state id.
+        The default value for when is the interval defined in the environment.
+        '''
+
+        @wraps(func)
+        def func_wrapper(self):
+            next_state = func(self)
+            when = None
+            if next_state is None:
+                return when
+            try:
+                next_state, when = next_state
+            except (ValueError, TypeError):
+                pass
+            if next_state:
+                self.set_state(next_state)
             return when
-        try:
-            next_state, when = next_state
-        except (ValueError, TypeError):
-            pass
-        if next_state:
-            self.set_state(next_state)
-        return when
 
-    func_wrapper.id = func.__name__
-    func_wrapper.is_default = False
-    return func_wrapper
+        func_wrapper.id = name or func.__name__
+        func_wrapper.is_default = False
+        return func_wrapper
+
+    if callable(name):
+        return decorator(name)
+    else:
+        return partial(decorator, name=name)
 
 
 def default_state(func):
@@ -340,7 +369,7 @@ def calculate_distribution(network_agents=None,
     elif agent_type:
         network_agents = [{'agent_type': agent_type}]
     else:
-        return []
+        raise ValueError('Specify a distribution or a default agent type')
 
     # Calculate the thresholds
     total = sum(x.get('weight', 1) for x in network_agents)
@@ -425,6 +454,58 @@ def _agent_from_distribution(distribution, value=-1, agent_id=None):
         return d['agent_type'], state
 
     raise Exception('Distribution for value {} not found in: {}'.format(value, distribution))
+
+
+class Geo(NetworkAgent):
+    '''In this type of network, nodes have a "pos" attribute.'''
+
+    def geo_search(self, radius, node=None, center=False, **kwargs):
+        '''Get a list of nodes whose coordinates are closer than *radius* to *node*.'''
+        node = as_node(node if node is not None else self)
+
+        G = self.subgraph(**kwargs)
+
+        pos = nx.get_node_attributes(G, 'pos')
+        if not pos:
+            return []
+        nodes, coords = list(zip(*pos.items()))
+        kdtree = KDTree(coords)  # Cannot provide generator.
+        indices = kdtree.query_ball_point(pos[node], radius)
+        return [nodes[i] for i in indices if center or (nodes[i] != node)]
+
+
+def select(agents, state_id=None, agent_type=None, ignore=None, iterator=False, **kwargs):
+
+    if state_id is not None:
+        try:
+            state_id = tuple(state_id)
+        except TypeError:
+            state_id = tuple([state_id])
+    if agent_type is not None:
+        try:
+            agent_type = tuple(agent_type)
+        except TypeError:
+            agent_type = tuple([agent_type])
+
+    def matches_all(agent):
+        if state_id is not None:
+            if agent.state.get('id', None) not in state_id:
+                return False
+        if agent_type is not None:
+            if not isinstance(agent, agent_type):
+                return False
+        state = agent.state
+        for k, v in kwargs.items():
+            if state.get(k, None) != v:
+                return False
+        return True
+
+    f = filter(matches_all, agents)
+    if ignore:
+        f = filter(lambda x: x not in ignore, f)
+    if iterator:
+        return f
+    return list(f)
 
 
 from .BassModel import *

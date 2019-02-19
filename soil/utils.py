@@ -147,7 +147,7 @@ def deserializer(type_, known_modules=[]):
             module = importlib.import_module(modname)
             cls = getattr(module, tname)
             return getattr(cls, 'deserialize', cls)
-        except (ImportError, AttributeError) as ex:
+        except (ModuleNotFoundError, AttributeError) as ex:
             errors.append((modname, tname, ex))
     raise Exception('Could not find type {}. Tried: {}'.format(type_, errors))
 

@@ -60,3 +60,4 @@ visualization_params:
   background_image: 'map_4800x2860.jpg'
   background_opacity: '0.9'
   background_filter_color: 'blue'
+skip_test: true  # This simulation takes too long for automated tests.

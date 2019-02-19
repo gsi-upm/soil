@@ -7,6 +7,8 @@ from soil import utils, simulation
 ROOT = os.path.abspath(os.path.dirname(__file__))
 EXAMPLES = join(ROOT, '..', 'examples')
 
+FORCE_TESTS = os.environ.get('FORCE_TESTS', '')
+
 
 class TestExamples(TestCase):
     pass
@@ -19,7 +21,10 @@ def make_example_test(path, config):
         s = simulation.from_config(config)
         iterations = s.max_time * s.num_trials
         if iterations > 1000:
-            self.skipTest('This example would probably take too long')
+            s.max_time = 100
+            s.num_trials = 1
+        if config.get('skip_test', False) and not FORCE_TESTS:
+            self.skipTest('Example ignored.')
         envs = s.run_simulation(dry_run=True)
         assert envs
         for env in envs:

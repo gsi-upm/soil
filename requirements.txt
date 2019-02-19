@@ -5,3 +5,4 @@ numpy
 matplotlib
 pyyaml
 pandas
+scipy

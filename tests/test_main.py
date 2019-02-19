@@ -320,3 +320,19 @@ class TestMain(TestCase):
         h = history.History()
         h.save_record(agent_id=0, t_step=0, key="test", value="hello")
         assert h[0, 0, "test"] == "hello"
+
+    def test_subgraph(self):
+        '''An agent should be able to subgraph the global topology'''
+        G = nx.Graph()
+        G.add_node(3)
+        G.add_edge(1, 2)
+        distro = agents.calculate_distribution(agent_type=agents.NetworkAgent)
+        env = Environment(name='Test', topology=G, network_agents=distro)
+        lst = list(env.network_agents)
+
+        a2 = env.get_agent(2)
+        a3 = env.get_agent(3)
+        assert len(a2.subgraph(limit_neighbors=True)) == 2
+        assert len(a3.subgraph(limit_neighbors=True)) == 1
+        assert len(a3.subgraph(limit_neighbors=True, center=False)) == 0
+        assert len(a3.subgraph(agent_type=agents.NetworkAgent)) == 3

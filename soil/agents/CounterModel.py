@@ -22,11 +22,17 @@ class AggregatedCounter(BaseAgent):
     in each step and adds it to its state.
     """
 
+    defaults = {
+        'times': 0,
+        'neighbors': 0,
+        'total': 0
+    }
+
     def step(self):
         # Outside effects
-        total = len(list(self.get_all_agents()))
+        self['times'] += 1
         neighbors = len(list(self.get_neighboring_agents()))
-        self['times'] = self.get('times', 0) + 1
-        self['neighbors'] = self.get('neighbors', 0) + neighbors
-        self['total'] = total = self.get('total', 0) + total
+        self['neighbors'] += neighbors
+        total = len(list(self.get_all_agents()))
+        self['total'] += total
         self.debug('Running for step: {}. Total: {}'.format(self.now, total))

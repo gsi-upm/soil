@@ -3,9 +3,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.13.8]
 ### Changed
+* Moved TerroristNetworkModel to examples
 ### Added
+* `get_agents` and `count_agents` methods now accept lists as inputs. They can be used to retrieve agents from node ids
+* `subgraph` in BaseAgent
+* `agents.select` method, to filter out agents
+* `skip_test` property in yaml definitions, to force skipping some examples
+* `agents.Geo`, with a search function based on postition
+* `BaseAgent.ego_search` to get nodes from the ego network of a node
+* `BaseAgent.degree` and `BaseAgent.betweenness`
 ### Fixed
 
 ## [0.13.7]
