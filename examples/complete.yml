@@ -1,5 +1,6 @@
 ---
 name: simple
+group: tests
 dir_path: "/tmp/"
 num_trials: 3
 dry_run: True

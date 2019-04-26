@@ -4,7 +4,7 @@ import glob
 import yaml
 from os.path import join
 
-from . import utils, history
+from . import serialization, history
 
 
 def read_data(*args, group=False, **kwargs):
@@ -56,7 +56,7 @@ def read_csv(filename, keys=None, convert_types=False, **kwargs):
 
 
 def convert_row(row):
-    row['value'] = utils.deserialize(row['value_type'], row['value'])
+    row['value'] = serialization.deserialize(row['value_type'], row['value'])
     return row
 
 

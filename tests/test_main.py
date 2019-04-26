@@ -7,7 +7,8 @@ import networkx as nx
 from functools import partial
 
 from os.path import join
-from soil import simulation, Environment, agents, utils, history
+from soil import (simulation, Environment, agents, serialization,
+                  history, utils)
 
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
@@ -32,7 +33,7 @@ class TestMain(TestCase):
                 'path': join(ROOT, 'test.gexf')
             }
         }
-        G = utils.load_network(config['network_params'])
+        G = serialization.load_network(config['network_params'])
         assert G
         assert len(G) == 2
         with self.assertRaises(AttributeError):
@@ -42,7 +43,7 @@ class TestMain(TestCase):
                     'path': join(ROOT, 'unknown.extension')
                 }
             }
-            G = utils.load_network(config['network_params'])
+            G = serialization.load_network(config['network_params'])
             print(G)
 
     def test_generate_barabasi(self):
@@ -57,10 +58,10 @@ class TestMain(TestCase):
             }
         }
         with self.assertRaises(TypeError):
-            G = utils.load_network(config['network_params'])
+            G = serialization.load_network(config['network_params'])
         config['network_params']['n'] = 100
         config['network_params']['m'] = 10
-        G = utils.load_network(config['network_params'])
+        G = serialization.load_network(config['network_params'])
         assert len(G) == 100
 
     def test_empty_simulation(self):
@@ -153,7 +154,7 @@ class TestMain(TestCase):
 
     def test_torvalds_example(self):
         """A complete example from a documentation should work."""
-        config = utils.load_file(join(EXAMPLES, 'torvalds.yml'))[0]
+        config = serialization.load_file(join(EXAMPLES, 'torvalds.yml'))[0]
         config['network_params']['path'] = join(EXAMPLES,
                                                 config['network_params']['path'])
         s = simulation.from_config(config)
@@ -180,7 +181,7 @@ class TestMain(TestCase):
         should be equivalent to the configuration file used
         """
         with utils.timer('loading'):
-            config = utils.load_file(join(EXAMPLES, 'complete.yml'))[0]
+            config = serialization.load_file(join(EXAMPLES, 'complete.yml'))[0]
             s = simulation.from_config(config)
             s.dry_run = True
         with utils.timer('serializing'):
@@ -189,6 +190,7 @@ class TestMain(TestCase):
             recovered = yaml.load(serial)
         with utils.timer('deleting'):
             del recovered['topology']
+            del recovered['outdir']
         assert config == recovered
 
     def test_configuration_changes(self):
@@ -196,13 +198,14 @@ class TestMain(TestCase):
         The configuration should not change after running
          the simulation.
         """
-        config = utils.load_file(join(EXAMPLES, 'complete.yml'))[0]
+        config = serialization.load_file(join(EXAMPLES, 'complete.yml'))[0]
         s = simulation.from_config(config)
         s.dry_run = True
         for i in range(5):
             s.run_simulation(dry_run=True)
             nconfig = s.to_dict()
             del nconfig['topology']
+            del nconfig['outdir']
             assert config == nconfig
 
     def test_row_conversion(self):
@@ -245,11 +248,11 @@ class TestMain(TestCase):
         assert ('finish', 10, None) in values
 
     def test_serialize_class(self):
-        ser, name = utils.serialize(agents.BaseAgent)
+        ser, name = serialization.serialize(agents.BaseAgent)
         assert name == 'soil.agents.BaseAgent'
         assert ser == agents.BaseAgent
 
-        ser, name = utils.serialize(CustomAgent)
+        ser, name = serialization.serialize(CustomAgent)
         assert name == 'test_main.CustomAgent'
         assert ser == CustomAgent
         pickle.dumps(ser)
@@ -257,9 +260,9 @@ class TestMain(TestCase):
     def test_serialize_builtin_types(self):
 
         for i in [1, None, True, False, {}, [], list(), dict()]:
-            ser, name = utils.serialize(i)
+            ser, name = serialization.serialize(i)
             assert type(ser) == str
-            des = utils.deserialize(name, ser)
+            des = serialization.deserialize(name, ser)
             assert i == des
 
     def test_serialize_agent_type(self):
@@ -336,3 +339,10 @@ class TestMain(TestCase):
         assert len(a3.subgraph(limit_neighbors=True)) == 1
         assert len(a3.subgraph(limit_neighbors=True, center=False)) == 0
         assert len(a3.subgraph(agent_type=agents.NetworkAgent)) == 3
+
+    def test_templates(self):
+        '''Loading a template should result in several configs'''
+        configs = serialization.load_file(join(EXAMPLES, 'template.yml'))
+        assert len(configs) > 0
+
+

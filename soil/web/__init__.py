@@ -180,7 +180,7 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
         with self.logging(self.simulation_name):
             try:
                 config = dict(**self.config)
-                config['dir_path'] = os.path.join(self.application.dir_path, config['name'])
+                config['outdir'] = os.path.join(self.application.outdir, config['name'])
                 config['dump'] = self.application.dump
                 self.trials = yield self.nonblocking(config)
 
@@ -232,12 +232,12 @@ class ModularServer(tornado.web.Application):
     settings = {'debug': True,
                 'template_path': ROOT + '/templates'}
 
-    def __init__(self, dump=False, dir_path='output', name='SOIL', verbose=True, *args, **kwargs):
+    def __init__(self, dump=False, outdir='output', name='SOIL', verbose=True, *args, **kwargs):
         
         self.verbose = verbose
         self.name = name
         self.dump = dump
-        self.dir_path = dir_path
+        self.outdir = outdir
 
         # Initializing the application itself:
         super().__init__(self.handlers, **self.settings)

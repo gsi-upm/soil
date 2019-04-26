@@ -15,7 +15,7 @@ import json
 
 from functools import wraps
 
-from .. import utils, history
+from .. import serialization, history
 
 
 def as_node(agent):
@@ -388,7 +388,7 @@ def serialize_type(agent_type, known_modules=[], **kwargs):
     if isinstance(agent_type, str):
         return agent_type
     known_modules += ['soil.agents']
-    return utils.serialize(agent_type, known_modules=known_modules, **kwargs)[1] # Get the name of the class
+    return serialization.serialize(agent_type, known_modules=known_modules, **kwargs)[1] # Get the name of the class
 
 
 def serialize_distribution(network_agents, known_modules=[]):
@@ -409,7 +409,7 @@ def deserialize_type(agent_type, known_modules=[]):
     if not isinstance(agent_type, str):
         return agent_type
     known = known_modules + ['soil.agents', 'soil.agents.custom' ]
-    agent_type = utils.deserializer(agent_type, known_modules=known)
+    agent_type = serialization.deserializer(agent_type, known_modules=known)
     return agent_type
 
 

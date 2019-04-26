@@ -1,8 +1,10 @@
-nxsim
+nxsim>=0.1.2
 simpy
 networkx>=2.0
 numpy
 matplotlib
 pyyaml
-pandas
-scipy
+pandas>=0.23
+scipy>=1.2
+SALib>=1.3
+Jinja2

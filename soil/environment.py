@@ -14,7 +14,7 @@ from networkx.readwrite import json_graph
 import networkx as nx
 import nxsim
 
-from . import utils, agents, analysis, history
+from . import serialization, agents, analysis, history
 
 # These properties will be copied when pickling/unpickling the environment
 _CONFIG_PROPS = [ 'name',
@@ -22,7 +22,7 @@ _CONFIG_PROPS = [ 'name',
                  'default_state',
                  'interval',
                  'dry_run',
-                 'dir_path',
+                 'outdir',
                  ]
 
 class Environment(nxsim.NetworkEnvironment):
@@ -44,7 +44,7 @@ class Environment(nxsim.NetworkEnvironment):
                  interval=1,
                  seed=None,
                  dry_run=False,
-                 dir_path=None,
+                 outdir=None,
                  topology=None,
                  *args, **kwargs):
         self.name = name or 'UnnamedEnvironment'
@@ -58,11 +58,11 @@ class Environment(nxsim.NetworkEnvironment):
         self._env_agents = {}
         self.dry_run = dry_run
         self.interval = interval
-        self.dir_path = dir_path or tempfile.mkdtemp('soil-env')
+        self.outdir = outdir or tempfile.mkdtemp('soil-env')
         if not dry_run:
             self.get_path()
         self._history = history.History(name=self.name if not dry_run else None,
-                                        dir_path=self.dir_path,
+                                        outdir=self.outdir,
                                         backup=True)
         # Add environment agents first, so their events get
         # executed before network agents
@@ -124,7 +124,7 @@ class Environment(nxsim.NetworkEnvironment):
         elif agent_distribution:
             agent_type, state = agents._agent_from_distribution(agent_distribution, agent_id=agent_id)
         else:
-            utils.logger.debug('Skipping node {}'.format(agent_id))
+            serialization.logger.debug('Skipping node {}'.format(agent_id))
             return
         return self.set_agent(agent_id, agent_type, state)
 
@@ -169,7 +169,7 @@ class Environment(nxsim.NetworkEnvironment):
     def _save_state(self, now=None):
         # for agent in self.agents:
         #     agent.save_state()
-        utils.logger.debug('Saving state @{}'.format(self.now))
+        serialization.logger.debug('Saving state @{}'.format(self.now))
         self._history.save_records(self.state_to_tuples(now=now))
 
     def save_state(self):
@@ -180,7 +180,7 @@ class Environment(nxsim.NetworkEnvironment):
         self._save_state()
         while self.peek() != simpy.core.Infinity:
             delay = max(self.peek() - self.now, self.interval)
-            utils.logger.debug('Step: {}'.format(self.now))
+            serialization.logger.debug('Step: {}'.format(self.now))
             ev = self.event()
             ev._ok = True
             # Schedule the event with minimum priority so
@@ -222,14 +222,14 @@ class Environment(nxsim.NetworkEnvironment):
         '''
         return self[key] if key in self else default
 
-    def get_path(self, dir_path=None):
-        dir_path = dir_path or self.dir_path
-        if not os.path.exists(dir_path):
+    def get_path(self, outdir=None):
+        outdir = outdir or self.outdir
+        if not os.path.exists(outdir):
             try:
-                os.makedirs(dir_path)
+                os.makedirs(outdir)
             except FileExistsError:
                 pass
-        return dir_path
+        return outdir
 
     def get_agent(self, agent_id):
         return self.G.node[agent_id]['agent']
@@ -239,8 +239,8 @@ class Environment(nxsim.NetworkEnvironment):
             return list(self.agents)
         return [self.G.node[i]['agent'] for i in nodes]
 
-    def dump_csv(self, dir_path=None):
-        csv_name = os.path.join(self.get_path(dir_path),
+    def dump_csv(self, outdir=None):
+        csv_name = os.path.join(self.get_path(outdir),
                                 '{}.environment.csv'.format(self.name))
 
         with open(csv_name, 'w') as f:
@@ -249,9 +249,9 @@ class Environment(nxsim.NetworkEnvironment):
             for i in self.history_to_tuples():
                 cr.writerow(i)
 
-    def dump_gexf(self, dir_path=None):
+    def dump_gexf(self, outdir=None):
         G = self.history_to_graph()
-        graph_path = os.path.join(self.get_path(dir_path),
+        graph_path = os.path.join(self.get_path(outdir),
                                   self.name+".gexf")
         # Workaround for geometric models
         # See soil/soil#4
@@ -262,7 +262,7 @@ class Environment(nxsim.NetworkEnvironment):
 
         nx.write_gexf(G, graph_path, version="1.2draft")
 
-    def dump(self, dir_path=None, formats=None):
+    def dump(self, outdir=None, formats=None):
         if not formats:
             return
         functions = {
@@ -271,7 +271,7 @@ class Environment(nxsim.NetworkEnvironment):
         }
         for f in formats:
             if f in functions:
-                functions[f](dir_path)
+                functions[f](outdir)
             else:
                 raise ValueError('Unknown format: {}'.format(f))
 
@@ -356,7 +356,7 @@ class Environment(nxsim.NetworkEnvironment):
 
     def log_stats(self):
         stats = self.stats()
-        utils.logger.info('Environment stats: \n{}'.format(yaml.dump(stats, default_flow_style=False)))
+        serialization.logger.info('Environment stats: \n{}'.format(yaml.dump(stats, default_flow_style=False)))
     
     def __getstate__(self):
         state = {}

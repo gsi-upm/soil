@@ -13,9 +13,10 @@ import pickle
 
 from nxsim import NetworkSimulation
 
-from . import utils, basestring, agents
+from . import serialization, utils, basestring, agents
 from .environment import Environment
-from .utils import logger
+from .serialization import logger
+from .exporters import for_sim as exporters_for_sim
 
 
 class Simulation(NetworkSimulation):
@@ -50,6 +51,8 @@ class Simulation(NetworkSimulation):
     ---------
     name : str, optional
         name of the Simulation
+    group : str, optional
+        a group name can be used to link simulations
     topology : networkx.Graph instance, optional
     network_params : dict
         parameters used to create a topology with networkx, if no topology is given
@@ -60,8 +63,10 @@ class Simulation(NetworkSimulation):
     states : list, optional
         List of initial states corresponding to the nodes in the topology. Basic form is a list of integers
         whose value indicates the state
-    dir_path : str, optional
-        Directory path where to save pickled objects
+    dir_path: str, optional
+        Directory path to load simulation assets (files, modules...)
+    outdir : str, optional
+        Directory path to save simulation results
     seed : str, optional
         Seed to use for the random generator
     num_trials : int, optional
@@ -80,38 +85,45 @@ class Simulation(NetworkSimulation):
 
     """
 
-    def __init__(self, name=None, topology=None, network_params=None,
+    def __init__(self, name=None, group=None, topology=None, network_params=None,
                  network_agents=None, agent_type=None, states=None,
                  default_state=None, interval=1, dump=None, dry_run=False,
-                 dir_path=None, num_trials=1, max_time=100,
-                 load_module=None, seed=None,
+                 outdir=None, num_trials=1, max_time=100,
+                 load_module=None, seed=None, dir_path=None,
                  environment_agents=None, environment_params=None,
                  environment_class=None, **kwargs):
 
         self.seed = str(seed) or str(time.time())
         self.load_module = load_module
         self.network_params = network_params
-        self.name = name or 'UnnamedSimulation'
+        self.name = name or 'Unnamed_' + time.strftime("%Y-%m-%d_%H:%M:%S")
+        self.group = group or None
         self.num_trials = num_trials
         self.max_time = max_time
         self.default_state = default_state or {}
+        if not outdir:
+            outdir = os.path.join(os.getcwd(),
+                                       'soil_output')
+        self.outdir = os.path.join(outdir,
+                                   self.group or '',
+                                   self.name)
         self.dir_path = dir_path or os.getcwd()
         self.interval = interval
         self.dump = dump
         self.dry_run = dry_run
 
-        sys.path += [self.dir_path, os.getcwd()]
+        sys.path += list(x for x in [self.outdir, os.getcwd(), self.dir_path] if x not in sys.path)
 
         if topology is None:
-            topology = utils.load_network(network_params,
-                                          dir_path=self.dir_path)
+            topology = serialization.load_network(network_params,
+                                                  dir_path=self.dir_path)
         elif isinstance(topology, basestring) or isinstance(topology, dict):
             topology = json_graph.node_link_graph(topology)
         self.topology = nx.Graph(topology)
 
 
         self.environment_params = environment_params or {}
-        self.environment_class = utils.deserialize(environment_class,
+        self.environment_class = serialization.deserialize(environment_class,
                                                    known_modules=['soil.environment', ]) or Environment
 
         environment_agents = environment_agents or []
@@ -130,34 +142,51 @@ class Simulation(NetworkSimulation):
         return self.run(*args, **kwargs)
 
     def run(self, *args, **kwargs):
-        return list(self.run_simulation_gen(*args, **kwargs))
+        return list(self._run_simulation_gen(*args, **kwargs))
 
-    def run_simulation_gen(self, *args, parallel=False, dry_run=False,
-                           **kwargs):
-        p = Pool()
+    def _run_sync_or_async(self, parallel=False, *args, **kwargs):
+        if parallel:
+            p = Pool()
+            func = partial(self.run_trial_exceptions,
+                           *args,
+                           **kwargs)
+            for i in p.imap_unordered(func, range(self.num_trials)):
+                if isinstance(i, Exception):
+                    logger.error('Trial failed:\n\t{}'.format(i.message))
+                    continue
+                yield i
+        else:
+            for i in range(self.num_trials):
+                yield self.run_trial(i,
+                                     *args,
+                                     **kwargs)
+
+    def _run_simulation_gen(self, *args, parallel=False, dry_run=False,
+                            exporters=None, **kwargs):
+        exporters = exporters_for_sim(self,
+                                      exporters or [])
         with utils.timer('simulation {}'.format(self.name)):
-            if parallel:
-                func = partial(self.run_trial_exceptions, dry_run=dry_run or self.dry_run,
-                                                         return_env=True,
-                                                         **kwargs)
-                for i in p.imap_unordered(func, range(self.num_trials)):
-                    if isinstance(i, Exception):
-                        logger.error('Trial failed:\n\t{}'.format(i.message))
-                        continue
-                    yield i
-            else:
-                for i in range(self.num_trials):
-                    yield self.run_trial(i, dry_run = dry_run or self.dry_run, **kwargs)
             if not (dry_run or self.dry_run):
-                logger.info('Dumping results to {}'.format(self.dir_path))
-                self.dump_pickle(self.dir_path)
-                self.dump_yaml(self.dir_path)
+                logger.info('Dumping results to {}'.format(self.outdir))
+                self.dump_pickle(self.outdir)
+                self.dump_yaml(self.outdir)
             else:
                 logger.info('NOT dumping results')
+            for exporter in exporters:
+                exporter.start()
+
+            for env in self._run_sync_or_async(*args, parallel=parallel,
+                                               dry_run=dry_run, **kwargs):
+                for exporter in exporters:
+                    exporter.env(env)
+                yield env
+
+            for exporter in exporters:
+                exporter.end()
 
     def get_env(self, trial_id = 0, **kwargs):
-        opts=self.environment_params.copy()
-        env_name='{}_trial_{}'.format(self.name, trial_id)
+        opts = self.environment_params.copy()
+        env_name = '{}_trial_{}'.format(self.name, trial_id)
         opts.update({
             'name': env_name,
             'topology': self.topology.copy(),
@@ -169,13 +198,13 @@ class Simulation(NetworkSimulation):
             'states': self.states,
             'default_state': self.default_state,
             'environment_agents': self.environment_agents,
-            'dir_path': self.dir_path,
+            'outdir': self.outdir,
         })
         opts.update(kwargs)
-        env=self.environment_class(**opts)
+        env = self.environment_class(**opts)
         return env
 
-    def run_trial(self, trial_id = 0, until = None, return_env = True, **opts):
+    def run_trial(self, trial_id=0, until=None, dry_run=False, **opts):
         """Run a single trial of the simulation
 
         Parameters
@@ -183,16 +212,16 @@ class Simulation(NetworkSimulation):
         trial_id : int
         """
         # Set-up trial environment and graph
-        until=until or self.max_time
-        env=self.get_env(trial_id = trial_id, **opts)
+        until = until or self.max_time
+        env = self.get_env(trial_id = trial_id, **opts)
+        dry_run = self.dry_run or dry_run
         # Set up agents on nodes
         with utils.timer('Simulation {} trial {}'.format(self.name, trial_id)):
             env.run(until)
-        if self.dump and not self.dry_run:
+        if self.dump and not dry_run:
             with utils.timer('Dumping simulation {} trial {}'.format(self.name, trial_id)):
                 env.dump(formats = self.dump)
-        if return_env:
-            return env
+        return env
     def run_trial_exceptions(self, *args, **kwargs):
         '''
         A wrapper for run_trial that catches exceptions and returns them.
@@ -211,22 +240,22 @@ class Simulation(NetworkSimulation):
     def to_yaml(self):
         return yaml.dump(self.to_dict())
 
-    def dump_yaml(self, dir_path = None, file_name = None):
-        dir_path=dir_path or self.dir_path
-        if not os.path.exists(dir_path):
-            os.makedirs(dir_path)
+    def dump_yaml(self, outdir = None, file_name = None):
+        outdir = outdir or self.outdir
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
         if not file_name:
-            file_name=os.path.join(dir_path,
+            file_name=os.path.join(outdir,
                                      '{}.dumped.yml'.format(self.name))
         with open(file_name, 'w') as f:
             f.write(self.to_yaml())
 
-    def dump_pickle(self, dir_path = None, pickle_name = None):
-        dir_path=dir_path or self.dir_path
-        if not os.path.exists(dir_path):
-            os.makedirs(dir_path)
+    def dump_pickle(self, outdir = None, pickle_name = None):
+        outdir = outdir or self.outdir
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
         if not pickle_name:
-            pickle_name=os.path.join(dir_path,
+            pickle_name=os.path.join(outdir,
                                        '{}.simulation.pickle'.format(self.name))
         with open(pickle_name, 'wb') as f:
             pickle.dump(self, f)
@@ -235,14 +264,14 @@ class Simulation(NetworkSimulation):
         state={}
         for k, v in self.__dict__.items():
             if k[0] != '_':
-                state[k]=v
-        state['topology']=json_graph.node_link_data(self.topology)
-        state['network_agents']=agents.serialize_distribution(self.network_agents,
-                                                                known_modules = [])
-        state['environment_agents']=agents.serialize_distribution(self.environment_agents,
-                                                                    known_modules = [])
-        state['environment_class']=utils.serialize(self.environment_class,
-                                                     known_modules=['soil.environment'])[1]  # func, name
+                state[k] = v
+                state['topology'] = json_graph.node_link_data(self.topology)
+                state['network_agents'] = agents.serialize_distribution(self.network_agents,
+                                                                        known_modules = [])
+                state['environment_agents'] = agents.serialize_distribution(self.environment_agents,
+                                                                            known_modules = [])
+                state['environment_class'] = serialization.serialize(self.environment_class,
+                                                                     known_modules=['soil.environment'])[1]  # func, name
         if state['load_module'] is None:
             del state['load_module']
         return state
@@ -250,19 +279,28 @@ class Simulation(NetworkSimulation):
     def __setstate__(self, state):
         self.__dict__ = state
         self.load_module = getattr(self, 'load_module', None)
+        if self.outdir not in sys.path:
+            sys.path += [self.outdir, os.getcwd()]
         if self.dir_path not in sys.path:
             sys.path += [self.dir_path, os.getcwd()]
         self.topology = json_graph.node_link_graph(state['topology'])
         self.network_agents = agents.calculate_distribution(agents._convert_agent_types(self.network_agents))
         self.environment_agents = agents._convert_agent_types(self.environment_agents,
                                                               known_modules=[self.load_module])
-        self.environment_class = utils.deserialize(self.environment_class,
+        self.environment_class = serialization.deserialize(self.environment_class,
                                                    known_modules=[self.load_module, 'soil.environment', ])  # func, name
         return state
 
 
-def from_config(config):
-    config = list(utils.load_config(config))
+def all_from_config(config):
+    configs = list(serialization.load_config(config))
+    for config, _ in configs:
+        sim = Simulation(**config)
+        yield sim
+
+
+def from_config(conf_or_path):
+    config = list(serialization.load_config(conf_or_path))
     if len(config) > 1:
         raise AttributeError('Provide only one configuration')
     config = config[0][0]
@@ -270,10 +308,10 @@ def from_config(config):
     return sim
 
 
-def run_from_config(*configs, results_dir='soil_output', dump=None, timestamp=False,  **kwargs):
+def run_from_config(*configs, outdir=None, dump=None, timestamp=False,  **kwargs):
     for config_def in configs:
         # logger.info("Found {} config(s)".format(len(ls)))
-        for config, _ in utils.load_config(config_def):
+        for config, path in serialization.load_config(config_def):
             name = config.get('name', 'unnamed')
             logger.info("Using config(s): {name}".format(name=name))
 
@@ -282,9 +320,12 @@ def run_from_config(*configs, results_dir='soil_output', dump=None, timestamp=Fa
                                             time.strftime("%Y-%m-%d_%H:%M:%S"))
             else:
                 sim_folder = name
-            dir_path = os.path.join(results_dir, sim_folder)
             if dump is not None:
                 config['dump'] = dump
-            sim = Simulation(dir_path=dir_path, **config)
-            logger.info('Dumping results to {} : {}'.format(sim.dir_path, sim.dump))
+            dir_path = config.pop('dir_path', os.path.dirname(path))
+            outdir = config.pop('outdir', outdir)
+            sim = Simulation(dir_path=dir_path,
+                             outdir=outdir,
+                             **config)
+            logger.info('Dumping results to {} : {}'.format(sim.outdir, sim.dump))
             sim.run_simulation(**kwargs)

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 from collections import UserDict, namedtuple
 
-from . import utils
+from . import serialization
 
 
 class History:
@@ -17,9 +17,9 @@ class History:
     Store and retrieve values from a sqlite database.
     """
 
-    def __init__(self, db_path=None, name=None, dir_path=None, backup=False):
+    def __init__(self, db_path=None, name=None, outdir=None, backup=False):
         if db_path is None and name:
-            db_path = os.path.join(dir_path or os.getcwd(),
+            db_path = os.path.join(outdir or os.getcwd(),
                                    '{}.db.sqlite'.format(name))
         if db_path:
             if backup and os.path.exists(db_path):
@@ -94,9 +94,9 @@ class History:
         if key not in self._dtypes:
             self.read_types()
             if key not in self._dtypes:
-                name = utils.name(value)
-                serializer = utils.serializer(name)
-                deserializer = utils.deserializer(name)
+                name = serialization.name(value)
+                serializer = serialization.serializer(name)
+                deserializer = serialization.deserializer(name)
                 self._dtypes[key] = (name, serializer, deserializer)
                 with self.db:
                     self.db.execute("replace into value_types (key, value_type) values (?, ?)", (key, name))
@@ -135,8 +135,8 @@ class History:
         with self.db:
             res = self.db.execute("select key, value_type from value_types ").fetchall()
         for k, v in res:
-            serializer = utils.serializer(v)
-            deserializer = utils.deserializer(v)
+            serializer = serialization.serializer(v)
+            deserializer = serialization.deserializer(v)
             self._dtypes[k] = (v, serializer, deserializer)
 
     def __getitem__(self, key):

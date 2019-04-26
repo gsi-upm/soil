@@ -15,7 +15,7 @@ from . import agents
 from .simulation import *
 from .environment import Environment
 from .history import History
-from . import utils
+from . import serialization
 from . import analysis
 
 def main():
@@ -44,6 +44,8 @@ def main():
                         help='folder to write results to. It defaults to the current directory.')
     parser.add_argument('--synchronous', action='store_true',
                         help='Run trials serially and synchronously instead of in parallel. Defaults to false.')
+    parser.add_argument('-e', '--exporter', action='append',
+                        help='Export environment and/or simulations using this exporter')
 
     args = parser.parse_args()
 
@@ -64,8 +66,9 @@ def main():
         simulation.run_from_config(args.file,
                                    dry_run=args.dry_run,
                                    dump=dump,
+                                   exporters=args.exporter,
                                    parallel=(not args.synchronous),
-                                   results_dir=args.output)
+                                   outdir=args.output)
     except Exception:
         if args.pdb:
             pdb.post_mortem()

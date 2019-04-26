@@ -1,0 +1,29 @@
+---
+vars:
+  bounds:
+    x1: [0, 1]
+    x2: [1, 2]
+  fixed:
+    x3: ["a", "b", "c"]
+sampler: "SALib.sample.morris.sample"
+samples: 10
+template: |
+  group: simple
+  num_trials: 1
+  interval: 1
+  max_time: 2
+  seed: "CompleteSeed!"
+  dump: false
+  network_params:
+    generator: complete_graph
+    n: 10
+  network_agents:
+    - agent_type: CounterModel
+      weight: {{ x1 }}
+      state:
+        id: 0
+    - agent_type: AggregatedCounter
+      weight: {{ 1 - x1 }}
+  environment_params:
+    name: {{ x3 }}
+  skip_test: true
