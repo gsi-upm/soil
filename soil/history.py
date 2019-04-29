@@ -4,6 +4,7 @@ import pandas as pd
 import sqlite3
 import copy
 import logging
+import tempfile
 
 logger = logging.getLogger(__name__)
 
@@ -17,16 +18,18 @@ class History:
     Store and retrieve values from a sqlite database.
     """
 
-    def __init__(self, db_path=None, name=None, outdir=None, backup=False):
-        if db_path is None and name:
-            db_path = os.path.join(outdir or os.getcwd(),
-                                   '{}.db.sqlite'.format(name))
-        if db_path:
-            if backup and os.path.exists(db_path):
-                newname = db_path + '.backup{}.sqlite'.format(time.time())
-                os.rename(db_path, newname)
-        else:
-            db_path = ":memory:"
+    def __init__(self, name=None, db_path=None, backup=False):
+        self._db = None
+
+        if db_path is None:
+            if not name:
+                name = time.time()
+            _, db_path = tempfile.mkstemp(suffix='{}.sqlite'.format(name))
+
+        if backup and os.path.exists(db_path):
+            newname = db_path + '.backup{}.sqlite'.format(time.time())
+            os.rename(db_path, newname)
+
         self.db_path = db_path
 
         self.db = db_path
@@ -49,12 +52,20 @@ class History:
 
     @db.setter
     def db(self, db_path=None):
+        self._close()
         db_path = db_path or self.db_path
         if isinstance(db_path, str):
             logger.debug('Connecting to database {}'.format(db_path))
             self._db = sqlite3.connect(db_path)
         else:
             self._db = db_path
+
+    def _close(self):
+        if self._db is None:
+            return
+        self.flush_cache()
+        self._db.close()
+        self._db = None
 
     @property
     def dtypes(self):
@@ -110,7 +121,6 @@ class History:
             raise ValueError("Unknown datatype for {} and {}".format(key, value))
         return self._dtypes[key][2](value)
 
-
     def flush_cache(self):
         '''
         Use a cache to save state changes to avoid opening a session for every change.
@@ -153,8 +163,6 @@ class History:
         if r.resolved:
             return r.value()
         return r
-
-
 
     def read_sql(self, keys=None, agent_ids=None, t_steps=None, convert_types=False, limit=-1):
 
@@ -214,16 +222,22 @@ class History:
         if t_steps:
             df_p = df_p.reindex(t_steps, method='ffill')
         return df_p.ffill()
-    
+
     def __getstate__(self):
         state = dict(**self.__dict__)
         del state['_db']
         del state['_dtypes']
         return state
-    
+
     def __setstate__(self, state):
         self.__dict__ = state
         self._dtypes = {}
+        self._db = None
+
+    def dump(self, f):
+        self._close()
+        for line in open(self.db_path, 'rb'):
+            f.write(line)
 
 
 class Records():
@@ -274,9 +288,12 @@ class Records():
                 i = self._df[f.key][str(f.agent_id)]
                 ix = i.index.get_loc(f.t_step, method='ffill')
                 return i.iloc[ix]
-            except KeyError:
+            except KeyError as ex:
                 return self.dtypes[f.key][2]()
         return list(self)
+
+    def df(self):
+        return self._df
 
     def __getitem__(self, k):
         n = copy.copy(self)
@@ -292,7 +309,6 @@ class Records():
         if self.resolved:
             return str(self.value())
         return '<Records for [{}]>'.format(self._filter)
-
 
 Key = namedtuple('Key', ['agent_id', 't_step', 'key'])
 Record = namedtuple('Record', 'agent_id t_step key value')

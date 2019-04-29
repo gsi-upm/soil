@@ -2,16 +2,15 @@ import os
 import logging
 import ast
 import sys
-import yaml
 import importlib
 from glob import glob
-from random import random
-from copy import deepcopy
 from itertools import product, chain
+
+import yaml
+import networkx as nx
 
 from jinja2 import Template
 
-import networkx as nx
 
 logger = logging.getLogger('soil')
 logger.setLevel(logging.INFO)
@@ -36,6 +35,9 @@ def load_network(network_params, dir_path=None):
         return method(path, **kwargs)
 
     net_args = network_params.copy()
+    if 'generator' not in net_args:
+        return nx.Graph()
+
     net_gen = net_args.pop('generator')
 
     if dir_path not in sys.path:
@@ -50,6 +52,7 @@ def load_network(network_params, dir_path=None):
 def load_file(infile):
     with open(infile, 'r') as f:
         return list(chain.from_iterable(map(expand_template, load_string(f))))
+
 
 def load_string(string):
     yield from yaml.load_all(string)
@@ -91,7 +94,6 @@ def expand_template(config):
     blank = list(load_string(blank_str))
     if len(blank) > 1:
         raise ValueError('Templates must not return more than one configuration')
-
     if 'name' in blank[0]:
         raise ValueError('Templates cannot be named, use group instead')
 

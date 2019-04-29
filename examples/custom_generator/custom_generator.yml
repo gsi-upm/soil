@@ -2,7 +2,6 @@
 name: custom-generator
 description: Using a custom generator for the network
 num_trials: 3
-dry_run: True
 max_time: 100
 interval: 1
 network_params:

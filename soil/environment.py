@@ -14,15 +14,13 @@ from networkx.readwrite import json_graph
 import networkx as nx
 import nxsim
 
-from . import serialization, agents, analysis, history
+from . import serialization, agents, analysis, history, utils
 
 # These properties will be copied when pickling/unpickling the environment
 _CONFIG_PROPS = [ 'name',
                  'states',
                  'default_state',
                  'interval',
-                 'dry_run',
-                 'outdir',
                  ]
 
 class Environment(nxsim.NetworkEnvironment):
@@ -43,8 +41,6 @@ class Environment(nxsim.NetworkEnvironment):
                  default_state=None,
                  interval=1,
                  seed=None,
-                 dry_run=False,
-                 outdir=None,
                  topology=None,
                  *args, **kwargs):
         self.name = name or 'UnnamedEnvironment'
@@ -56,13 +52,8 @@ class Environment(nxsim.NetworkEnvironment):
             topology = nx.Graph()
         super().__init__(*args, topology=topology, **kwargs)
         self._env_agents = {}
-        self.dry_run = dry_run
         self.interval = interval
-        self.outdir = outdir or tempfile.mkdtemp('soil-env')
-        if not dry_run:
-            self.get_path()
-        self._history = history.History(name=self.name if not dry_run else None,
-                                        outdir=self.outdir,
+        self._history = history.History(name=self.name,
                                         backup=True)
         # Add environment agents first, so their events get
         # executed before network agents
@@ -167,8 +158,6 @@ class Environment(nxsim.NetworkEnvironment):
         self.log_stats()
 
     def _save_state(self, now=None):
-        # for agent in self.agents:
-        #     agent.save_state()
         serialization.logger.debug('Saving state @{}'.format(self.now))
         self._history.save_records(self.state_to_tuples(now=now))
 
@@ -222,15 +211,6 @@ class Environment(nxsim.NetworkEnvironment):
         '''
         return self[key] if key in self else default
 
-    def get_path(self, outdir=None):
-        outdir = outdir or self.outdir
-        if not os.path.exists(outdir):
-            try:
-                os.makedirs(outdir)
-            except FileExistsError:
-                pass
-        return outdir
-
     def get_agent(self, agent_id):
         return self.G.node[agent_id]['agent']
 
@@ -239,20 +219,15 @@ class Environment(nxsim.NetworkEnvironment):
             return list(self.agents)
         return [self.G.node[i]['agent'] for i in nodes]
 
-    def dump_csv(self, outdir=None):
-        csv_name = os.path.join(self.get_path(outdir),
-                                '{}.environment.csv'.format(self.name))
-
-        with open(csv_name, 'w') as f:
+    def dump_csv(self, f):
+        with utils.open_or_reuse(f, 'w') as f:
             cr = csv.writer(f)
             cr.writerow(('agent_id', 't_step', 'key', 'value'))
             for i in self.history_to_tuples():
                 cr.writerow(i)
 
-    def dump_gexf(self, outdir=None):
+    def dump_gexf(self, f):
         G = self.history_to_graph()
-        graph_path = os.path.join(self.get_path(outdir),
-                                  self.name+".gexf")
         # Workaround for geometric models
         # See soil/soil#4
         for node in G.nodes():
@@ -260,9 +235,9 @@ class Environment(nxsim.NetworkEnvironment):
                 G.node[node]['viz'] = {"position": {"x": G.node[node]['pos'][0], "y": G.node[node]['pos'][1], "z": 0.0}}
                 del (G.node[node]['pos'])
 
-        nx.write_gexf(G, graph_path, version="1.2draft")
+        nx.write_gexf(G, f, version="1.2draft")
 
-    def dump(self, outdir=None, formats=None):
+    def dump(self, *args, formats=None, **kwargs):
         if not formats:
             return
         functions = {
@@ -271,9 +246,12 @@ class Environment(nxsim.NetworkEnvironment):
         }
         for f in formats:
             if f in functions:
-                functions[f](outdir)
+                functions[f](*args, **kwargs)
             else:
                 raise ValueError('Unknown format: {}'.format(f))
+
+    def dump_sqlite(self, f):
+        return self._history.dump(f)
 
     def state_to_tuples(self, now=None):
         if now is None:
@@ -338,7 +316,7 @@ class Environment(nxsim.NetworkEnvironment):
                 G.add_node(agent.id, **attributes)
 
         return G
-    
+
     def stats(self):
         stats = {}
         stats['network'] = {}

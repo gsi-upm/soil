@@ -34,7 +34,7 @@ def _read_data(pattern, *args, from_csv=False, process_args=None, **kwargs):
 
 
 def read_sql(db, *args, **kwargs):
-    h = history.History(db, backup=False)
+    h = history.History(db_path=db, backup=False)
     df = h.read_sql(*args, **kwargs)
     return df
 

@@ -29,8 +29,7 @@ if __name__ == '__main__':
     from soil import Simulation
     s = Simulation(network_agents=[{'ids': [0], 'agent_type': Fibonacci},
                                    {'ids': [1], 'agent_type': Odds}],
-                   dry_run=True,
                    network_params={"generator": "complete_graph", "n": 2},
                    max_time=100,
                    )
-    s.run()
+    s.run(dry_run=True)

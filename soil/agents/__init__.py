@@ -515,4 +515,3 @@ from .ModelM2 import *
 from .SentimentCorrelationModel import *
 from .SISaModel import *
 from .CounterModel import *
-from .DrawingAgent import *

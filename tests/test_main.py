@@ -28,7 +28,6 @@ class TestMain(TestCase):
         Raise an exception otherwise.
         """
         config = {
-            'dry_run': True,
             'network_params': {
                 'path': join(ROOT, 'test.gexf')
             }
@@ -38,7 +37,6 @@ class TestMain(TestCase):
         assert len(G) == 2
         with self.assertRaises(AttributeError):
             config = {
-            'dry_run': True,
                 'network_params': {
                     'path': join(ROOT, 'unknown.extension')
                 }
@@ -52,7 +50,6 @@ class TestMain(TestCase):
         should be used to generate a network
         """
         config = {
-            'dry_run': True,
             'network_params': {
                 'generator': 'barabasi_albert_graph'
             }
@@ -67,7 +64,6 @@ class TestMain(TestCase):
     def test_empty_simulation(self):
         """A simulation with a base behaviour should do nothing"""
         config = {
-            'dry_run': True,
             'network_params': {
                 'path': join(ROOT, 'test.gexf')
             },
@@ -84,7 +80,6 @@ class TestMain(TestCase):
         agent should be able to update its state."""
         config = {
             'name': 'CounterAgent',
-            'dry_run': True,
             'network_params': {
                 'path': join(ROOT, 'test.gexf')
             },
@@ -108,7 +103,6 @@ class TestMain(TestCase):
         """
         config = {
             'name': 'CounterAgent',
-            'dry_run': True,
             'network_params': {
                 'path': join(ROOT, 'test.gexf')
             },
@@ -134,7 +128,6 @@ class TestMain(TestCase):
     def test_custom_agent(self):
         """Allow for search of neighbors with a certain state_id"""
         config = {
-            'dry_run': True,
             'network_params': {
                 'path': join(ROOT, 'test.gexf')
             },
@@ -158,8 +151,7 @@ class TestMain(TestCase):
         config['network_params']['path'] = join(EXAMPLES,
                                                 config['network_params']['path'])
         s = simulation.from_config(config)
-        s.dry_run = True
-        env = s.run_simulation()[0]
+        env = s.run_simulation(dry_run=True)[0]
         for a in env.network_agents:
             skill_level = a.state['skill_level']
             if a.id == 'Torvalds':
@@ -183,14 +175,12 @@ class TestMain(TestCase):
         with utils.timer('loading'):
             config = serialization.load_file(join(EXAMPLES, 'complete.yml'))[0]
             s = simulation.from_config(config)
-            s.dry_run = True
         with utils.timer('serializing'):
             serial = s.to_yaml()
         with utils.timer('recovering'):
             recovered = yaml.load(serial)
         with utils.timer('deleting'):
             del recovered['topology']
-            del recovered['outdir']
         assert config == recovered
 
     def test_configuration_changes(self):
@@ -200,16 +190,14 @@ class TestMain(TestCase):
         """
         config = serialization.load_file(join(EXAMPLES, 'complete.yml'))[0]
         s = simulation.from_config(config)
-        s.dry_run = True
         for i in range(5):
             s.run_simulation(dry_run=True)
             nconfig = s.to_dict()
             del nconfig['topology']
-            del nconfig['outdir']
             assert config == nconfig
 
     def test_row_conversion(self):
-        env = Environment(dry_run=True)
+        env = Environment()
         env['test'] = 'test_value'
 
         res = list(env.history_to_tuples())
@@ -228,8 +216,8 @@ class TestMain(TestCase):
         from geometric models. We should work around it.
         """
         G = nx.random_geometric_graph(20, 0.1)
-        env = Environment(topology=G, dry_run=True)
-        env.dump_gexf('/tmp/dump-gexf')
+        env = Environment(topology=G)
+        env.dump_gexf('/tmp/dump-gexf/prueba.gexf')
 
     def test_save_graph(self):
         '''
@@ -239,7 +227,7 @@ class TestMain(TestCase):
         '''
         G = nx.cycle_graph(5)
         distribution = agents.calculate_distribution(None, agents.BaseAgent)
-        env = Environment(topology=G, network_agents=distribution, dry_run=True)
+        env = Environment(topology=G, network_agents=distribution)
         env[0, 0, 'testvalue'] = 'start'
         env[0, 10, 'testvalue'] = 'finish'
         nG = env.history_to_graph()
@@ -315,8 +303,9 @@ class TestMain(TestCase):
         recovered = pickle.loads(pickled)
 
         assert recovered.env.name == 'Test'
-        assert recovered['key'] == 'test'
+        assert list(recovered.env._history.to_tuples())
         assert recovered['key', 0] == 'test'
+        assert recovered['key'] == 'test'
 
     def test_history(self):
         '''Test storing in and retrieving from history (sqlite)'''

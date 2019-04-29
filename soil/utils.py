@@ -1,5 +1,6 @@
 import logging
 import time
+import os
 
 from contextlib import contextmanager
 
@@ -20,3 +21,17 @@ def timer(name='task', pre="", function=logger.info, to_object=None):
     if to_object:
         to_object.start = start
         to_object.end = end
+
+
+def safe_open(path, *args, **kwargs):
+    outdir = os.path.dirname(path)
+    if outdir and not os.path.exists(outdir):
+        os.makedirs(outdir)
+    return open(path, *args, **kwargs)
+
+
+def open_or_reuse(f, *args, **kwargs):
+    try:
+        return safe_open(f, *args, **kwargs)
+    except TypeError:
+        return f

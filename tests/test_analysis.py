@@ -39,7 +39,6 @@ class TestAnalysis(TestCase):
         agent should be able to update its state."""
         config = {
             'name': 'analysis',
-            'dry_run': True,
             'seed': 'seed',
             'network_params': {
                 'generator': 'complete_graph',
@@ -53,7 +52,7 @@ class TestAnalysis(TestCase):
             }
         }
         s = simulation.from_config(config)
-        self.env = s.run_simulation()[0]
+        self.env = s.run_simulation(dry_run=True)[0]
 
     def test_saved(self):
         env = self.env
@@ -65,7 +64,7 @@ class TestAnalysis(TestCase):
 
     def test_count(self):
         env = self.env
-        df = analysis.read_sql(env._history._db)
+        df = analysis.read_sql(env._history.db_path)
         res = analysis.get_count(df, 'SEED', 'id')
         assert res['SEED']['seedanalysis_trial_0'].iloc[0] == 1
         assert res['SEED']['seedanalysis_trial_0'].iloc[-1] == 1

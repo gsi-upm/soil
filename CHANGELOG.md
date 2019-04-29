@@ -9,12 +9,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 The definition of the variables and their possible values (i.e., a problem in SALib terms), as well as a sampler function, can be provided.
 Soil uses this definition and the template to generate a set of configurations.
 * Simulation group names, to link related simulations. For now, they are only used to group all simulations in the same group under the same folder.
+* Exporters unify exporting/dumping results and other files to disk. If `dry_run` is set to `True`, exporters will write to stdout instead of a file (useful for testing/debugging).
+* Distribution exporter, to write statistics about values and value_counts in every simulation. The results are dumped to two CSV files.
 
 ### Changed
-* `dir_path` is now the directory for resources (modules, files), and the output dir has been renamed to `outdir`
+* `dir_path` is now the directory for resources (modules, files)
+* Environments and simulations do not export or write anything by default. That task is delegated to Exporters
+
+### Removed
+* The output dir for environments and simulations (see Exporters)
+* DrawingAgent, because it wrote to disk and was not being used. We provide a partial alternative in the form of the GraphDrawing exporter. A complete alternative will be provided once the network at each state can be accessed by exporters.
 
 ## Fixed
 * Modules with custom agents/environments failed to load when they were run from outside the directory of the definition file. Modules are now loaded from the directory of the simulation file in addition to the working directory
+* Memory databases (in history) can now be shared between threads.
+* Testing all examples, not just subdirectories
 
 ## [0.13.8]
 ### Changed

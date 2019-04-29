@@ -57,18 +57,20 @@ def main():
     logging.info('Loading config file: {}'.format(args.file))
 
     try:
-        dump = []
-        if not args.dry_run:
-            if args.csv:
-                dump.append('csv')
-            if args.graph:
-                dump.append('gexf')
+        exporters = list(args.exporter or [])
+        if args.csv:
+            exporters.append('CSV')
+        if args.graph:
+            exporters.append('Gexf')
+        exp_params = {}
+        if args.dry_run:
+            exp_params['copy_to'] = sys.stdout
         simulation.run_from_config(args.file,
                                    dry_run=args.dry_run,
-                                   dump=dump,
-                                   exporters=args.exporter,
+                                   exporters=exporters,
                                    parallel=(not args.synchronous),
-                                   outdir=args.output)
+                                   outdir=args.output,
+                                   exporter_params=exp_params)
     except Exception:
         if args.pdb:
             pdb.post_mortem()
