@@ -1,6 +1,7 @@
 from unittest import TestCase
 
 import os
+import io
 import yaml
 import pickle
 import networkx as nx
@@ -217,7 +218,8 @@ class TestMain(TestCase):
         """
         G = nx.random_geometric_graph(20, 0.1)
         env = Environment(topology=G)
-        env.dump_gexf('/tmp/dump-gexf/prueba.gexf')
+        f = io.BytesIO()
+        env.dump_gexf(f)
 
     def test_save_graph(self):
         '''
