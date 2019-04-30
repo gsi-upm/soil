@@ -55,7 +55,7 @@ def load_file(infile):
 
 
 def load_string(string):
-    yield from yaml.load_all(string)
+    yield from yaml.load_all(string, Loader=yaml.FullLoader)
 
 
 def expand_template(config):
