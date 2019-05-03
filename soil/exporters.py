@@ -50,7 +50,7 @@ class Exporter:
 
     def __init__(self, simulation, outdir=None, dry_run=None, copy_to=None):
         self.sim = simulation
-        outdir = outdir or os.getcwd()
+        outdir = outdir or os.path.join(os.getcwd(), 'soil_output')
         self.outdir = os.path.join(outdir,
                                    simulation.group or '',
                                    simulation.name)
@@ -78,8 +78,8 @@ class Exporter:
         return open_or_reuse(f, mode=mode, **kwargs)
 
 
-class Default(Exporter):
-    '''Default exporter. Writes CSV and sqlite results, as well as the simulation YAML'''
+class default(Exporter):
+    '''Default exporter. Writes sqlite results, as well as the simulation YAML'''
 
     def start(self):
         if not self.dry_run:
@@ -96,25 +96,29 @@ class Default(Exporter):
                     env.dump_sqlite(f)
 
 
-class CSV(Exporter):
+class csv(Exporter):
+    '''Export the state of each environment (and its agents) in a separate CSV file'''
     def trial_end(self, env):
-        if not self.dry_run:
-            with timer('[CSV] Dumping simulation {} trial {}'.format(self.sim.name,
-                                                               env.name)):
-                with self.output('{}.csv'.format(env.name)) as f:
-                    env.dump_csv(f)
+        with timer('[CSV] Dumping simulation {} trial {} @ dir {}'.format(self.sim.name,
+                                                                          env.name,
+                                                                          self.outdir)):
+            with self.output('{}.csv'.format(env.name)) as f:
+                env.dump_csv(f)
 
 
-class Gexf(Exporter):
+class gexf(Exporter):
     def trial_end(self, env):
-        if not self.dry_run:
-            with timer('[CSV] Dumping simulation {} trial {}'.format(self.sim.name,
-                                                                     env.name)):
-                with self.output('{}.gexf'.format(env.name), mode='wb') as f:
-                    env.dump_gexf(f)
+        if self.dry_run:
+            logger.info('Not dumping GEXF in dry_run mode')
+            return
+
+        with timer('[GEXF] Dumping simulation {} trial {}'.format(self.sim.name,
+                                                                  env.name)):
+            with self.output('{}.gexf'.format(env.name), mode='wb') as f:
+                env.dump_gexf(f)
 
 
-class Dummy(Exporter):
+class dummy(Exporter):
 
     def start(self):
         with self.output('dummy', 'w') as f:
@@ -131,7 +135,7 @@ class Dummy(Exporter):
             f.write('simulation ended @ {}\n'.format(time.time()))
 
 
-class Distribution(Exporter):
+class distribution(Exporter):
     '''
     Write the distribution of agent states at the end of each trial,
     the mean value, and its deviation.
@@ -165,7 +169,7 @@ class Distribution(Exporter):
         with self.output('metrics.csv') as f:
             dfm.to_csv(f)
 
-class GraphDrawing(Exporter):
+class graphdrawing(Exporter):
 
     def trial_end(self, env):
         # Outside effects

@@ -2,6 +2,8 @@ import logging
 import time
 import os
 
+from shutil import copyfile
+
 from contextlib import contextmanager
 
 logger = logging.getLogger('soil')
@@ -23,11 +25,22 @@ def timer(name='task', pre="", function=logger.info, to_object=None):
         to_object.end = end
 
 
-def safe_open(path, *args, **kwargs):
+def safe_open(path, mode='r', backup=True, **kwargs):
     outdir = os.path.dirname(path)
     if outdir and not os.path.exists(outdir):
         os.makedirs(outdir)
-    return open(path, *args, **kwargs)
+    if backup and 'w' in mode and os.path.exists(path):
+        creation = os.path.getctime(path)
+        stamp = time.strftime('%Y-%m-%d_%H:%M', time.localtime(creation))
+
+        backup_dir = os.path.join(outdir, stamp)
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir)
+        newpath = os.path.join(backup_dir, os.path.basename(path))
+        if os.path.exists(newpath):
+            newpath = '{}@{}'.format(newpath, time.time())
+        copyfile(path, newpath)
+    return open(path, mode=mode, **kwargs)
 
 
 def open_or_reuse(f, *args, **kwargs):

@@ -57,11 +57,11 @@ def main():
     logging.info('Loading config file: {}'.format(args.file))
 
     try:
-        exporters = list(args.exporter or [])
+        exporters = list(args.exporter or ['default', ])
         if args.csv:
-            exporters.append('CSV')
+            exporters.append('csv')
         if args.graph:
-            exporters.append('Gexf')
+            exporters.append('gexf')
         exp_params = {}
         if args.dry_run:
             exp_params['copy_to'] = sys.stdout

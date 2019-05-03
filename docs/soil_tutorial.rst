@@ -323,7 +323,7 @@ Let's run our simulation:
 
 .. code:: ipython3
 
-    soil.simulation.run_from_config(config, dump=False)
+    soil.simulation.run_from_config(config)
 
 
 .. parsed-literal::

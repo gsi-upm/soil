@@ -3,6 +3,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.2]
+### Fixed
+* Output path for exporters is now soil_output
+### Changed 
+* CSV output to stdout in dry_run mode
+## [0.14.1]
+### Changed
+* Exporter names in lower case
+* Add default exporter in runs
 ## [0.14.0]
 ### Added
 * Loading configuration from template definitions in the yaml, in preparation for SALib support.

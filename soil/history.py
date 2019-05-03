@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 from collections import UserDict, namedtuple
 
 from . import serialization
+from .utils import open_or_reuse
 
 
 class History:
@@ -236,7 +237,7 @@ class History:
 
     def dump(self, f):
         self._close()
-        for line in open(self.db_path, 'rb'):
+        for line in open_or_reuse(self.db_path, 'rb'):
             f.write(line)
 
 

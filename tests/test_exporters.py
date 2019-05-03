@@ -60,7 +60,7 @@ class Exporters(TestCase):
         }
         output = io.StringIO()
         s = simulation.from_config(config)
-        s.run_simulation(exporters=[exporters.Distribution], dry_run=True, exporter_params={'copy_to': output})
+        s.run_simulation(exporters=[exporters.distribution], dry_run=True, exporter_params={'copy_to': output})
         result = output.getvalue()
         assert 'count' in result
         assert 'SEED,Noneexporter_sim_trial_3,1,,1,1,1,1' in result
@@ -83,10 +83,10 @@ class Exporters(TestCase):
         s = simulation.from_config(config)
         tmpdir = tempfile.mkdtemp()
         envs = s.run_simulation(exporters=[
-            exporters.Default,
-            exporters.CSV,
-            exporters.Gexf,
-            exporters.Distribution,
+            exporters.default,
+            exporters.csv,
+            exporters.gexf,
+            exporters.distribution,
         ],
                                 outdir=tmpdir,
                                 exporter_params={'copy_to': output})

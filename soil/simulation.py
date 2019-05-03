@@ -153,11 +153,11 @@ class Simulation(NetworkSimulation):
                                      **kwargs)
 
     def _run_simulation_gen(self, *args, parallel=False, dry_run=False,
-                            exporters=None, outdir=None, exporter_params={}, **kwargs):
+                            exporters=['default', ], outdir=None, exporter_params={}, **kwargs):
         logger.info('Using exporters: %s', exporters or [])
         logger.info('Output directory: %s', outdir)
         exporters = exporters_for_sim(self,
-                                      exporters or [],
+                                      exporters,
                                       dry_run=dry_run,
                                       outdir=outdir,
                                       **exporter_params)
