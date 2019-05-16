@@ -171,7 +171,7 @@ class BaseAgent(nxsim.BaseAgent):
 
     def info(self, *args, **kwargs):
         return self.log(*args, level=logging.INFO, **kwargs)
-    
+
     def __getstate__(self):
         '''
         Serializing an agent will lose all its running information (you cannot
@@ -476,11 +476,8 @@ class Geo(NetworkAgent):
 
 def select(agents, state_id=None, agent_type=None, ignore=None, iterator=False, **kwargs):
 
-    if state_id is not None:
-        try:
-            state_id = tuple(state_id)
-        except TypeError:
-            state_id = tuple([state_id])
+    if state_id is not None and not isinstance(state_id, (tuple, list)):
+        state_id = tuple([state_id])
     if agent_type is not None:
         try:
             agent_type = tuple(agent_type)

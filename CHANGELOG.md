@@ -3,6 +3,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.4]
+### Fixed
+* Bug in `agent.get_agents()` when `state_id` is passed as a string. The tests have been modified accordingly.
+## [0.14.3]
+### Fixed
+* Incompatibility with py3.3-3.6 due to ModuleNotFoundError and TypeError in DryRunner
 ## [0.14.2]
 ### Fixed
 * Output path for exporters is now soil_output

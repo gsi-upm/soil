@@ -46,5 +46,5 @@ def safe_open(path, mode='r', backup=True, **kwargs):
 def open_or_reuse(f, *args, **kwargs):
     try:
         return safe_open(f, *args, **kwargs)
-    except TypeError:
+    except (AttributeError, TypeError):
         return f

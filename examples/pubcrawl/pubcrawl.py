@@ -59,7 +59,7 @@ class Patron(FSM):
         2) Look for a bar where the agent and other agents in the same group can get in.
         3) While in the bar, patrons only drink, until they get drunk and taken home.
     '''
-    level = logging.INFO
+    level = logging.DEBUG
 
     defaults = {
         'pub': None,
@@ -113,7 +113,8 @@ class Patron(FSM):
     @state
     def at_home(self):
         '''The end'''
-        self.debug('Life sucks. I\'m home!')
+        others = self.get_agents(state_id=Patron.at_home.id, limit_neighbors=True)
+        self.debug('I\'m home. Just like {} of my friends'.format(len(others)))
     
     def drink(self):
         self['pints'] += 1

@@ -16,10 +16,15 @@ ROOT = os.path.abspath(os.path.dirname(__file__))
 EXAMPLES = join(ROOT, '..', 'examples')
 
 
-class CustomAgent(agents.BaseAgent):
-    def step(self):
-        self.state['neighbors'] = self.count_agents(state_id=0,
+class CustomAgent(agents.FSM):
+    @agents.default_state
+    @agents.state
+    def normal(self):
+        self.state['neighbors'] = self.count_agents(state_id='normal',
                                                     limit_neighbors=True)
+    @agents.state
+    def unreachable(self):
+        return
 
 class TestMain(TestCase):
 
@@ -134,8 +139,7 @@ class TestMain(TestCase):
             },
             'network_agents': [{
                 'agent_type': CustomAgent,
-                'weight': 1,
-                'state': {'id': 0}
+                'weight': 1
 
             }],
             'max_time': 10,
@@ -145,6 +149,9 @@ class TestMain(TestCase):
         s = simulation.from_config(config)
         env = s.run_simulation(dry_run=True)[0]
         assert env.get_agent(0).state['neighbors'] == 1
+        assert env.get_agent(0).state['neighbors'] == 1
+        assert env.get_agent(1).count_agents(state_id='normal') == 2
+        assert env.get_agent(1).count_agents(state_id='normal', limit_neighbors=True) == 1
 
     def test_torvalds_example(self):
         """A complete example from a documentation should work."""
