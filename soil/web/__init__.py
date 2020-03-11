@@ -118,9 +118,9 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
         elif msg['type'] == 'download_gexf':
             G = self.trials[ int(msg['data']) ].history_to_graph()
             for node in G.nodes():
-                if 'pos' in G.node[node]:
-                    G.node[node]['viz'] = {"position": {"x": G.node[node]['pos'][0], "y": G.node[node]['pos'][1], "z": 0.0}}
-                    del (G.node[node]['pos'])
+                if 'pos' in G.nodes[node]:
+                    G.nodes[node]['viz'] = {"position": {"x": G.nodes[node]['pos'][0], "y": G.nodes[node]['pos'][1], "z": 0.0}}
+                    del (G.nodes[node]['pos'])
             writer = nx.readwrite.gexf.GEXFWriter(version='1.2draft')
             writer.add_graph(G)
             self.write_message({'type': 'download_gexf',
@@ -130,9 +130,9 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
         elif msg['type'] == 'download_json':
             G = self.trials[ int(msg['data']) ].history_to_graph()
             for node in G.nodes():
-                if 'pos' in G.node[node]:
-                    G.node[node]['viz'] = {"position": {"x": G.node[node]['pos'][0], "y": G.node[node]['pos'][1], "z": 0.0}}
-                    del (G.node[node]['pos'])
+                if 'pos' in G.nodes[node]:
+                    G.nodes[node]['viz'] = {"position": {"x": G.nodes[node]['pos'][0], "y": G.nodes[node]['pos'][1], "z": 0.0}}
+                    del (G.nodes[node]['pos'])
             self.write_message({'type': 'download_json',
                 'filename': self.config['name'] + '_trial_' + str(msg['data']),
                 'data': nx.node_link_data(G) })

@@ -186,7 +186,7 @@ class TestMain(TestCase):
         with utils.timer('serializing'):
             serial = s.to_yaml()
         with utils.timer('recovering'):
-            recovered = yaml.load(serial)
+            recovered = yaml.load(serial, Loader=yaml.SafeLoader)
         with utils.timer('deleting'):
             del recovered['topology']
         assert config == recovered
@@ -240,7 +240,7 @@ class TestMain(TestCase):
         env[0, 0, 'testvalue'] = 'start'
         env[0, 10, 'testvalue'] = 'finish'
         nG = env.history_to_graph()
-        values = nG.node[0]['attr_testvalue']
+        values = nG.nodes[0]['attr_testvalue']
         assert ('start', 0, 10) in values
         assert ('finish', 10, None) in values
 

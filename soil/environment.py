@@ -87,7 +87,7 @@ class Environment(nxsim.NetworkEnvironment):
     @property
     def network_agents(self):
         for i in self.G.nodes():
-            node = self.G.node[i]
+            node = self.G.nodes[i]
             if 'agent' in node:
                 yield node['agent']
 
@@ -212,12 +212,12 @@ class Environment(nxsim.NetworkEnvironment):
         return self[key] if key in self else default
 
     def get_agent(self, agent_id):
-        return self.G.node[agent_id]['agent']
+        return self.G.nodes[agent_id]['agent']
 
     def get_agents(self, nodes=None):
         if nodes is None:
             return list(self.agents)
-        return [self.G.node[i]['agent'] for i in nodes]
+        return [self.G.nodes[i]['agent'] for i in nodes]
 
     def dump_csv(self, f):
         with utils.open_or_reuse(f, 'w') as f:
@@ -231,9 +231,9 @@ class Environment(nxsim.NetworkEnvironment):
         # Workaround for geometric models
         # See soil/soil#4
         for node in G.nodes():
-            if 'pos' in G.node[node]:
-                G.node[node]['viz'] = {"position": {"x": G.node[node]['pos'][0], "y": G.node[node]['pos'][1], "z": 0.0}}
-                del (G.node[node]['pos'])
+            if 'pos' in G.nodes[node]:
+                G.nodes[node]['viz'] = {"position": {"x": G.nodes[node]['pos'][0], "y": G.nodes[node]['pos'][1], "z": 0.0}}
+                del (G.nodes[node]['pos'])
 
         nx.write_gexf(G, f, version="1.2draft")
 

@@ -20,7 +20,7 @@ def _read_data(pattern, *args, from_csv=False, process_args=None, **kwargs):
         process_args = {}
     for folder in glob.glob(pattern):
         config_file = glob.glob(join(folder, '*.yml'))[0]
-        config = yaml.load(open(config_file))
+        config = yaml.load(open(config_file), Loader=yaml.SafeLoader)
         df = None
         if from_csv:
             for trial_data in sorted(glob.glob(join(folder,
@@ -133,7 +133,7 @@ def get_count(df, *keys):
 def get_value(df, *keys, aggfunc='sum'):
     if keys:
         df = df[list(keys)]
-    return df.groupby(axis=1, level=0).agg(aggfunc, axis=1)
+    return df.groupby(axis=1, level=0).agg(aggfunc)
 
 
 def plot_all(*args, **kwargs):

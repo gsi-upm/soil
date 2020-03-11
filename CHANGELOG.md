@@ -3,6 +3,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.6]
+### Fixed
+* Bug with newer versions of networkx (0.24) where the Graph.node attribute has been removed. We have updated our calls, but the code in nxsim is not under our control, so we have pinned the networkx version until that issue is solved.
+### Changed
+* Explicit yaml.SafeLoader to avoid deprecation warnings when using yaml.load. It should not break any existing setups, but we could move to the FullLoader in the future if needed.
+
 ## [0.14.4]
 ### Fixed
 * Bug in `agent.get_agents()` when `state_id` is passed as a string. The tests have been modified accordingly.
