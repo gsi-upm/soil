@@ -8,32 +8,8 @@ The advantage of a configuration file is that it is a clean declarative descript
 Simulation configuration files can be formatted in ``json`` or ``yaml`` and they define all the parameters of a simulation.
 Here's an example (``example.yml``).
 
-.. code:: yaml
-          
-    ---
-    name: MyExampleSimulation
-    max_time: 50
-    num_trials: 3
-    interval: 2
-    network_params:
-        generator: barabasi_albert_graph
-        n: 100
-        m: 2
-    network_agents:
-        - agent_type: SISaModel
-           weight: 1
-            state:
-            id: content
-        - agent_type: SISaModel
-            weight: 1
-            state:
-            id: discontent
-        - agent_type: SISaModel
-            weight: 8
-            state:
-            id: neutral
-    environment_params:
-        prob_infect: 0.075
+.. literalinclude:: example.yml
+   :language: yaml
 
 
 This example configuration will run three trials (``num_trials``) of a simulation containing a randomly generated network (``network_params``).

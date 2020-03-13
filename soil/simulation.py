@@ -216,9 +216,10 @@ class Simulation(NetworkSimulation):
         try:
             return self.run_trial(*args, **kwargs)
         except Exception as ex:
-            c = ex.__cause__
-            c.message = ''.join(traceback.format_exception(type(c), c, c.__traceback__)[:])
-            return c
+            if ex.__cause__ is not None:
+                ex = ex.__cause__
+            ex.message = ''.join(traceback.format_exception(type(ex), ex, ex.__traceback__)[:])
+            return ex
 
     def to_dict(self):
         return self.__getstate__()
