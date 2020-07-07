@@ -31,7 +31,7 @@ def safe_open(path, mode='r', backup=True, **kwargs):
         os.makedirs(outdir)
     if backup and 'w' in mode and os.path.exists(path):
         creation = os.path.getctime(path)
-        stamp = time.strftime('%Y-%m-%d_%H:%M', time.localtime(creation))
+        stamp = time.strftime('%Y-%m-%d_%H.%M', time.localtime(creation))
 
         backup_dir = os.path.join(outdir, stamp)
         if not os.path.exists(backup_dir):

@@ -30,5 +30,5 @@ If you use Soil in your research, don't forget to cite this paper:
 
 @Copyright GSI - Universidad Politécnica de Madrid 2017
 
-[![SOIL](logo_gsi.png)](https://www.gsi.dit.upm.es)
+[![SOIL](logo_gsi.png)](https://www.gsi.upm.es)
 

@@ -94,7 +94,7 @@ class Simulation(NetworkSimulation):
         self.seed = str(seed) or str(time.time())
         self.load_module = load_module
         self.network_params = network_params
-        self.name = name or 'Unnamed_' + time.strftime("%Y-%m-%d_%H:%M:%S")
+        self.name = name or 'Unnamed_' + time.strftime("%Y-%m-%d_%H.%M.%S")
         self.group = group or None
         self.num_trials = num_trials
         self.max_time = max_time
