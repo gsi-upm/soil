@@ -44,6 +44,8 @@ class Environment(nxsim.NetworkEnvironment):
                  topology=None,
                  *args, **kwargs):
         self.name = name or 'UnnamedEnvironment'
+        seed = seed or time.time()
+        random.seed(seed)
         if isinstance(states, list):
             states = dict(enumerate(states))
         self.states = deepcopy(states) if states else {}
@@ -55,12 +57,11 @@ class Environment(nxsim.NetworkEnvironment):
         self.interval = interval
         self._history = history.History(name=self.name,
                                         backup=True)
+        self['SEED'] = seed
         # Add environment agents first, so their events get
         # executed before network agents
         self.environment_agents = environment_agents or []
         self.network_agents = network_agents or []
-        self['SEED'] = seed or time.time()
-        random.seed(self['SEED'])
 
     @property
     def agents(self):
