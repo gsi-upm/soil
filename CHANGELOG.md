@@ -3,6 +3,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.1]
+### Added
+* read-only `History`
+### Fixed
+* Serialization problem with the `Environment` on parallel mode.
+* Analysis functions now work as they should in the tutorial
+## [0.15.0]
+### Added
+* Control logging level in CLI and simulation
+* `Stats` to calculate trial and simulation-wide statistics
+* Simulation statistics are stored in a separate table in history (see `History.get_stats` and `History.save_stats`, as well as `soil.stats`)
+* Aliased `NetworkAgent.G` to `NetworkAgent.topology`.
+### Changed
+* Templates in config files can be given as dictionaries in addition to strings
+* Samplers are used more explicitly
+* Removed nxsim dependency. We had already made a lot of changes, and nxsim has not been updated in 5 years.
+* Exporter methods renamed to `trial` and `end`. Added `start`.
+* `Distribution` exporter now a stats class
+* `global_topology` renamed to `topology`
+* Moved topology-related methods to `NetworkAgent`
+### Fixed
+* Temporary files used for history in dry_run mode are not longer left open 
+
 ## [0.14.9]
 ### Changed
 * Seed random before environment initialization

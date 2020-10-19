@@ -1,10 +1,11 @@
 import os
+import csv as csvlib
 import time
 from io import BytesIO
 
 import matplotlib.pyplot as plt
 import networkx as nx
-import pandas as pd
+
 
 from .serialization import deserialize
 from .utils import open_or_reuse, logger, timer
@@ -49,7 +50,7 @@ class Exporter:
     '''
 
     def __init__(self, simulation, outdir=None, dry_run=None, copy_to=None):
-        self.sim = simulation
+        self.simulation = simulation
         outdir = outdir or os.path.join(os.getcwd(), 'soil_output')
         self.outdir = os.path.join(outdir,
                                    simulation.group or '',
@@ -59,12 +60,15 @@ class Exporter:
 
     def start(self):
         '''Method to call when the simulation starts'''
+        pass
 
-    def end(self):
+    def end(self, stats):
         '''Method to call when the simulation ends'''
+        pass
 
-    def trial_end(self, env):
+    def trial(self, env, stats):
         '''Method to call when a trial ends'''
+        pass
 
     def output(self, f, mode='w', **kwargs):
         if self.dry_run:
@@ -84,13 +88,13 @@ class default(Exporter):
     def start(self):
         if not self.dry_run:
             logger.info('Dumping results to %s', self.outdir)
-            self.sim.dump_yaml(outdir=self.outdir)
+            self.simulation.dump_yaml(outdir=self.outdir)
         else:
             logger.info('NOT dumping results')
 
-    def trial_end(self, env):
+    def trial(self, env, stats):
         if not self.dry_run:
-            with timer('Dumping simulation {} trial {}'.format(self.sim.name,
+            with timer('Dumping simulation {} trial {}'.format(self.simulation.name,
                                                                env.name)):
                 with self.output('{}.sqlite'.format(env.name), mode='wb') as f:
                     env.dump_sqlite(f)
@@ -98,21 +102,27 @@ class default(Exporter):
 
 class csv(Exporter):
     '''Export the state of each environment (and its agents) in a separate CSV file'''
-    def trial_end(self, env):
-        with timer('[CSV] Dumping simulation {} trial {} @ dir {}'.format(self.sim.name,
+    def trial(self, env, stats):
+        with timer('[CSV] Dumping simulation {} trial {} @ dir {}'.format(self.simulation.name,
                                                                           env.name,
                                                                           self.outdir)):
             with self.output('{}.csv'.format(env.name)) as f:
                 env.dump_csv(f)
 
+            with self.output('{}.stats.csv'.format(env.name)) as f:
+                statwriter = csvlib.writer(f, delimiter='\t', quotechar='"', quoting=csvlib.QUOTE_ALL)
+
+                for stat in stats:
+                    statwriter.writerow(stat)
+
 
 class gexf(Exporter):
-    def trial_end(self, env):
+    def trial(self, env, stats):
         if self.dry_run:
             logger.info('Not dumping GEXF in dry_run mode')
             return
 
-        with timer('[GEXF] Dumping simulation {} trial {}'.format(self.sim.name,
+        with timer('[GEXF] Dumping simulation {} trial {}'.format(self.simulation.name,
                                                                   env.name)):
             with self.output('{}.gexf'.format(env.name), mode='wb') as f:
                 env.dump_gexf(f)
@@ -124,56 +134,24 @@ class dummy(Exporter):
         with self.output('dummy', 'w') as f:
             f.write('simulation started @ {}\n'.format(time.time()))
 
-    def trial_end(self, env):
+    def trial(self, env, stats):
         with self.output('dummy', 'w') as f:
             for i in env.history_to_tuples():
                 f.write(','.join(map(str, i)))
                 f.write('\n')
 
-    def end(self):
+    def sim(self, stats):
         with self.output('dummy', 'a') as f:
             f.write('simulation ended @ {}\n'.format(time.time()))
 
 
-class distribution(Exporter):
-    '''
-    Write the distribution of agent states at the end of each trial,
-    the mean value, and its deviation.
-    '''
-
-    def start(self):
-        self.means = []
-        self.counts = []
-
-    def trial_end(self, env):
-        df = env[None, None, None].df()
-        ix = df.index[-1]
-        attrs = df.columns.levels[0]
-        vc = {}
-        stats = {}
-        for a in attrs:
-            t = df.loc[(ix, a)]
-            try:
-                self.means.append(('mean', a, t.mean()))
-            except TypeError:
-                for name, count in t.value_counts().iteritems():
-                    self.counts.append(('count', a, name, count))
-
-    def end(self):
-        dfm = pd.DataFrame(self.means, columns=['metric', 'key', 'value'])
-        dfc = pd.DataFrame(self.counts, columns=['metric', 'key', 'value', 'count'])
-        dfm = dfm.groupby(by=['key']).agg(['mean', 'std', 'count', 'median', 'max', 'min'])
-        dfc = dfc.groupby(by=['key', 'value']).agg(['mean', 'std', 'count', 'median', 'max', 'min'])
-        with self.output('counts.csv') as f:
-            dfc.to_csv(f)
-        with self.output('metrics.csv') as f:
-            dfm.to_csv(f)
 
 class graphdrawing(Exporter):
 
-    def trial_end(self, env):
+    def trial(self, env, stats):
         # Outside effects
         f = plt.figure()
         nx.draw(env.G, node_size=10, width=0.2, pos=nx.spring_layout(env.G, scale=100), ax=f.add_subplot(111))
         with open('graph-{}.png'.format(env.name)) as f:
             f.savefig(f)
+

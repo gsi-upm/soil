@@ -31,7 +31,7 @@ def make_example_test(path, config):
                 try:
                     n = config['network_params']['n']
                     assert len(list(env.network_agents)) == n
-                    assert env.now > 2  # It has run
+                    assert env.now > 0  # It has run
                     assert env.now <= config['max_time']  # But not further than allowed
                 except KeyError:
                     pass

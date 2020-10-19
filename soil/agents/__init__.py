@@ -3,19 +3,19 @@
 # for x in range(0, settings.network_params["number_of_nodes"]):
 #     sentimentCorrelationNodeArray.append({'id': x})
 # Initialize agent states. Let's assume everyone is normal.
-    
 
-import nxsim
+
 import logging
 from collections import OrderedDict
 from copy import deepcopy
 from functools import partial
 from scipy.spatial import cKDTree as KDTree
 import json
+import simpy
 
 from functools import wraps
 
-from .. import serialization, history
+from .. import serialization, history, utils
 
 
 def as_node(agent):
@@ -24,7 +24,7 @@ def as_node(agent):
     return agent
 
 
-class BaseAgent(nxsim.BaseAgent):
+class BaseAgent:
     """
     A special simpy BaseAgent that keeps track of its state history.
     """
@@ -32,14 +32,13 @@ class BaseAgent(nxsim.BaseAgent):
     defaults = {}
 
     def __init__(self, environment, agent_id, state=None,
-                 name=None, interval=None, **state_params):
+                 name=None, interval=None):
         # Check for REQUIRED arguments
         assert environment is not None, TypeError('__init__ missing 1 required keyword argument: \'environment\'. '
                                                   'Cannot be NoneType.')
         # Initialize agent parameters
         self.id = agent_id
         self.name = name or '{}[{}]'.format(type(self).__name__, self.id)
-        self.state_params = state_params
 
         # Register agent to environment
         self.env = environment
@@ -51,10 +50,10 @@ class BaseAgent(nxsim.BaseAgent):
         self.state = real_state
         self.interval = interval
 
-        if not hasattr(self, 'level'):
-            self.level = logging.DEBUG
-        self.logger = logging.getLogger(self.env.name)
-        self.logger.setLevel(self.level)
+        self.logger = logging.getLogger(self.env.name).getChild(self.name)
+
+        if hasattr(self, 'level'):
+            self.logger.setLevel(self.level)
 
         # initialize every time an instance of the agent is created
         self.action = self.env.process(self.run())
@@ -76,13 +75,9 @@ class BaseAgent(nxsim.BaseAgent):
             self[k] = v
 
     @property
-    def global_topology(self):
-        return self.env.G
-    
-    @property
     def environment_params(self):
         return self.env.environment_params
-    
+
     @environment_params.setter
     def environment_params(self, value):
         self.env.environment_params = value
@@ -135,36 +130,10 @@ class BaseAgent(nxsim.BaseAgent):
     def die(self, remove=False):
         self.alive = False
         if remove:
-            super().die()
+            self.remove_node(self.id)
 
     def step(self):
-        pass
-
-    def count_agents(self, **kwargs):
-        return len(list(self.get_agents(**kwargs)))
-
-    def count_neighboring_agents(self, state_id=None, **kwargs):
-        return len(super().get_neighboring_agents(state_id=state_id, **kwargs))
-
-    def get_neighboring_agents(self, state_id=None, **kwargs):
-        return self.get_agents(limit_neighbors=True, state_id=state_id, **kwargs)
-
-    def get_agents(self, agents=None, limit_neighbors=False, **kwargs):
-        if limit_neighbors:
-            agents = super().get_agents(limit_neighbors=limit_neighbors)
-        else:
-            agents = self.env.get_agents(agents)
-        return select(agents, **kwargs)
-
-    def log(self, message, *args, level=logging.INFO, **kwargs):
-        message = message + " ".join(str(i) for i in args)
-        message = "\t{:10}@{:>5}:\t{}".format(self.name, self.now, message)
-        for k, v in kwargs:
-            message += " {k}={v} ".format(k, v)
-        extra = {}
-        extra['now'] = self.now
-        extra['id'] = self.id
-        return self.logger.log(level, message, extra=extra)
+        return
 
     def debug(self, *args, **kwargs):
         return self.log(*args, level=logging.DEBUG, **kwargs)
@@ -192,24 +161,59 @@ class BaseAgent(nxsim.BaseAgent):
         self._state = state['_state']
         self.env = state['environment']
 
-    def add_edge(self, node1, node2, **attrs):
-        node1 = as_node(node1)
-        node2 = as_node(node2)
+class NetworkAgent(BaseAgent):
 
-        for n in [node1, node2]:
-            if n not in self.global_topology.nodes(data=False):
-                raise ValueError('"{}" not in the graph'.format(n))
-        return self.global_topology.add_edge(node1, node2, **attrs)
+    @property
+    def topology(self):
+        return self.env.G
+
+    @property
+    def G(self):
+        return self.env.G
+
+    def count_agents(self, **kwargs):
+        return len(list(self.get_agents(**kwargs)))
+
+    def count_neighboring_agents(self, state_id=None, **kwargs):
+        return len(self.get_neighboring_agents(state_id=state_id, **kwargs))
+
+    def get_neighboring_agents(self, state_id=None, **kwargs):
+        return self.get_agents(limit_neighbors=True, state_id=state_id, **kwargs)
+
+    def get_agents(self, agents=None, limit_neighbors=False, **kwargs):
+        if limit_neighbors:
+            agents = self.topology.neighbors(self.id)
+
+        agents = self.env.get_agents(agents)
+        return select(agents, **kwargs)
+
+    def log(self, message, *args, level=logging.INFO, **kwargs):
+        message = message + " ".join(str(i) for i in args)
+        message = " @{:>3}: {}".format(self.now, message)
+        for k, v in kwargs:
+            message += " {k}={v} ".format(k, v)
+        extra = {}
+        extra['now'] = self.now
+        extra['agent_id'] = self.id
+        extra['agent_name'] = self.name
+        return self.logger.log(level, message, extra=extra)
 
     def subgraph(self, center=True, **kwargs):
         include = [self] if center else []
-        return self.global_topology.subgraph(n.id for n in self.get_agents(**kwargs)+include)
+        return self.topology.subgraph(n.id for n in self.get_agents(**kwargs)+include)
 
+    def remove_node(self, agent_id):
+        self.topology.remove_node(agent_id)
 
-class NetworkAgent(BaseAgent):
+    def add_edge(self, other, edge_attr_dict=None, *edge_attrs):
+        # return super(NetworkAgent, self).add_edge(node1=self.id, node2=other, **kwargs)
+        if self.id not in self.topology.nodes(data=False):
+            raise ValueError('{} not in list of existing agents in the network'.format(self.id))
+        if other not in self.topology.nodes(data=False):
+            raise ValueError('{} not in list of existing agents in the network'.format(other))
 
-    def add_edge(self, other, **kwargs):
-        return super(NetworkAgent, self).add_edge(node1=self.id, node2=other, **kwargs)
+        self.topology.add_edge(self.id, other, edge_attr_dict=edge_attr_dict, *edge_attrs)
+
 
     def ego_search(self, steps=1, center=False, node=None, **kwargs):
         '''Get a list of nodes in the ego network of *node* of radius *steps*'''
@@ -220,14 +224,14 @@ class NetworkAgent(BaseAgent):
     def degree(self, node, force=False):
         node = as_node(node)
         if force or (not hasattr(self.env, '_degree')) or getattr(self.env, '_last_step', 0) < self.now:
-            self.env._degree = nx.degree_centrality(self.global_topology)
+            self.env._degree = nx.degree_centrality(self.topology)
             self.env._last_step = self.now
         return self.env._degree[node]
 
     def betweenness(self, node, force=False):
         node = as_node(node)
         if force or (not hasattr(self.env, '_betweenness')) or getattr(self.env, '_last_step', 0) < self.now:
-            self.env._betweenness = nx.betweenness_centrality(self.global_topology)
+            self.env._betweenness = nx.betweenness_centrality(self.topology)
             self.env._last_step = self.now
         return self.env._betweenness[node]
 
@@ -292,16 +296,22 @@ class MetaFSM(type):
         cls.states = states
 
 
-class FSM(BaseAgent, metaclass=MetaFSM):
+class FSM(NetworkAgent, metaclass=MetaFSM):
     def __init__(self, *args, **kwargs):
         super(FSM, self).__init__(*args, **kwargs)
         if 'id' not in self.state:
             if not self.default_state:
                 raise ValueError('No default state specified for {}'.format(self.id))
             self['id'] = self.default_state.id
+        self._next_change = simpy.core.Infinity
+        self._next_state = self.state
 
     def step(self):
-        if 'id' in self.state:
+        if self._next_change < self.now:
+            next_state = self._next_state
+            self._next_change = simpy.core.Infinity
+            self['id'] = next_state
+        elif 'id' in self.state:
             next_state = self['id']
         elif self.default_state:
             next_state = self.default_state.id
@@ -310,6 +320,10 @@ class FSM(BaseAgent, metaclass=MetaFSM):
         if next_state not in self.states:
             raise Exception('{} is not a valid id for {}'.format(next_state, self))
         return self.states[next_state](self)
+
+    def next_state(self, state):
+        self._next_change = self.now
+        self._next_state = state
 
     def set_state(self, state):
         if hasattr(state, 'id'):
@@ -371,14 +385,18 @@ def calculate_distribution(network_agents=None,
     else:
         raise ValueError('Specify a distribution or a default agent type')
 
+    # Fix missing weights and incompatible types
+    for x in network_agents:
+        x['weight'] = float(x.get('weight', 1))
+
     # Calculate the thresholds
-    total = sum(x.get('weight', 1) for x in network_agents)
+    total = sum(x['weight'] for x in network_agents)
     acc = 0
     for v in network_agents:
         if 'ids' in v:
             v['threshold'] = STATIC_THRESHOLD
             continue
-        upper = acc + (v.get('weight', 1)/total)
+        upper = acc + (v['weight']/total)
         v['threshold'] = [acc, upper]
         acc = upper
     return network_agents
@@ -425,7 +443,7 @@ def _validate_states(states, topology):
     states = states or []
     if isinstance(states, dict):
         for x in states:
-            assert x in topology.node
+            assert x in topology.nodes
     else:
         assert len(states) <= len(topology)
     return states

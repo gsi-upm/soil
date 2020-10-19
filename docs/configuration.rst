@@ -218,3 +218,24 @@ These agents are programmed in much the same way as network agents, the only dif
 
 You may use environment agents to model events that a normal agent cannot control, such as natural disasters or chance.
 They are also useful to add behavior that has little to do with the network and the interactions within that network.
+
+Templating
+==========
+
+Sometimes, it is useful to parameterize a simulation and run it over a range of values in order to compare each run and measure the effect of those parameters in the simulation.
+For instance, you may want to run a simulation with different agent distributions.
+
+This can be done in Soil using **templates**.
+A template is a configuration where some of the values are specified with a variable.
+e.g.,  ``weight: "{{ var1 }}"`` instead of ``weight: 1``.
+There are two types of variables, depending on how their values are decided:
+
+* Fixed. A list of values is provided, and a new simulation is run for each possible value. If more than a variable is given, a new simulation will be run per combination of values.
+* Bounded/Sampled. The bounds of the variable are provided, along with a sampler method, which will be used to compute all the configuration combinations.
+
+When fixed and bounded variables are mixed, Soil generates a new configuration per combination of fixed values and bounded values.
+
+Here is an example with a single fixed variable and two bounded variable:
+
+.. literalinclude:: ../examples/template.yml
+   :language: yaml

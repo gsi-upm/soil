@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 from collections import UserDict, namedtuple
 
 from . import serialization
-from .utils import open_or_reuse
+from .utils import open_or_reuse, unflatten_dict
 
 
 class History:
@@ -19,29 +19,43 @@ class History:
     Store and retrieve values from a sqlite database.
     """
 
-    def __init__(self, name=None, db_path=None, backup=False):
-        self._db = None
+    def __init__(self, name=None, db_path=None, backup=False, readonly=False):
+        if readonly and (not os.path.exists(db_path)):
+            raise Exception('The DB file does not exist. Cannot open in read-only mode')
 
-        if db_path is None:
+        self._db = None
+        self._temp = db_path is None
+        self._stats_columns = None
+        self.readonly = readonly
+
+        if self._temp:
             if not name:
                 name = time.time()
-            _, db_path = tempfile.mkstemp(suffix='{}.sqlite'.format(name))
+            # The file will be deleted as soon as it's closed
+            # Normally, that will be on destruction
+            db_path = tempfile.NamedTemporaryFile(suffix='{}.sqlite'.format(name)).name
+
 
         if backup and os.path.exists(db_path):
-            newname = db_path + '.backup{}.sqlite'.format(time.time())
-            os.rename(db_path, newname)
+                newname = db_path + '.backup{}.sqlite'.format(time.time())
+                os.rename(db_path, newname)
 
         self.db_path = db_path
 
         self.db = db_path
+        self._dtypes = {}
+        self._tups = []
+
+
+        if self.readonly:
+            return
 
         with self.db:
             logger.debug('Creating database {}'.format(self.db_path))
-            self.db.execute('''CREATE TABLE IF NOT EXISTS history (agent_id text, t_step int, key text, value text text)''')
+            self.db.execute('''CREATE TABLE IF NOT EXISTS history (agent_id text, t_step int, key text, value text)''')
             self.db.execute('''CREATE TABLE IF NOT EXISTS value_types (key text, value_type text)''')
+            self.db.execute('''CREATE TABLE IF NOT EXISTS stats (trial_id text)''')
             self.db.execute('''CREATE UNIQUE INDEX IF NOT EXISTS idx_history ON history (agent_id, t_step, key);''')
-        self._dtypes = {}
-        self._tups = []
 
     @property
     def db(self):
@@ -58,6 +72,7 @@ class History:
         if isinstance(db_path, str):
             logger.debug('Connecting to database {}'.format(db_path))
             self._db = sqlite3.connect(db_path)
+            self._db.row_factory = sqlite3.Row
         else:
             self._db = db_path
 
@@ -68,9 +83,56 @@ class History:
         self._db.close()
         self._db = None
 
+    def save_stats(self, stat):
+        if self.readonly:
+            print('DB in readonly mode')
+            return
+        if not stat:
+            return
+        with self.db:
+            if not self._stats_columns:
+                self._stats_columns = list(c['name'] for c in self.db.execute('PRAGMA table_info(stats)'))
+
+            for column, value in stat.items():
+                if column in self._stats_columns:
+                    continue
+                dtype = 'text'
+                if not isinstance(value, str):
+                    try:
+                        float(value)
+                        dtype = 'real'
+                        int(value)
+                        dtype = 'int'
+                    except ValueError:
+                        pass
+                self.db.execute('ALTER TABLE stats ADD "{}" "{}"'.format(column, dtype))
+                self._stats_columns.append(column)
+
+            columns = ", ".join(map(lambda x: '"{}"'.format(x), stat.keys()))
+            values = ", ".join(['"{0}"'.format(col) for col in stat.values()])
+            query = "INSERT INTO stats ({columns}) VALUES ({values})".format(
+                columns=columns,
+                values=values
+            )
+            self.db.execute(query)
+
+    def get_stats(self, unflatten=True):
+        rows = self.db.execute("select * from stats").fetchall()
+        res = []
+        for row in rows:
+            d = {}
+            for k in row.keys():
+                if row[k] is None:
+                    continue
+                d[k] = row[k]
+            if unflatten:
+                d = unflatten_dict(d)
+            res.append(d)
+        return res
+
     @property
     def dtypes(self):
-        self.read_types()
+        self._read_types()
         return {k:v[0] for k, v in self._dtypes.items()}
 
     def save_tuples(self, tuples):
@@ -93,18 +155,10 @@ class History:
         Save a collection of records to the database.
         Database writes are cached.
         '''
-        value = self.convert(key, value)
-        self._tups.append(Record(agent_id=agent_id,
-                                 t_step=t_step,
-                                 key=key,
-                                 value=value))
-        if len(self._tups) > 100:
-            self.flush_cache()
-
-    def convert(self, key, value):
-        """Get the serialized value for a given key."""
+        if self.readonly:
+            raise Exception('DB in readonly mode')
         if key not in self._dtypes:
-            self.read_types()
+            self._read_types()
             if key not in self._dtypes:
                 name = serialization.name(value)
                 serializer = serialization.serializer(name)
@@ -112,21 +166,21 @@ class History:
                 self._dtypes[key] = (name, serializer, deserializer)
                 with self.db:
                     self.db.execute("replace into value_types (key, value_type) values (?, ?)", (key, name))
-        return self._dtypes[key][1](value)
-
-    def recover(self, key, value):
-        """Get the deserialized value for a given key, and the serialized version."""
-        if key not in self._dtypes:
-            self.read_types()
-        if key not in self._dtypes:
-            raise ValueError("Unknown datatype for {} and {}".format(key, value))
-        return self._dtypes[key][2](value)
+        value = self._dtypes[key][1](value)
+        self._tups.append(Record(agent_id=agent_id,
+                                 t_step=t_step,
+                                 key=key,
+                                 value=value))
+        if len(self._tups) > 100:
+            self.flush_cache()
 
     def flush_cache(self):
         '''
         Use a cache to save state changes to avoid opening a session for every change.
         The cache will be flushed at the end of the simulation, and when history is accessed.
         '''
+        if self.readonly:
+            raise Exception('DB in readonly mode')
         logger.debug('Flushing cache {}'.format(self.db_path))
         with self.db:
             for rec in self._tups:
@@ -139,10 +193,14 @@ class History:
             res = self.db.execute("select agent_id, t_step, key, value from history ").fetchall()
         for r in res:
             agent_id, t_step, key, value = r
-            value = self.recover(key, value)
+            if key not in self._dtypes:
+                self._read_types()
+            if key not in self._dtypes:
+                raise ValueError("Unknown datatype for {} and {}".format(key, value))
+            value = self._dtypes[key][2](value)
             yield agent_id, t_step, key, value
 
-    def read_types(self):
+    def _read_types(self):
         with self.db:
             res = self.db.execute("select key, value_type from value_types ").fetchall()
         for k, v in res:
@@ -167,7 +225,7 @@ class History:
 
     def read_sql(self, keys=None, agent_ids=None, t_steps=None, convert_types=False, limit=-1):
 
-        self.read_types()
+        self._read_types()
 
         def escape_and_join(v):
             if v is None:
@@ -181,7 +239,13 @@ class History:
 
         last_df = None
         if t_steps:
-            # Look for the last value before the minimum step in the query
+            # Convert negative indices into positive
+            if any(x<0 for x in t_steps):
+                max_t = int(self.db.execute("select max(t_step) from history").fetchone()[0])
+                t_steps = [t if t>0 else max_t+1+t for t in t_steps]
+
+            # We will be doing ffill interpolation, so we need to look for
+            # the last value before the minimum step in the query
             min_step = min(t_steps)
             last_filters = ['t_step < {}'.format(min_step),]
             last_filters = last_filters + filters
@@ -219,7 +283,11 @@ class History:
         for k, v in self._dtypes.items():
             if k in df_p:
                 dtype, _, deserial = v
-                df_p[k] = df_p[k].fillna(method='ffill').astype(dtype)
+                try:
+                    df_p[k] = df_p[k].fillna(method='ffill').astype(dtype)
+                except (TypeError, ValueError):
+                    # Avoid forward-filling unknown/incompatible types
+                    continue
         if t_steps:
             df_p = df_p.reindex(t_steps, method='ffill')
         return df_p.ffill()
@@ -313,3 +381,5 @@ class Records():
 
 Key = namedtuple('Key', ['agent_id', 't_step', 'key'])
 Record = namedtuple('Record', 'agent_id t_step key value')
+
+Stat = namedtuple('Stat', 'trial_id')

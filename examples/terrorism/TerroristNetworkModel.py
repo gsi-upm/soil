@@ -195,14 +195,14 @@ class TerroristNetworkModel(TerroristSpreadModel):
                     break
 
     def get_distance(self, target):
-        source_x, source_y = nx.get_node_attributes(self.global_topology, 'pos')[self.id]
-        target_x, target_y = nx.get_node_attributes(self.global_topology, 'pos')[target]
+        source_x, source_y = nx.get_node_attributes(self.topology, 'pos')[self.id]
+        target_x, target_y = nx.get_node_attributes(self.topology, 'pos')[target]
         dx = abs( source_x - target_x )
         dy = abs( source_y - target_y )
         return ( dx ** 2 + dy ** 2 ) ** ( 1 / 2 )
 
     def shortest_path_length(self, target):
         try:
-            return nx.shortest_path_length(self.global_topology, self.id, target)
+            return nx.shortest_path_length(self.topology, self.id, target)
         except nx.NetworkXNoPath:
             return float('inf')

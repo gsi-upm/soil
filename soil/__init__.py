@@ -17,12 +17,12 @@ from .environment import Environment
 from .history import History
 from . import serialization
 from . import analysis
+from .utils import logger
 
 def main():
     import argparse
     from . import simulation
 
-    logging.basicConfig(level=logging.INFO)
     logging.info('Running SOIL version: {}'.format(__version__))
 
     parser = argparse.ArgumentParser(description='Run a SOIL simulation')
@@ -40,6 +40,8 @@ def main():
                         help='Dump GEXF graph. Defaults to false.')
     parser.add_argument('--csv', action='store_true',
                         help='Dump history in CSV format. Defaults to false.')
+    parser.add_argument('--level', type=str,
+                        help='Logging level')
     parser.add_argument('--output', '-o', type=str, default="soil_output",
                         help='folder to write results to. It defaults to the current directory.')
     parser.add_argument('--synchronous', action='store_true',
@@ -48,6 +50,7 @@ def main():
                         help='Export environment and/or simulations using this exporter')
 
     args = parser.parse_args()
+    logging.basicConfig(level=getattr(logging, (args.level or 'INFO').upper()))
 
     if os.getcwd() not in sys.path:
         sys.path.append(os.getcwd())

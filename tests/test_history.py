@@ -5,6 +5,7 @@ import shutil
 from glob import glob
 
 from soil import history
+from soil import utils
 
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
@@ -154,3 +155,49 @@ class TestHistory(TestCase):
         assert recovered
         for i in recovered:
             assert i in tuples
+
+    def test_stats(self):
+        """
+        The data recovered should be equal to the one recorded.
+        """
+        tuples = (
+            ('a_1', 0, 'id', 'v'),
+            ('a_1', 1, 'id', 'a'),
+            ('a_1', 2, 'id', 'l'),
+            ('a_1', 3, 'id', 'u'),
+            ('a_1', 4, 'id', 'e'),
+            ('env', 1, 'prob', 1),
+            ('env', 2, 'prob', 2),
+            ('env', 3, 'prob', 3),
+            ('a_2', 7, 'finished', True),
+        )
+        stat_tuples = [
+            {'num_infected': 5, 'runtime': 0.2},
+            {'num_infected': 5, 'runtime': 0.2},
+            {'new': '40'},
+        ]
+        h = history.History()
+        h.save_tuples(tuples)
+        for stat in stat_tuples:
+            h.save_stats(stat)
+        recovered = h.get_stats()
+        assert recovered
+        assert recovered[0]['num_infected'] == 5
+        assert recovered[1]['runtime'] == 0.2
+        assert recovered[2]['new'] == '40'
+
+    def test_unflatten(self):
+        ex = {'count.neighbors.3': 4,
+              'count.times.2': 4,
+              'count.total.4': 4,
+              'mean.neighbors': 3,
+              'mean.times': 2,
+              'mean.total': 4,
+              't_step': 2,
+              'trial_id': 'exporter_sim_trial_1605817956-4475424'}
+        res = utils.unflatten_dict(ex)
+
+        assert 'count' in res
+        assert 'mean' in res
+        assert 't_step' in res
+        assert 'trial_id' in res

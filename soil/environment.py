@@ -8,11 +8,10 @@ import yaml
 import tempfile
 import pandas as pd
 from copy import deepcopy
-from collections import Counter
 from networkx.readwrite import json_graph
 
 import networkx as nx
-import nxsim
+import simpy
 
 from . import serialization, agents, analysis, history, utils
 
@@ -23,7 +22,7 @@ _CONFIG_PROPS = [ 'name',
                  'interval',
                  ]
 
-class Environment(nxsim.NetworkEnvironment):
+class Environment(simpy.Environment):
     """
     The environment is key in a simulation. It contains the network topology,
     a reference to network and environment agents, as well as the environment
@@ -42,7 +41,10 @@ class Environment(nxsim.NetworkEnvironment):
                  interval=1,
                  seed=None,
                  topology=None,
-                 *args, **kwargs):
+                 initial_time=0,
+                 **environment_params):
+
+
         self.name = name or 'UnnamedEnvironment'
         seed = seed or time.time()
         random.seed(seed)
@@ -52,7 +54,11 @@ class Environment(nxsim.NetworkEnvironment):
         self.default_state = deepcopy(default_state) or {}
         if not topology:
             topology = nx.Graph()
-        super().__init__(*args, topology=topology, **kwargs)
+        self.G = nx.Graph(topology) 
+
+        super().__init__(initial_time=initial_time)
+        self.environment_params = environment_params
+
         self._env_agents = {}
         self.interval = interval
         self._history = history.History(name=self.name,
@@ -151,12 +157,10 @@ class Environment(nxsim.NetworkEnvironment):
         start = start or self.now
         return self.G.add_edge(agent1, agent2, **attrs)
 
-    def run(self, *args, **kwargs):
+    def run(self, until, *args, **kwargs):
         self._save_state()
-        self.log_stats()
-        super().run(*args, **kwargs)
+        super().run(until, *args, **kwargs)
         self._history.flush_cache()
-        self.log_stats()
 
     def _save_state(self, now=None):
         serialization.logger.debug('Saving state @{}'.format(self.now))
@@ -318,25 +322,6 @@ class Environment(nxsim.NetworkEnvironment):
 
         return G
 
-    def stats(self):
-        stats = {}
-        stats['network'] = {}
-        stats['network']['n_nodes'] = self.G.number_of_nodes()
-        stats['network']['n_edges'] = self.G.number_of_edges()
-        c = Counter()
-        c.update(a.__class__.__name__ for a in self.network_agents)
-        stats['agents'] = {}
-        stats['agents']['model_count'] = dict(c)
-        c2 = Counter()
-        c2.update(a['id'] for a in self.network_agents)
-        stats['agents']['state_count'] = dict(c2)
-        stats['params'] = self.environment_params
-        return stats
-
-    def log_stats(self):
-        stats = self.stats()
-        serialization.logger.info('Environment stats: \n{}'.format(yaml.dump(stats, default_flow_style=False)))
-    
     def __getstate__(self):
         state = {}
         for prop in _CONFIG_PROPS:
@@ -344,6 +329,7 @@ class Environment(nxsim.NetworkEnvironment):
         state['G'] = json_graph.node_link_data(self.G)
         state['environment_agents'] = self._env_agents
         state['history'] = self._history
+        state['_now'] = self._now
         return state
 
     def __setstate__(self, state):
@@ -352,6 +338,8 @@ class Environment(nxsim.NetworkEnvironment):
         self._env_agents = state['environment_agents']
         self.G = json_graph.node_link_graph(state['G'])
         self._history = state['history']
+        self._now = state['_now']
+        self._queue = []
 
 
 SoilEnvironment = Environment

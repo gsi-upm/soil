@@ -4,6 +4,7 @@ import importlib
 import sys
 import yaml
 import traceback
+import logging
 import networkx as nx
 from networkx.readwrite import json_graph
 from multiprocessing import Pool
@@ -11,17 +12,19 @@ from functools import partial
 
 import pickle
 
-from nxsim import NetworkSimulation
-
 from . import serialization, utils, basestring, agents
 from .environment import Environment
 from .utils import logger
-from .exporters import for_sim as exporters_for_sim
+from .exporters import default, for_sim as exporters_for_sim
+from .stats import defaultStats
+from .history import History
 
 
-class Simulation(NetworkSimulation):
+#TODO: change documentation for simulation
+
+class Simulation:
     """
-    Subclass of nsim.NetworkSimulation with three main differences:
+    Similar to nsim.NetworkSimulation with three main differences:
         1) agent type can be specified by name or by class.
         2) instead of just one type, a network agents distribution can be used.
            The distribution specifies the weight (or probability) of each
@@ -91,11 +94,12 @@ class Simulation(NetworkSimulation):
                  environment_params=None, environment_class=None,
                  **kwargs):
 
-        self.seed = str(seed) or str(time.time())
         self.load_module = load_module
         self.network_params = network_params
-        self.name = name or 'Unnamed_' + time.strftime("%Y-%m-%d_%H.%M.%S")
-        self.group = group or None
+        self.name = name or 'Unnamed'
+        self.seed = str(seed or name)
+        self._id = '{}_{}'.format(self.name, time.strftime("%Y-%m-%d_%H.%M.%S"))
+        self.group = group or ''
         self.num_trials = num_trials
         self.max_time = max_time
         self.default_state = default_state or {}
@@ -128,12 +132,15 @@ class Simulation(NetworkSimulation):
         self.states = agents._validate_states(states,
                                               self.topology)
 
+        self._history = History(name=self.name,
+                               backup=False)
+
     def run_simulation(self, *args, **kwargs):
         return self.run(*args, **kwargs)
 
     def run(self, *args, **kwargs):
         '''Run the simulation and return the list of resulting environments'''
-        return list(self._run_simulation_gen(*args, **kwargs))
+        return list(self.run_gen(*args, **kwargs))
 
     def _run_sync_or_async(self, parallel=False, *args, **kwargs):
         if parallel:
@@ -148,12 +155,16 @@ class Simulation(NetworkSimulation):
                 yield i
         else:
             for i in range(self.num_trials):
-                yield self.run_trial(i,
-                                     *args,
+                yield self.run_trial(*args,
                                      **kwargs)
 
-    def _run_simulation_gen(self, *args, parallel=False, dry_run=False,
-                            exporters=['default', ], outdir=None, exporter_params={}, **kwargs):
+    def run_gen(self, *args, parallel=False, dry_run=False,
+                exporters=[default, ], stats=[defaultStats], outdir=None, exporter_params={},
+                stats_params={}, log_level=None,
+                **kwargs):
+        '''Run the simulation and yield the resulting environments.'''
+        if log_level:
+            logger.setLevel(log_level)
         logger.info('Using exporters: %s', exporters or [])
         logger.info('Output directory: %s', outdir)
         exporters = exporters_for_sim(self,
@@ -161,31 +172,63 @@ class Simulation(NetworkSimulation):
                                       dry_run=dry_run,
                                       outdir=outdir,
                                       **exporter_params)
+        stats = exporters_for_sim(self,
+                                  stats,
+                                  **stats_params)
 
         with utils.timer('simulation {}'.format(self.name)):
+            for stat in stats:
+                stat.start()
+
             for exporter in exporters:
                 exporter.start()
-
-            for env in self._run_sync_or_async(*args, parallel=parallel,
+            for env in self._run_sync_or_async(*args,
+                                               parallel=parallel,
+                                               log_level=log_level,
                                                **kwargs):
+
+                collected = list(stat.trial(env) for stat in stats)
+
+                saved = self.save_stats(collected, t_step=env.now, trial_id=env.name)
+
                 for exporter in exporters:
-                    exporter.trial_end(env)
+                    exporter.trial(env, saved)
+
                 yield env
 
-            for exporter in exporters:
-                exporter.end()
 
-    def get_env(self, trial_id = 0, **kwargs):
+            collected = list(stat.end() for stat in stats)
+            saved = self.save_stats(collected)
+
+            for exporter in exporters:
+                exporter.end(saved)
+
+
+    def save_stats(self, collection, **kwargs):
+        stats = dict(kwargs)
+        for stat in collection:
+            stats.update(stat)
+        self._history.save_stats(utils.flatten_dict(stats))
+        return stats
+
+    def get_stats(self, **kwargs):
+        return self._history.get_stats(**kwargs)
+
+    def log_stats(self, stats):
+        logger.info('Stats: \n{}'.format(yaml.dump(stats, default_flow_style=False)))
+    
+
+    def get_env(self, trial_id=0, **kwargs):
         '''Create an environment for a trial of the simulation'''
         opts = self.environment_params.copy()
-        env_name = '{}_trial_{}'.format(self.name, trial_id)
         opts.update({
-            'name': env_name,
+            'name': trial_id,
             'topology': self.topology.copy(),
-            'seed': self.seed+env_name,
+            'seed': '{}_trial_{}'.format(self.seed, trial_id),
             'initial_time': 0,
             'interval': self.interval,
             'network_agents': self.network_agents,
+            'initial_time': 0,
             'states': self.states,
             'default_state': self.default_state,
             'environment_agents': self.environment_agents,
@@ -194,20 +237,22 @@ class Simulation(NetworkSimulation):
         env = self.environment_class(**opts)
         return env
 
-    def run_trial(self, trial_id=0, until=None, **opts):
-        """Run a single trial of the simulation
-
-        Parameters
-        ----------
-        trial_id : int
+    def run_trial(self, until=None, log_level=logging.INFO, **opts):
         """
+        Run a single trial of the simulation
+
+        """
+        trial_id = '{}_trial_{}'.format(self.name, time.time()).replace('.', '-')
+        if log_level:
+            logger.setLevel(log_level)
         # Set-up trial environment and graph
         until = until or self.max_time
-        env = self.get_env(trial_id = trial_id, **opts)
+        env = self.get_env(trial_id=trial_id, **opts)
         # Set up agents on nodes
         with utils.timer('Simulation {} trial {}'.format(self.name, trial_id)):
             env.run(until)
         return env
+
     def run_trial_exceptions(self, *args, **kwargs):
         '''
         A wrapper for run_trial that catches exceptions and returns them.

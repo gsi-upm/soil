@@ -343,4 +343,16 @@ class TestMain(TestCase):
         configs = serialization.load_file(join(EXAMPLES, 'template.yml'))
         assert len(configs) > 0
 
-
+    def test_until(self):
+        config = {
+            'name': 'exporter_sim',
+            'network_params': {},
+            'agent_type': 'CounterModel',
+            'max_time': 2,
+            'num_trials': 100,
+            'environment_params': {}
+        }
+        s = simulation.from_config(config)
+        runs = list(s.run_simulation(dry_run=True))
+        over = list(x.now for x in runs if x.now>2)
+        assert len(over) == 0

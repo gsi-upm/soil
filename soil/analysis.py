@@ -28,13 +28,13 @@ def _read_data(pattern, *args, from_csv=False, process_args=None, **kwargs):
                 df = read_csv(trial_data, **kwargs)
                 yield config_file, df, config
         else:
-            for trial_data in sorted(glob.glob(join(folder, '*.db.sqlite'))):
+            for trial_data in sorted(glob.glob(join(folder, '*.sqlite'))):
                 df = read_sql(trial_data, **kwargs)
                 yield config_file, df, config
 
 
 def read_sql(db, *args, **kwargs):
-    h = history.History(db_path=db, backup=False)
+    h = history.History(db_path=db, backup=False, readonly=True)
     df = h.read_sql(*args, **kwargs)
     return df
 
@@ -68,6 +68,13 @@ def convert_types_slow(df):
         t['value'] = t['value'].astype(v)
     df = df.apply(convert_row, axis=1)
     return df
+
+
+def split_processed(df):
+    env = df.loc[:, df.columns.get_level_values(1).isin(['env', 'stats'])]
+    agents = df.loc[:, ~df.columns.get_level_values(1).isin(['env', 'stats'])]
+    return env, agents
+
 
 def split_df(df):
     '''
@@ -136,7 +143,7 @@ def get_value(df, *keys, aggfunc='sum'):
     return df.groupby(axis=1, level=0).agg(aggfunc)
 
 
-def plot_all(*args, **kwargs):
+def plot_all(*args, plot_args={}, **kwargs):
     '''
     Read all the trial data and plot the result of applying a function on them.
     '''
@@ -144,14 +151,17 @@ def plot_all(*args, **kwargs):
     ps = []
     for line in dfs:
         f, df, config = line
-        df.plot(title=config['name'])
+        if len(df) < 1:
+            continue
+        df.plot(title=config['name'], **plot_args)
         ps.append(df)
     return ps
 
 def do_all(pattern, func, *keys, include_env=False, **kwargs):
     for config_file, df, config in read_data(pattern, keys=keys):
+        if len(df) < 1:
+            continue
         p = func(df, *keys, **kwargs)
-        p.plot(title=config['name'])
         yield config_file, p, config
 
 

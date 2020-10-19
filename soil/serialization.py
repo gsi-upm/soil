@@ -17,10 +17,10 @@ logger.setLevel(logging.INFO)
 
 
 def load_network(network_params, dir_path=None):
-    if network_params is None:
-        return nx.Graph()
-    path = network_params.get('path', None)
-    if path:
+    G = nx.Graph()
+
+    if 'path' in network_params:
+        path = network_params['path']
         if dir_path and not os.path.isabs(path):
             path = os.path.join(dir_path, path)
         extension = os.path.splitext(path)[1][1:]
@@ -32,21 +32,22 @@ def load_network(network_params, dir_path=None):
             method = getattr(nx.readwrite, 'read_' + extension)
         except AttributeError:
             raise AttributeError('Unknown format')
-        return method(path, **kwargs)
+        G = method(path, **kwargs)
 
-    net_args = network_params.copy()
-    if 'generator' not in net_args:
-        return nx.Graph()
+    elif 'generator' in network_params:
+        net_args = network_params.copy()
+        net_gen = net_args.pop('generator')
 
-    net_gen = net_args.pop('generator')
+        if dir_path not in sys.path:
+            sys.path.append(dir_path)
 
-    if dir_path not in sys.path:
-        sys.path.append(dir_path)
+        method = deserializer(net_gen,
+                              known_modules=['networkx.generators',])
+        G = method(**net_args)
 
-    method = deserializer(net_gen,
-                          known_modules=['networkx.generators',])
+    return G
 
-    return method(**net_args)
+
 
 
 def load_file(infile):
@@ -66,11 +67,32 @@ def expand_template(config):
         raise ValueError(('You must provide a definition of variables'
                           ' for the template.'))
 
-    template = Template(config['template'])
+    template = config['template']
 
-    sampler_name = config.get('sampler', 'SALib.sample.morris.sample')
-    n_samples = int(config.get('samples', 100))
-    sampler = deserializer(sampler_name)
+    if not isinstance(template, str):
+        template = yaml.dump(template)
+
+    template = Template(template)
+
+    params = params_for_template(config)
+
+    blank_str = template.render({k: 0 for k in params[0].keys()})
+    blank = list(load_string(blank_str))
+    if len(blank) > 1:
+        raise ValueError('Templates must not return more than one configuration')
+    if 'name' in blank[0]:
+        raise ValueError('Templates cannot be named, use group instead')
+
+    for ps in params:
+        string = template.render(ps)
+        for c in load_string(string):
+            yield c
+
+
+def params_for_template(config):
+    sampler_config = config.get('sampler', {'N': 100})
+    sampler = sampler_config.pop('method', 'SALib.sample.morris.sample')
+    sampler = deserializer(sampler)
     bounds = config['vars']['bounds']
 
     problem = {
@@ -78,7 +100,7 @@ def expand_template(config):
         'names': list(bounds.keys()),
         'bounds': list(v for v in bounds.values())
     }
-    samples = sampler(problem, n_samples)
+    samples = sampler(problem, **sampler_config)
 
     lists = config['vars'].get('lists', {})
     names = list(lists.keys())
@@ -88,20 +110,7 @@ def expand_template(config):
     allnames = names + problem['names']
     allvalues = [(list(i[0])+list(i[1])) for i in product(combs, samples)]
     params = list(map(lambda x: dict(zip(allnames, x)), allvalues))
-
-
-    blank_str = template.render({k: 0 for k in allnames})
-    blank = list(load_string(blank_str))
-    if len(blank) > 1:
-        raise ValueError('Templates must not return more than one configuration')
-    if 'name' in blank[0]:
-        raise ValueError('Templates cannot be named, use group instead')
-
-    confs = []
-    for ps in params:
-        string = template.render(ps)
-        for c in load_string(string):
-            yield c
+    return params
 
 
 def load_files(*patterns, **kwargs):
@@ -116,7 +125,7 @@ def load_files(*patterns, **kwargs):
 
 def load_config(config):
     if isinstance(config, dict):
-        yield config, None
+        yield config, os.getcwd()
     else:
         yield from load_files(config)
 

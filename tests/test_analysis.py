@@ -66,8 +66,8 @@ class TestAnalysis(TestCase):
         env = self.env
         df = analysis.read_sql(env._history.db_path)
         res = analysis.get_count(df, 'SEED', 'id')
-        assert res['SEED']['seedanalysis_trial_0'].iloc[0] == 1
-        assert res['SEED']['seedanalysis_trial_0'].iloc[-1] == 1
+        assert res['SEED'][self.env['SEED']].iloc[0] == 1
+        assert res['SEED'][self.env['SEED']].iloc[-1] == 1
         assert res['id']['odd'].iloc[0] == 2
         assert res['id']['even'].iloc[0] == 0
         assert res['id']['odd'].iloc[-1] == 1
@@ -75,7 +75,7 @@ class TestAnalysis(TestCase):
 
     def test_value(self):
         env = self.env
-        df = analysis.read_sql(env._history._db)
+        df = analysis.read_sql(env._history.db_path)
         res_sum = analysis.get_value(df, 'count')
 
         assert res_sum['count'].iloc[0] == 2
@@ -86,4 +86,4 @@ class TestAnalysis(TestCase):
 
         res_total = analysis.get_value(df)
 
-        res_total['SEED'].iloc[0] == 'seedanalysis_trial_0'
+        res_total['SEED'].iloc[0] == self.env['SEED']

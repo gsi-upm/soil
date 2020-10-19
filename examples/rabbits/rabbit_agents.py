@@ -1,4 +1,4 @@
-from soil.agents import FSM, state, default_state, BaseAgent
+from soil.agents import FSM, state, default_state, BaseAgent, NetworkAgent
 from enum import Enum
 from random import random, choice
 from itertools import islice
@@ -80,7 +80,7 @@ class RabbitModel(FSM):
                 self.env.add_edge(self['mate'], child.id)
                 # self.add_edge()
                 self.debug('A BABY IS COMING TO LIFE')
-                self.env['rabbits_alive'] = self.env.get('rabbits_alive', self.global_topology.number_of_nodes())+1
+                self.env['rabbits_alive'] = self.env.get('rabbits_alive', self.topology.number_of_nodes())+1
                 self.debug('Rabbits alive: {}'.format(self.env['rabbits_alive']))
                 self['offspring'] += 1
                 self.env.get_agent(self['mate'])['offspring'] += 1
@@ -97,12 +97,14 @@ class RabbitModel(FSM):
         return
 
 
-class RandomAccident(BaseAgent):
+class RandomAccident(NetworkAgent):
 
     level = logging.DEBUG
 
     def step(self):
-        rabbits_total = self.global_topology.number_of_nodes()
+        rabbits_total = self.topology.number_of_nodes()
+        if 'rabbits_alive' not in self.env:
+            self.env['rabbits_alive'] = 0
         rabbits_alive = self.env.get('rabbits_alive', rabbits_total)
         prob_death = self.env.get('prob_death', 1e-100)*math.floor(math.log10(max(1, rabbits_alive)))
         self.debug('Killing some rabbits with prob={}!'.format(prob_death))
@@ -116,5 +118,5 @@ class RandomAccident(BaseAgent):
                 self.log('Rabbits alive: {}'.format(self.env['rabbits_alive']))
                 i.set_state(i.dead)
         self.log('Rabbits alive: {}/{}'.format(rabbits_alive, rabbits_total))
-        if self.count_agents(state_id=RabbitModel.dead.id) == self.global_topology.number_of_nodes():
+        if self.count_agents(state_id=RabbitModel.dead.id) == self.topology.number_of_nodes():
             self.die()
