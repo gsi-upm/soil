@@ -208,3 +208,13 @@ def deserialize(type_, value=None, **kwargs):
     if value is None:
         return des
     return des(value)
+
+
+def deserialize_all(names, *args, known_modules=['soil'], **kwargs):
+    '''Return the set of exporters for a simulation, given the exporter names'''
+    exporters = []
+    for name in names:
+        mod = deserialize(name, known_modules=known_modules)
+        exporters.append(mod(*args, **kwargs))
+    return exporters
+

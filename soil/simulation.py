@@ -15,7 +15,7 @@ import pickle
 from . import serialization, utils, basestring, agents
 from .environment import Environment
 from .utils import logger
-from .exporters import default, for_sim as exporters_for_sim
+from .exporters import default
 from .stats import defaultStats
 from .history import History
 
@@ -133,7 +133,7 @@ class Simulation:
                                               self.topology)
 
         self._history = History(name=self.name,
-                               backup=False)
+                                backup=False)
 
     def run_simulation(self, *args, **kwargs):
         return self.run(*args, **kwargs)
@@ -167,14 +167,16 @@ class Simulation:
             logger.setLevel(log_level)
         logger.info('Using exporters: %s', exporters or [])
         logger.info('Output directory: %s', outdir)
-        exporters = exporters_for_sim(self,
-                                      exporters,
-                                      dry_run=dry_run,
-                                      outdir=outdir,
-                                      **exporter_params)
-        stats = exporters_for_sim(self,
-                                  stats,
-                                  **stats_params)
+        exporters = serialization.deserialize_all(exporters,
+                                                  simulation=self,
+                                                  known_modules=['soil.exporters',],
+                                                  dry_run=dry_run,
+                                                  outdir=outdir,
+                                                  **exporter_params)
+        stats = serialization.deserialize_all(simulation=self,
+                                              names=stats,
+                                              known_modules=['soil.stats',],
+                                              **stats_params)
 
         with utils.timer('simulation {}'.format(self.name)):
             for stat in stats:
@@ -292,6 +294,9 @@ class Simulation:
                              '{}.simulation.pickle'.format(self.name))
         with utils.open_or_reuse(f, 'wb') as f:
             pickle.dump(self, f)
+
+    def dump_sqlite(self, f):
+        return self._history.dump(f)
 
     def __getstate__(self):
         state={}

@@ -14,15 +14,6 @@ from .utils import open_or_reuse, logger, timer
 from . import utils
 
 
-def for_sim(simulation, names, *args, **kwargs):
-    '''Return the set of exporters for a simulation, given the exporter names'''
-    exporters = []
-    for name in names:
-        mod = deserialize(name, known_modules=['soil.exporters'])
-        exporters.append(mod(simulation, *args, **kwargs))
-    return exporters
-
-
 class DryRunner(BytesIO):
     def __init__(self, fname, *args, copy_to=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -38,8 +29,12 @@ class DryRunner(BytesIO):
             super().write(bytes(txt, 'utf-8'))
 
     def close(self):
-        logger.info('**Not** written to {} (dry run mode):\n\n{}\n\n'.format(self.__fname,
-                                                                       self.getvalue().decode()))
+        content = '(binary data not shown)'
+        try:
+            content = self.getvalue().decode()
+        except UnicodeDecodeError:
+            pass
+        logger.info('**Not** written to {} (dry run mode):\n\n{}\n\n'.format(self.__fname, content))
         super().close()
 
 
@@ -98,6 +93,12 @@ class default(Exporter):
                                                                env.name)):
                 with self.output('{}.sqlite'.format(env.name), mode='wb') as f:
                     env.dump_sqlite(f)
+
+    def end(self, stats):
+          with timer('Dumping simulation {}\'s stats'.format(self.simulation.name)):
+              with self.output('{}.sqlite'.format(self.simulation.name), mode='wb') as f:
+                  self.simulation.dump_sqlite(f)
+
 
 
 class csv(Exporter):

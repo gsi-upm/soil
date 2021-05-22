@@ -3,6 +3,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.2]
+### Fixed
+* Pass the right known_modules and parameters to stats discovery in simulation
+* The configuration file must exist when launching through the CLI. If it doesn't, an error will be logged
+* Minor changes in the documentation of the CLI arguments
+### Changed
+* Stats are now exported by default
 ## [0.15.1]
 ### Added
 * read-only `History`

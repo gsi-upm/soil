@@ -23,13 +23,15 @@ def main():
     import argparse
     from . import simulation
 
-    logging.info('Running SOIL version: {}'.format(__version__))
+    logger.info('Running SOIL version: {}'.format(__version__))
 
     parser = argparse.ArgumentParser(description='Run a SOIL simulation')
     parser.add_argument('file', type=str,
                         nargs="?",
                         default='simulation.yml',
-                        help='python module containing the simulation configuration.')
+                        help='Configuration file for the simulation (e.g., YAML or JSON)')
+    parser.add_argument('--version', action='store_true',
+                        help='Show version info and exit')
     parser.add_argument('--module', '-m', type=str,
                         help='file containing the code of any custom agents.')
     parser.add_argument('--dry-run', '--dry', action='store_true',
@@ -52,12 +54,15 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, (args.level or 'INFO').upper()))
 
+    if args.version:
+        return
+
     if os.getcwd() not in sys.path:
         sys.path.append(os.getcwd())
     if args.module:
         importlib.import_module(args.module)
 
-    logging.info('Loading config file: {}'.format(args.file))
+    logger.info('Loading config file: {}'.format(args.file))
 
     try:
         exporters = list(args.exporter or ['default', ])
@@ -68,6 +73,10 @@ def main():
         exp_params = {}
         if args.dry_run:
             exp_params['copy_to'] = sys.stdout
+
+        if not os.path.exists(args.file):
+            logger.error('Please, input a valid file')
+            return
         simulation.run_from_config(args.file,
                                    dry_run=args.dry_run,
                                    exporters=exporters,

@@ -74,10 +74,10 @@ class Exporters(TestCase):
         s = simulation.from_config(config)
         tmpdir = tempfile.mkdtemp()
         envs = s.run_simulation(exporters=[
-            exporters.default,
-            exporters.csv,
-            exporters.gexf,
-        ],
+                                    exporters.default,
+                                    exporters.csv,
+                                    exporters.gexf,
+                                ],
                                 stats=[distribution,],
                                 outdir=tmpdir,
                                 exporter_params={'copy_to': output})
