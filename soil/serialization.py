@@ -13,7 +13,6 @@ from jinja2 import Template
 
 
 logger = logging.getLogger('soil')
-logger.setLevel(logging.INFO)
 
 
 def load_network(network_params, dir_path=None):
@@ -51,6 +50,9 @@ def load_network(network_params, dir_path=None):
 
 
 def load_file(infile):
+    folder = os.path.dirname(infile)
+    if folder not in sys.path:
+        sys.path.append(folder)
     with open(infile, 'r') as f:
         return list(chain.from_iterable(map(expand_template, load_string(f))))
 

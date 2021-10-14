@@ -126,7 +126,7 @@ class TestMain(TestCase):
         env = s.run_simulation(dry_run=True)[0]
         for agent in env.network_agents:
             last = 0
-            assert len(agent[None, None]) == 10
+            assert len(agent[None, None]) == 11
             for step, total in sorted(agent['total', None]):
                 assert total == last + 2
                 last = total
@@ -198,11 +198,11 @@ class TestMain(TestCase):
         """
         config = serialization.load_file(join(EXAMPLES, 'complete.yml'))[0]
         s = simulation.from_config(config)
-        for i in range(5):
-            s.run_simulation(dry_run=True)
-            nconfig = s.to_dict()
-            del nconfig['topology']
-            assert config == nconfig
+
+        s.run_simulation(dry_run=True)
+        nconfig = s.to_dict()
+        del nconfig['topology']
+        assert config == nconfig
 
     def test_row_conversion(self):
         env = Environment()
@@ -211,7 +211,7 @@ class TestMain(TestCase):
         res = list(env.history_to_tuples())
         assert len(res) == len(env.environment_params)
 
-        env._now = 1
+        env.schedule.time = 1
         env['test'] = 'second_value'
         res = list(env.history_to_tuples())
 
@@ -281,7 +281,7 @@ class TestMain(TestCase):
                 'weight': 2
             },
         ]
-        converted = agents.deserialize_distribution(agent_distro)
+        converted = agents.deserialize_definition(agent_distro)
         assert converted[0]['agent_type'] == agents.CounterModel
         assert converted[1]['agent_type'] == CustomAgent
         pickle.dumps(converted)
@@ -297,14 +297,14 @@ class TestMain(TestCase):
                 'weight': 2
             },
         ]
-        converted = agents.serialize_distribution(agent_distro)
+        converted = agents.serialize_definition(agent_distro)
         assert converted[0]['agent_type'] == 'CounterModel'
         assert converted[1]['agent_type'] == 'test_main.CustomAgent'
         pickle.dumps(converted)
 
     def test_pickle_agent_environment(self):
         env = Environment(name='Test')
-        a = agents.BaseAgent(environment=env, agent_id=25)
+        a = agents.BaseAgent(model=env, unique_id=25)
 
         a['key'] = 'test'
 
@@ -345,7 +345,7 @@ class TestMain(TestCase):
 
     def test_until(self):
         config = {
-            'name': 'exporter_sim',
+            'name': 'until_sim',
             'network_params': {},
             'agent_type': 'CounterModel',
             'max_time': 2,

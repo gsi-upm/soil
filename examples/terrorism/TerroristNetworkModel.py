@@ -18,12 +18,12 @@ class TerroristSpreadModel(FSM, Geo):
         prob_interaction
     """
 
-    def __init__(self, environment=None, agent_id=0, state=()):
-        super().__init__(environment=environment, agent_id=agent_id, state=state)
+    def __init__(self, model=None, unique_id=0, state=()):
+        super().__init__(model=model, unique_id=unique_id, state=state)
 
-        self.information_spread_intensity = environment.environment_params['information_spread_intensity']
-        self.terrorist_additional_influence = environment.environment_params['terrorist_additional_influence']
-        self.prob_interaction = environment.environment_params['prob_interaction']
+        self.information_spread_intensity = model.environment_params['information_spread_intensity']
+        self.terrorist_additional_influence = model.environment_params['terrorist_additional_influence']
+        self.prob_interaction = model.environment_params['prob_interaction']
 
         if self['id'] == self.civilian.id:       # Civilian
             self.mean_belief = random.uniform(0.00, 0.5)
@@ -34,10 +34,10 @@ class TerroristSpreadModel(FSM, Geo):
         else:
             raise Exception('Invalid state id: {}'.format(self['id']))
 
-        if 'min_vulnerability' in environment.environment_params:
-            self.vulnerability = random.uniform( environment.environment_params['min_vulnerability'], environment.environment_params['max_vulnerability'] )
+        if 'min_vulnerability' in model.environment_params:
+            self.vulnerability = random.uniform( model.environment_params['min_vulnerability'], model.environment_params['max_vulnerability'] )
         else :
-            self.vulnerability = random.uniform( 0, environment.environment_params['max_vulnerability'] )
+            self.vulnerability = random.uniform( 0, model.environment_params['max_vulnerability'] )
 
 
     @state
@@ -93,11 +93,11 @@ class TrainingAreaModel(FSM, Geo):
     Requires TerroristSpreadModel.
     """
 
-    def __init__(self, environment=None, agent_id=0, state=()):
-        super().__init__(environment=environment, agent_id=agent_id, state=state)
-        self.training_influence = environment.environment_params['training_influence']
-        if 'min_vulnerability' in environment.environment_params:
-            self.min_vulnerability = environment.environment_params['min_vulnerability']
+    def __init__(self, model=None, unique_id=0, state=()):
+        super().__init__(model=model, unique_id=unique_id, state=state)
+        self.training_influence = model.environment_params['training_influence']
+        if 'min_vulnerability' in model.environment_params:
+            self.min_vulnerability = model.environment_params['min_vulnerability']
         else: self.min_vulnerability = 0
 
     @default_state
@@ -120,13 +120,13 @@ class HavenModel(FSM, Geo):
     Requires TerroristSpreadModel.
     """
 
-    def __init__(self, environment=None, agent_id=0, state=()):
-        super().__init__(environment=environment, agent_id=agent_id, state=state)
-        self.haven_influence = environment.environment_params['haven_influence']
-        if 'min_vulnerability' in environment.environment_params:
-            self.min_vulnerability = environment.environment_params['min_vulnerability']
+    def __init__(self, model=None, unique_id=0, state=()):
+        super().__init__(model=model, unique_id=unique_id, state=state)
+        self.haven_influence = model.environment_params['haven_influence']
+        if 'min_vulnerability' in model.environment_params:
+            self.min_vulnerability = model.environment_params['min_vulnerability']
         else: self.min_vulnerability = 0
-        self.max_vulnerability = environment.environment_params['max_vulnerability']
+        self.max_vulnerability = model.environment_params['max_vulnerability']
 
     def get_occupants(self, **kwargs):
         return self.get_neighboring_agents(agent_type=TerroristSpreadModel, **kwargs)
@@ -162,13 +162,13 @@ class TerroristNetworkModel(TerroristSpreadModel):
         weight_link_distance
     """
 
-    def __init__(self, environment=None, agent_id=0, state=()):
-        super().__init__(environment=environment, agent_id=agent_id, state=state)
+    def __init__(self, model=None, unique_id=0, state=()):
+        super().__init__(model=model, unique_id=unique_id, state=state)
 
-        self.vision_range = environment.environment_params['vision_range']
-        self.sphere_influence = environment.environment_params['sphere_influence']
-        self.weight_social_distance = environment.environment_params['weight_social_distance']
-        self.weight_link_distance = environment.environment_params['weight_link_distance']
+        self.vision_range = model.environment_params['vision_range']
+        self.sphere_influence = model.environment_params['sphere_influence']
+        self.weight_social_distance = model.environment_params['weight_social_distance']
+        self.weight_link_distance = model.environment_params['weight_link_distance']
 
     @state
     def terrorist(self):

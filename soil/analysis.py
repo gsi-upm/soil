@@ -61,7 +61,12 @@ def convert_row(row):
 
 
 def convert_types_slow(df):
-    '''This is a slow operation.'''
+    '''
+    Go over every column in a dataframe and convert it to the type determined by the `get_types`
+    function.
+
+    This is a slow operation.
+    '''
     dtypes = get_types(df)
     for k, v in dtypes.items():
         t = df[df['key']==k]
@@ -102,6 +107,9 @@ def process(df, **kwargs):
 
 
 def get_types(df):
+    '''
+    Get the value type for every key stored in a raw history dataframe.
+    '''
     dtypes = df.groupby(by=['key'])['value_type'].unique()
     return {k:v[0] for k,v in dtypes.iteritems()}
 
@@ -126,8 +134,14 @@ def process_one(df, *keys, columns=['key', 'agent_id'], values='value',
 
 
 def get_count(df, *keys):
+    '''
+    For every t_step and key, get the value count.
+
+    The result is a dataframe with `t_step` as index, an a multiindex column based on `key` and the values found for each `key`.
+    '''
     if keys:
         df = df[list(keys)]
+        df.columns = df.columns.remove_unused_levels()
     counts = pd.DataFrame()
     for key in df.columns.levels[0]:
         g = df[[key]].apply(pd.Series.value_counts, axis=1).fillna(0)
@@ -137,10 +151,25 @@ def get_count(df, *keys):
     return counts
 
 
+def get_majority(df, *keys):
+    '''
+    For every t_step and key, get the value of the majority of agents
+
+    The result is a dataframe with `t_step` as index, and columns based on `key`.
+    '''
+    df = get_count(df, *keys)
+    return df.stack(level=0).idxmax(axis=1).unstack()
+
+
 def get_value(df, *keys, aggfunc='sum'):
+    '''
+    For every t_step and key, get the value of *numeric columns*, aggregated using a specific function.
+    '''
     if keys:
         df = df[list(keys)]
-    return df.groupby(axis=1, level=0).agg(aggfunc)
+        df.columns = df.columns.remove_unused_levels()
+    df = df.select_dtypes('number')
+    return df.groupby(level='key', axis=1).agg(aggfunc)
 
 
 def plot_all(*args, plot_args={}, **kwargs):

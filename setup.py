@@ -16,6 +16,12 @@ def parse_requirements(filename):
 
 install_reqs = parse_requirements("requirements.txt")
 test_reqs = parse_requirements("test-requirements.txt")
+extras_require={
+    'mesa': ['mesa>=0.8.9'],
+    'geo': ['scipy>=1.3'],
+    'web': ['tornado']
+}
+extras_require['all'] = [dep for package in extras_require.values() for dep in package]
 
 
 setup(
@@ -40,10 +46,7 @@ setup(
         'Operating System :: POSIX',
         'Programming Language :: Python :: 3'],
     install_requires=install_reqs,
-    extras_require={
-        'web': ['tornado']
-
-    },
+    extras_require=extras_require,
     tests_require=test_reqs,
     setup_requires=['pytest-runner', ],
     include_package_data=True,

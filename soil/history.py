@@ -52,7 +52,7 @@ class History:
 
         with self.db:
             logger.debug('Creating database {}'.format(self.db_path))
-            self.db.execute('''CREATE TABLE IF NOT EXISTS history (agent_id text, t_step int, key text, value text)''')
+            self.db.execute('''CREATE TABLE IF NOT EXISTS history (agent_id text, t_step real, key text, value text)''')
             self.db.execute('''CREATE TABLE IF NOT EXISTS value_types (key text, value_type text)''')
             self.db.execute('''CREATE TABLE IF NOT EXISTS stats (trial_id text)''')
             self.db.execute('''CREATE UNIQUE INDEX IF NOT EXISTS idx_history ON history (agent_id, t_step, key);''')
@@ -103,7 +103,7 @@ class History:
                         dtype = 'real'
                         int(value)
                         dtype = 'int'
-                    except ValueError:
+                    except (ValueError, OverflowError):
                         pass
                 self.db.execute('ALTER TABLE stats ADD "{}" "{}"'.format(column, dtype))
                 self._stats_columns.append(column)
@@ -167,6 +167,7 @@ class History:
                 with self.db:
                     self.db.execute("replace into value_types (key, value_type) values (?, ?)", (key, name))
         value = self._dtypes[key][1](value)
+
         self._tups.append(Record(agent_id=agent_id,
                                  t_step=t_step,
                                  key=key,
@@ -183,9 +184,9 @@ class History:
             raise Exception('DB in readonly mode')
         logger.debug('Flushing cache {}'.format(self.db_path))
         with self.db:
-            for rec in self._tups:
-                self.db.execute("replace into history(agent_id, t_step, key, value) values (?, ?, ?, ?)", (rec.agent_id, rec.t_step, rec.key, rec.value))
-        self._tups = list()
+            self.db.executemany("replace into history(agent_id, t_step, key, value) values (?, ?, ?, ?)", self._tups)
+            # (rec.agent_id, rec.t_step, rec.key, rec.value))
+        self._tups.clear()
 
     def to_tuples(self):
         self.flush_cache()
@@ -209,6 +210,7 @@ class History:
             self._dtypes[k] = (v, serializer, deserializer)
 
     def __getitem__(self, key):
+        # raise NotImplementedError()
         self.flush_cache()
         key = Key(*key)
         agent_ids = [key.agent_id] if key.agent_id is not None else []
@@ -223,7 +225,7 @@ class History:
             return r.value()
         return r
 
-    def read_sql(self, keys=None, agent_ids=None, t_steps=None, convert_types=False, limit=-1):
+    def read_sql(self, keys=None, agent_ids=None, not_agent_ids=None, t_steps=None, convert_types=False, limit=-1):
 
         self._read_types()
 
@@ -233,7 +235,8 @@ class History:
             return ",".join(map(lambda x: "\'{}\'".format(x), v))
 
         filters = [("key in ({})".format(escape_and_join(keys)), keys),
-                   ("agent_id in ({})".format(escape_and_join(agent_ids)), agent_ids)
+                   ("agent_id in ({})".format(escape_and_join(agent_ids)), agent_ids),
+                   ("agent_id not in ({})".format(escape_and_join(not_agent_ids)), not_agent_ids)
         ]
         filters = list(k[0] for k in filters if k[1])
 

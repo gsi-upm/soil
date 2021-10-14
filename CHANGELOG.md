@@ -3,6 +3,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Added
+* [WIP] Integration with MESA
+* `not_agent_ids` paramter to get sql in history
+### Changed
+* `soil.Environment` now also inherits from `mesa.Model`
+* `soil.Agent` now also inherits from `mesa.Agent`
+* `soil.time` to replace `simpy` events, delays, duration, etc.
+### Removed
+* `simpy` dependency and compatibility. Each agent used to be a simpy generator, but that made debugging and error handling more complex. That has been replaced by a scheduler within the `soil.Environment` class, similar to how `mesa` does it.
+
+### TODO:
+* agent_id -> unique_id?
+* mesa has Agent.model and soil has Agent.env
+* Environments.agents and mesa.Agent.agents are not the same. env is a property, and it only takes into account network and environment agents. Might rename environment_agents to other_agents or sth like that
+* soil.History should mimic a mesa.datacollector :/
+* soil.Simulation *could* mimic a mesa.batchrunner
+* DONE include scheduler in environment
+* DONE environment inherits from `mesa.Model`
+
+
 ## [0.15.2]
 ### Fixed
 * Pass the right known_modules and parameters to stats discovery in simulation

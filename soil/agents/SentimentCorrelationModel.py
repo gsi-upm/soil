@@ -16,8 +16,8 @@ class SentimentCorrelationModel(BaseAgent):
         disgust_prob
     """
 
-    def __init__(self, environment, agent_id=0, state=()):
-        super().__init__(environment=environment, agent_id=agent_id, state=state)
+    def __init__(self, environment, unique_id=0, state=()):
+        super().__init__(model=environment, unique_id=unique_id, state=state)
         self.outside_effects_prob = environment.environment_params['outside_effects_prob']
         self.anger_prob = environment.environment_params['anger_prob']
         self.joy_prob = environment.environment_params['joy_prob']

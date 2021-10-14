@@ -7,8 +7,8 @@ from shutil import copyfile
 from contextlib import contextmanager
 
 logger = logging.getLogger('soil')
-logging.basicConfig()
-logger.setLevel(logging.INFO)
+# logging.basicConfig()
+# logger.setLevel(logging.INFO)
 
 
 @contextmanager

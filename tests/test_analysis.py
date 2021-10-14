@@ -21,11 +21,13 @@ class Ping(agents.FSM):
     @agents.default_state
     @agents.state
     def even(self):
+        self.debug(f'Even {self["count"]}')
         self['count'] += 1
         return self.odd
 
     @agents.state
     def odd(self):
+        self.debug(f'Odd {self["count"]}')
         self['count'] += 1
         return self.even
 
@@ -82,8 +84,7 @@ class TestAnalysis(TestCase):
 
         import numpy as np
         res_mean = analysis.get_value(df, 'count', aggfunc=np.mean)
-        assert res_mean['count'].iloc[0] == 1
+        assert res_mean['count'].iloc[15] == (16+8)/2
 
-        res_total = analysis.get_value(df)
-
+        res_total = analysis.get_majority(df)
         res_total['SEED'].iloc[0] == self.env['SEED']

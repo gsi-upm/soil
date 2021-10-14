@@ -1,28 +1,29 @@
 import os
 import sqlite3
-import time
 import csv
+import math
 import random
-import simpy
 import yaml
 import tempfile
 import pandas as pd
+from time import time as current_time
 from copy import deepcopy
 from networkx.readwrite import json_graph
 
 import networkx as nx
-import simpy
 
-from . import serialization, agents, analysis, history, utils
+from mesa import Model
+
+from . import serialization, agents, analysis, history, utils, time
 
 # These properties will be copied when pickling/unpickling the environment
 _CONFIG_PROPS = [ 'name',
-                 'states',
-                 'default_state',
-                 'interval',
+                  'states',
+                  'default_state',
+                  'interval',
                  ]
 
-class Environment(simpy.Environment):
+class Environment(Model):
     """
     The environment is key in a simulation. It contains the network topology,
     a reference to network and environment agents, as well as the environment
@@ -39,25 +40,41 @@ class Environment(simpy.Environment):
                  states=None,
                  default_state=None,
                  interval=1,
+                 network_params=None,
                  seed=None,
                  topology=None,
+                 schedule=None,
                  initial_time=0,
-                 **environment_params):
+                 environment_params=None,
+                 dir_path=None,
+                 **kwargs):
 
+
+        super().__init__()
+
+        self.schedule = schedule
+        if schedule is None:
+            self.schedule = time.TimedActivation()
 
         self.name = name or 'UnnamedEnvironment'
-        seed = seed or time.time()
+        seed = seed or current_time()
         random.seed(seed)
         if isinstance(states, list):
             states = dict(enumerate(states))
         self.states = deepcopy(states) if states else {}
         self.default_state = deepcopy(default_state) or {}
+
+        if topology is None:
+            network_params = network_params or {}
+            topology = serialization.load_network(network_params,
+                                                  dir_path=dir_path)
         if not topology:
             topology = nx.Graph()
         self.G = nx.Graph(topology) 
 
-        super().__init__(initial_time=initial_time)
-        self.environment_params = environment_params
+
+        self.environment_params = environment_params or {}
+        self.environment_params.update(kwargs)
 
         self._env_agents = {}
         self.interval = interval
@@ -66,8 +83,26 @@ class Environment(simpy.Environment):
         self['SEED'] = seed
         # Add environment agents first, so their events get
         # executed before network agents
-        self.environment_agents = environment_agents or []
-        self.network_agents = network_agents or []
+
+
+        if network_agents:
+            distro = agents.calculate_distribution(network_agents)
+            self.network_agents = agents._convert_agent_types(distro)
+        else:
+            self.network_agents = []
+
+        environment_agents = environment_agents or []
+        if environment_agents:
+            distro = agents.calculate_distribution(environment_agents)
+            environment_agents = agents._convert_agent_types(distro)
+        self.environment_agents = environment_agents
+
+
+    @property
+    def now(self):
+        if self.schedule:
+            return self.schedule.time
+        raise Exception('The environment has not been scheduled, so it has no sense of time')
 
     @property
     def agents(self):
@@ -81,15 +116,9 @@ class Environment(simpy.Environment):
 
     @environment_agents.setter
     def environment_agents(self, environment_agents):
-        # Set up environmental agent
-        self._env_agents = {}
-        for item in environment_agents:
-            kwargs = deepcopy(item)
-            atype = kwargs.pop('agent_type')
-            kwargs['agent_id'] = kwargs.get('agent_id', atype.__name__)
-            kwargs['state'] = kwargs.get('state', {})
-            a = atype(environment=self, **kwargs)
-            self._env_agents[a.id] = a
+        self._environment_agents = environment_agents
+
+        self._env_agents = agents._definition_to_dict(definition=environment_agents)
 
     @property
     def network_agents(self):
@@ -102,9 +131,9 @@ class Environment(simpy.Environment):
     def network_agents(self, network_agents):
         self._network_agents = network_agents
         for ix in self.G.nodes():
-            self.init_agent(ix, agent_distribution=network_agents)
+            self.init_agent(ix, agent_definitions=network_agents)
 
-    def init_agent(self, agent_id, agent_distribution):
+    def init_agent(self, agent_id, agent_definitions):
         node = self.G.nodes[agent_id]
         init = False
         state = dict(node)
@@ -119,8 +148,8 @@ class Environment(simpy.Environment):
 
         if agent_type:
             agent_type = agents.deserialize_type(agent_type)
-        elif agent_distribution:
-            agent_type, state = agents._agent_from_distribution(agent_distribution, agent_id=agent_id)
+        elif agent_definitions:
+            agent_type, state = agents._agent_from_definition(agent_definitions, unique_id=agent_id)
         else:
             serialization.logger.debug('Skipping node {}'.format(agent_id))
             return
@@ -136,8 +165,8 @@ class Environment(simpy.Environment):
         a = None
         if agent_type:
             state = defstate
-            a = agent_type(environment=self,
-                           agent_id=agent_id,
+            a = agent_type(model=self,
+                           unique_id=agent_id,
                            state=state)
         node['agent'] = a
         return a
@@ -159,29 +188,17 @@ class Environment(simpy.Environment):
 
     def run(self, until, *args, **kwargs):
         self._save_state()
-        super().run(until, *args, **kwargs)
+        for agent in self.agents:
+            self.schedule.add(agent)
+
+        while self.schedule.next_time <= until and not math.isinf(self.schedule.next_time):
+            self.schedule.step(until=until)
+            utils.logger.debug(f'Simulation step {self.schedule.time}/{until}. Next: {self.schedule.next_time}')
         self._history.flush_cache()
 
     def _save_state(self, now=None):
         serialization.logger.debug('Saving state @{}'.format(self.now))
         self._history.save_records(self.state_to_tuples(now=now))
-
-    def save_state(self):
-        '''
-        :DEPRECATED:
-        Periodically save the state of the environment and the agents.
-        '''
-        self._save_state()
-        while self.peek() != simpy.core.Infinity:
-            delay = max(self.peek() - self.now, self.interval)
-            serialization.logger.debug('Step: {}'.format(self.now))
-            ev = self.event()
-            ev._ok = True
-            # Schedule the event with minimum priority so
-            # that it executes before all agents
-            self.schedule(ev, -999, delay)
-            yield ev
-            self._save_state()
 
     def __getitem__(self, key):
         if isinstance(key, tuple):
@@ -329,7 +346,7 @@ class Environment(simpy.Environment):
         state['G'] = json_graph.node_link_data(self.G)
         state['environment_agents'] = self._env_agents
         state['history'] = self._history
-        state['_now'] = self._now
+        state['schedule'] = self.schedule
         return state
 
     def __setstate__(self, state):
@@ -338,7 +355,8 @@ class Environment(simpy.Environment):
         self._env_agents = state['environment_agents']
         self.G = json_graph.node_link_graph(state['G'])
         self._history = state['history']
-        self._now = state['_now']
+        # self._env = None
+        self.schedule = state['schedule']
         self._queue = []
 
 

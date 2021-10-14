@@ -1,21 +1,15 @@
-# networkStatus = {}  # Dict that will contain the status of every agent in the network
-# sentimentCorrelationNodeArray = []
-# for x in range(0, settings.network_params["number_of_nodes"]):
-#     sentimentCorrelationNodeArray.append({'id': x})
-# Initialize agent states. Let's assume everyone is normal.
-
-
 import logging
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from copy import deepcopy
 from functools import partial
-from scipy.spatial import cKDTree as KDTree
 import json
-import simpy
+import networkx as nx
 
 from functools import wraps
 
-from .. import serialization, history, utils
+from .. import serialization, history, utils, time
+
+from mesa import Agent
 
 
 def as_node(agent):
@@ -24,39 +18,51 @@ def as_node(agent):
     return agent
 
 
-class BaseAgent:
+class BaseAgent(Agent):
     """
-    A special simpy BaseAgent that keeps track of its state history.
+    A special Agent that keeps track of its state history.
     """
 
     defaults = {}
 
-    def __init__(self, environment, agent_id, state=None,
-                 name=None, interval=None):
+    def __init__(self,
+                 unique_id,
+                 model,
+                 state=None,
+                 name=None,
+                 interval=None):
         # Check for REQUIRED arguments
-        assert environment is not None, TypeError('__init__ missing 1 required keyword argument: \'environment\'. '
-                                                  'Cannot be NoneType.')
         # Initialize agent parameters
-        self.id = agent_id
-        self.name = name or '{}[{}]'.format(type(self).__name__, self.id)
-
-        # Register agent to environment
-        self.env = environment
+        if isinstance(unique_id, Agent):
+            raise Exception()
+        super().__init__(unique_id=unique_id, model=model)
+        self.name = name or '{}[{}]'.format(type(self).__name__, self.unique_id)
 
         self._neighbors = None
         self.alive = True
         real_state = deepcopy(self.defaults)
         real_state.update(state or {})
         self.state = real_state
-        self.interval = interval
 
-        self.logger = logging.getLogger(self.env.name).getChild(self.name)
+        self.interval = interval or self.get('interval', getattr(self.model, 'interval', 1))
+        self.logger = logging.getLogger(self.model.name).getChild(self.name)
 
         if hasattr(self, 'level'):
             self.logger.setLevel(self.level)
 
-        # initialize every time an instance of the agent is created
-        self.action = self.env.process(self.run())
+
+    # TODO: refactor to clean up mesa compatibility
+    @property
+    def id(self):
+        return self.unique_id
+
+    @property
+    def env(self):
+        return self.model
+
+    @env.setter
+    def env(self, model):
+        self.model = model
 
     @property
     def state(self):
@@ -76,17 +82,17 @@ class BaseAgent:
 
     @property
     def environment_params(self):
-        return self.env.environment_params
+        return self.model.environment_params
 
     @environment_params.setter
     def environment_params(self, value):
-        self.env.environment_params = value
+        self.model.environment_params = value
 
     def __getitem__(self, key):
         if isinstance(key, tuple):
             key, t_step = key
             k = history.Key(key=key, t_step=t_step, agent_id=self.id)
-            return self.env[k]
+            return self.model[k]
         return self._state.get(key, None)
 
     def __delitem__(self, key):
@@ -100,7 +106,7 @@ class BaseAgent:
         k = history.Key(t_step=self.now,
                         agent_id=self.id,
                         key=key)
-        self.env[k] = value
+        self.model[k] = value
 
     def items(self):
         return self._state.items()
@@ -111,21 +117,10 @@ class BaseAgent:
     @property
     def now(self):
         try:
-            return self.env.now
+            return self.model.now
         except AttributeError:
             # No environment
             return None
-
-    def run(self):
-        if self.interval is not None:
-            interval = self.interval
-        elif 'interval' in self:
-            interval = self['interval']
-        else:
-            interval = self.env.interval
-        while self.alive:
-            res = self.step()
-            yield res or self.env.timeout(interval)
 
     def die(self, remove=False):
         self.alive = False
@@ -133,7 +128,22 @@ class BaseAgent:
             self.remove_node(self.id)
 
     def step(self):
-        return
+        if not self.alive:
+            return time.When('inf')
+        return super().step() or time.Delta(self.interval)
+
+    def log(self, message, *args, level=logging.INFO, **kwargs):
+        if not self.logger.isEnabledFor(level):
+            return
+        message = message + " ".join(str(i) for i in args)
+        message = " @{:>3}: {}".format(self.now, message)
+        for k, v in kwargs:
+            message += " {k}={v} ".format(k, v)
+        extra = {}
+        extra['now'] = self.now
+        extra['unique_id'] = self.unique_id
+        extra['agent_name'] = self.name
+        return self.logger.log(level, message, extra=extra)
 
     def debug(self, *args, **kwargs):
         return self.log(*args, level=logging.DEBUG, **kwargs)
@@ -149,7 +159,7 @@ class BaseAgent:
         '''
         state = {}
         state['id'] = self.id
-        state['environment'] = self.env
+        state['environment'] = self.model
         state['_state'] = self._state
         return state
 
@@ -157,19 +167,19 @@ class BaseAgent:
         '''
         Get back a serialized agent and try to re-compose it
         '''
-        self.id = state['id']
+        self.state_id = state['id']
         self._state = state['_state']
-        self.env = state['environment']
+        self.model = state['environment']
 
 class NetworkAgent(BaseAgent):
 
     @property
     def topology(self):
-        return self.env.G
+        return self.model.G
 
     @property
     def G(self):
-        return self.env.G
+        return self.model.G
 
     def count_agents(self, **kwargs):
         return len(list(self.get_agents(**kwargs)))
@@ -182,37 +192,26 @@ class NetworkAgent(BaseAgent):
 
     def get_agents(self, agents=None, limit_neighbors=False, **kwargs):
         if limit_neighbors:
-            agents = self.topology.neighbors(self.id)
+            agents = self.topology.neighbors(self.unique_id)
 
-        agents = self.env.get_agents(agents)
+        agents = self.model.get_agents(agents)
         return select(agents, **kwargs)
-
-    def log(self, message, *args, level=logging.INFO, **kwargs):
-        message = message + " ".join(str(i) for i in args)
-        message = " @{:>3}: {}".format(self.now, message)
-        for k, v in kwargs:
-            message += " {k}={v} ".format(k, v)
-        extra = {}
-        extra['now'] = self.now
-        extra['agent_id'] = self.id
-        extra['agent_name'] = self.name
-        return self.logger.log(level, message, extra=extra)
 
     def subgraph(self, center=True, **kwargs):
         include = [self] if center else []
-        return self.topology.subgraph(n.id for n in self.get_agents(**kwargs)+include)
+        return self.topology.subgraph(n.unique_id for n in self.get_agents(**kwargs)+include)
 
-    def remove_node(self, agent_id):
-        self.topology.remove_node(agent_id)
+    def remove_node(self, unique_id):
+        self.topology.remove_node(unique_id)
 
     def add_edge(self, other, edge_attr_dict=None, *edge_attrs):
         # return super(NetworkAgent, self).add_edge(node1=self.id, node2=other, **kwargs)
-        if self.id not in self.topology.nodes(data=False):
-            raise ValueError('{} not in list of existing agents in the network'.format(self.id))
+        if self.unique_id not in self.topology.nodes(data=False):
+            raise ValueError('{} not in list of existing agents in the network'.format(self.unique_id))
         if other not in self.topology.nodes(data=False):
             raise ValueError('{} not in list of existing agents in the network'.format(other))
 
-        self.topology.add_edge(self.id, other, edge_attr_dict=edge_attr_dict, *edge_attrs)
+        self.topology.add_edge(self.unique_id, other, edge_attr_dict=edge_attr_dict, *edge_attrs)
 
 
     def ego_search(self, steps=1, center=False, node=None, **kwargs):
@@ -223,17 +222,17 @@ class NetworkAgent(BaseAgent):
 
     def degree(self, node, force=False):
         node = as_node(node)
-        if force or (not hasattr(self.env, '_degree')) or getattr(self.env, '_last_step', 0) < self.now:
-            self.env._degree = nx.degree_centrality(self.topology)
-            self.env._last_step = self.now
-        return self.env._degree[node]
+        if force or (not hasattr(self.model, '_degree')) or getattr(self.model, '_last_step', 0) < self.now:
+            self.model._degree = nx.degree_centrality(self.topology)
+            self.model._last_step = self.now
+        return self.model._degree[node]
 
     def betweenness(self, node, force=False):
         node = as_node(node)
-        if force or (not hasattr(self.env, '_betweenness')) or getattr(self.env, '_last_step', 0) < self.now:
-            self.env._betweenness = nx.betweenness_centrality(self.topology)
-            self.env._last_step = self.now
-        return self.env._betweenness[node]
+        if force or (not hasattr(self.model, '_betweenness')) or getattr(self.model, '_last_step', 0) < self.now:
+            self.model._betweenness = nx.betweenness_centrality(self.topology)
+            self.model._last_step = self.now
+        return self.model._betweenness[node]
 
 
 def state(name=None):
@@ -301,36 +300,29 @@ class FSM(NetworkAgent, metaclass=MetaFSM):
         super(FSM, self).__init__(*args, **kwargs)
         if 'id' not in self.state:
             if not self.default_state:
-                raise ValueError('No default state specified for {}'.format(self.id))
+                raise ValueError('No default state specified for {}'.format(self.unique_id))
             self['id'] = self.default_state.id
-        self._next_change = simpy.core.Infinity
-        self._next_state = self.state
+
+        self.set_state(self.state['id'])
 
     def step(self):
-        if self._next_change < self.now:
-            next_state = self._next_state
-            self._next_change = simpy.core.Infinity
-            self['id'] = next_state
-        elif 'id' in self.state:
-            next_state = self['id']
-        elif self.default_state:
-            next_state = self.default_state.id
-        else:
-            raise Exception('{} has no valid state id or default state'.format(self))
-        if next_state not in self.states:
-            raise Exception('{} is not a valid id for {}'.format(next_state, self))
-        return self.states[next_state](self)
-
-    def next_state(self, state):
-        self._next_change = self.now
-        self._next_state = state
+        self.debug(f'Agent {self.unique_id} @ state {self["id"]}')
+        interval = super().step()
+        if 'id' not in self:
+            if 'id' in self.state:
+                self.set_state(self['state_id'])
+            elif self.default_state:
+                self.set_state(self.default_state.id)
+            else:
+                raise Exception('{} has no valid state id or default state'.format(self))
+        return self.states[self['id']](self) or interval
 
     def set_state(self, state):
         if hasattr(state, 'id'):
             state = state.id
         if state not in self.states:
             raise ValueError('{} is not a valid state'.format(state))
-        self['id'] = state
+        self['state_id'] = state
         return state
 
 
@@ -347,9 +339,6 @@ def prob(prob=1):
     '''
     r = random.random()
     return r < prob
-
-
-STATIC_THRESHOLD = (-1, -1)
 
 
 def calculate_distribution(network_agents=None,
@@ -379,7 +368,7 @@ def calculate_distribution(network_agents=None,
     'agent_type_1'.
     '''
     if network_agents:
-        network_agents = deepcopy(network_agents)
+        network_agents = [deepcopy(agent) for agent in network_agents if not hasattr(agent, 'id')]
     elif agent_type:
         network_agents = [{'agent_type': agent_type}]
     else:
@@ -394,7 +383,6 @@ def calculate_distribution(network_agents=None,
     acc = 0
     for v in network_agents:
         if 'ids' in v:
-            v['threshold'] = STATIC_THRESHOLD
             continue
         upper = acc + (v['weight']/total)
         v['threshold'] = [acc, upper]
@@ -409,7 +397,7 @@ def serialize_type(agent_type, known_modules=[], **kwargs):
     return serialization.serialize(agent_type, known_modules=known_modules, **kwargs)[1] # Get the name of the class
 
 
-def serialize_distribution(network_agents, known_modules=[]):
+def serialize_definition(network_agents, known_modules=[]):
     '''
     When serializing an agent distribution, remove the thresholds, in order
     to avoid cluttering the YAML definition file.
@@ -431,7 +419,7 @@ def deserialize_type(agent_type, known_modules=[]):
     return agent_type
 
 
-def deserialize_distribution(ind, **kwargs):
+def deserialize_definition(ind, **kwargs):
     d = deepcopy(ind)
     for v in d:
         v['agent_type'] = deserialize_type(v['agent_type'], **kwargs)
@@ -452,44 +440,84 @@ def _validate_states(states, topology):
 def _convert_agent_types(ind, to_string=False, **kwargs):
     '''Convenience method to allow specifying agents by class or class name.'''
     if to_string:
-        return serialize_distribution(ind, **kwargs)
-    return deserialize_distribution(ind, **kwargs)
+        return serialize_definition(ind, **kwargs)
+    return deserialize_definition(ind, **kwargs)
 
 
-def _agent_from_distribution(distribution, value=-1, agent_id=None):
+def _agent_from_definition(definition, value=-1, unique_id=None):
     """Used in the initialization of agents given an agent distribution."""
     if value < 0:
         value = random.random()
-    for d in sorted(distribution, key=lambda x: x['threshold']):
-        threshold = d['threshold']
+    for d in sorted(definition, key=lambda x: x.get('threshold')):
+        threshold = d.get('threshold', (-1, -1))
         # Check if the definition matches by id (first) or by threshold
-        if not ((agent_id is not None and threshold == STATIC_THRESHOLD and agent_id in d['ids']) or \
-                (value >= threshold[0] and value < threshold[1])):
-            continue
-        state = {}
-        if 'state' in d:
-            state = deepcopy(d['state'])
-        return d['agent_type'], state
+        if (unique_id is not None and unique_id in d.get('ids', [])) or \
+           (value >= threshold[0] and value < threshold[1]):
+            state = {}
+            if 'state' in d:
+                state = deepcopy(d['state'])
+            return d['agent_type'], state
 
-    raise Exception('Distribution for value {} not found in: {}'.format(value, distribution))
+    raise Exception('Definition for value {} not found in: {}'.format(value, definition))
 
 
-class Geo(NetworkAgent):
-    '''In this type of network, nodes have a "pos" attribute.'''
+def _definition_to_dict(definition, size=None, default_state=None):
+    state = default_state or {}
+    agents = {}
+    remaining = {}
+    if size:
+        for ix in range(size):
+            remaining[ix] = copy(state)
+    else:
+        remaining = defaultdict(lambda x: copy(state))
 
-    def geo_search(self, radius, node=None, center=False, **kwargs):
-        '''Get a list of nodes whose coordinates are closer than *radius* to *node*.'''
-        node = as_node(node if node is not None else self)
+    distro = sorted([item for item in definition if 'weight' in item])
 
-        G = self.subgraph(**kwargs)
+    ix = 0
+    def init_agent(item, id=ix):
+        while id in agents:
+            id += 1
 
-        pos = nx.get_node_attributes(G, 'pos')
-        if not pos:
-            return []
-        nodes, coords = list(zip(*pos.items()))
-        kdtree = KDTree(coords)  # Cannot provide generator.
-        indices = kdtree.query_ball_point(pos[node], radius)
-        return [nodes[i] for i in indices if center or (nodes[i] != node)]
+        agent = remaining[id]
+        agent['state'].update(copy(item.get('state', {})))
+        agents[id] = agent
+        del remaining[id]
+        return agent
+
+    for item in definition:
+        if 'ids' in item:
+            ids = item['ids']
+            del item['ids']
+            for id in ids:
+                agent = init_agent(item, id)
+
+    for item in definition:
+        if 'number' in item:
+            times = item['number']
+            del item['number']
+            for times in range(times):
+                if size:
+                    ix = random.choice(remaining.keys())
+                    agent = init_agent(item, id)
+                else:
+                    agent = init_agent(item)
+    if not size:
+        return agents
+
+    if len(remaining) < 0:
+        raise Exception('Invalid definition. Too many agents to add')
+
+
+    total_weight = float(sum(s['weight'] for s in distro))
+    unit = size / total_weight
+
+    for item in distro:
+        times = unit * item['weight']
+        del item['weight']
+        for times in range(times):
+            ix = random.choice(remaining.keys())
+            agent = init_agent(item, id)
+    return agents
 
 
 def select(agents, state_id=None, agent_type=None, ignore=None, iterator=False, **kwargs):
@@ -502,22 +530,21 @@ def select(agents, state_id=None, agent_type=None, ignore=None, iterator=False, 
         except TypeError:
             agent_type = tuple([agent_type])
 
-    def matches_all(agent):
-        if state_id is not None:
-            if agent.state.get('id', None) not in state_id:
-                return False
-        if agent_type is not None:
-            if not isinstance(agent, agent_type):
-                return False
-        state = agent.state
-        for k, v in kwargs.items():
-            if state.get(k, None) != v:
-                return False
-        return True
+    checks = []
 
-    f = filter(matches_all, agents)
+    f = agents
+
     if ignore:
         f = filter(lambda x: x not in ignore, f)
+
+    if state_id is not None:
+        f = filter(lambda agent: agent.state.get('id', None) in state_id, f)
+
+    if agent_type is not None:
+        f = filter(lambda agent: isinstance(agent, agent_type), f)
+    for k, v in kwargs.items():
+        f = filter(lambda agent: agent.state.get(k, None) == v, f)
+
     if iterator:
         return f
     return list(f)
@@ -530,3 +557,10 @@ from .ModelM2 import *
 from .SentimentCorrelationModel import *
 from .SISaModel import *
 from .CounterModel import *
+
+try:
+    import scipy
+    from .Geo import Geo
+except ImportError:
+    import sys
+    print('Could not load the Geo Agent, scipy is not installed', file=sys.stderr)
