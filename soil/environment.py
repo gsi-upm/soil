@@ -81,9 +81,6 @@ class Environment(Model):
         self._history = history.History(name=self.name,
                                         backup=True)
         self['SEED'] = seed
-        # Add environment agents first, so their events get
-        # executed before network agents
-
 
         if network_agents:
             distro = agents.calculate_distribution(network_agents)
@@ -96,7 +93,6 @@ class Environment(Model):
             distro = agents.calculate_distribution(environment_agents)
             environment_agents = agents._convert_agent_types(distro)
         self.environment_agents = environment_agents
-
 
     @property
     def now(self):
@@ -169,6 +165,7 @@ class Environment(Model):
                            unique_id=agent_id,
                            state=state)
         node['agent'] = a
+        self.schedule.add(a)
         return a
 
     def add_node(self, agent_type, state=None):
@@ -188,8 +185,6 @@ class Environment(Model):
 
     def run(self, until, *args, **kwargs):
         self._save_state()
-        for agent in self.agents:
-            self.schedule.add(agent)
 
         while self.schedule.next_time <= until and not math.isinf(self.schedule.next_time):
             self.schedule.step(until=until)
@@ -238,8 +233,8 @@ class Environment(Model):
 
     def get_agents(self, nodes=None):
         if nodes is None:
-            return list(self.agents)
-        return [self.G.nodes[i]['agent'] for i in nodes]
+            return self.agents
+        return (self.G.nodes[i]['agent'] for i in nodes)
 
     def dump_csv(self, f):
         with utils.open_or_reuse(f, 'w') as f:

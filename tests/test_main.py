@@ -10,6 +10,7 @@ from functools import partial
 from os.path import join
 from soil import (simulation, Environment, agents, serialization,
                   history, utils)
+from soil.time import Delta
 
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
@@ -356,3 +357,41 @@ class TestMain(TestCase):
         runs = list(s.run_simulation(dry_run=True))
         over = list(x.now for x in runs if x.now>2)
         assert len(over) == 0
+
+
+    def test_fsm(self):
+        '''Basic state change'''
+        class ToggleAgent(agents.FSM):
+            @agents.default_state
+            @agents.state
+            def ping(self):
+                return self.pong
+
+            @agents.state
+            def pong(self):
+                return self.ping
+
+        a = ToggleAgent(unique_id=1, model=Environment())
+        assert a.state["id"] == a.ping.id
+        a.step()
+        assert a.state["id"] == a.pong.id
+        a.step()
+        assert a.state["id"] == a.ping.id
+
+    def test_fsm_when(self):
+        '''Basic state change'''
+        class ToggleAgent(agents.FSM):
+            @agents.default_state
+            @agents.state
+            def ping(self):
+                return self.pong, 2
+
+            @agents.state
+            def pong(self):
+                return self.ping
+
+        a = ToggleAgent(unique_id=1, model=Environment())
+        when = a.step()
+        assert when == 2
+        when = a.step()
+        assert when == Delta(a.interval)

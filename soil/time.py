@@ -18,6 +18,9 @@ class Delta:
     def __init__(self, delta):
         self._delta = delta
 
+    def __eq__(self, other):
+        return self._delta == other._delta
+
     def abs(self, time):
         return time + self._delta
 
@@ -35,7 +38,7 @@ class TimedActivation(BaseScheduler):
     def add(self, agent: Agent):
         if agent.unique_id not in self._agents:
             heappush(self._queue, (self.time, agent.unique_id))
-        super().add(agent)
+            super().add(agent)
 
     def step(self, until: float =float('inf')) -> None:
         """

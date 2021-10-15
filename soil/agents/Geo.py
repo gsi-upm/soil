@@ -1,5 +1,6 @@
 from scipy.spatial import cKDTree as KDTree
-from . import NetworkAgent
+import networkx as nx
+from . import NetworkAgent, as_node
 
 class Geo(NetworkAgent):
     '''In this type of network, nodes have a "pos" attribute.'''

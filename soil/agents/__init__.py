@@ -1,11 +1,10 @@
 import logging
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
-from functools import partial
+from functools import partial, wraps
+from itertools import islice
 import json
 import networkx as nx
-
-from functools import wraps
 
 from .. import serialization, history, utils, time
 
@@ -91,7 +90,7 @@ class BaseAgent(Agent):
     def __getitem__(self, key):
         if isinstance(key, tuple):
             key, t_step = key
-            k = history.Key(key=key, t_step=t_step, agent_id=self.id)
+            k = history.Key(key=key, t_step=t_step, agent_id=self.unique_id)
             return self.model[k]
         return self._state.get(key, None)
 
@@ -151,25 +150,25 @@ class BaseAgent(Agent):
     def info(self, *args, **kwargs):
         return self.log(*args, level=logging.INFO, **kwargs)
 
-    def __getstate__(self):
-        '''
-        Serializing an agent will lose all its running information (you cannot
-        serialize an iterator), but it keeps the state and link to the environment,
-        so it can be used for inspection and dumping to a file
-        '''
-        state = {}
-        state['id'] = self.id
-        state['environment'] = self.model
-        state['_state'] = self._state
-        return state
+    # def __getstate__(self):
+    #     '''
+    #     Serializing an agent will lose all its running information (you cannot
+    #     serialize an iterator), but it keeps the state and link to the environment,
+    #     so it can be used for inspection and dumping to a file
+    #     '''
+    #     state = {}
+    #     state['id'] = self.id
+    #     state['environment'] = self.model
+    #     state['_state'] = self._state
+    #     return state
 
-    def __setstate__(self, state):
-        '''
-        Get back a serialized agent and try to re-compose it
-        '''
-        self.state_id = state['id']
-        self._state = state['_state']
-        self.model = state['environment']
+    # def __setstate__(self, state):
+    #     '''
+    #     Get back a serialized agent and try to re-compose it
+    #     '''
+    #     self.state_id = state['id']
+    #     self._state = state['_state']
+    #     self.model = state['environment']
 
 class NetworkAgent(BaseAgent):
 
@@ -190,7 +189,13 @@ class NetworkAgent(BaseAgent):
     def get_neighboring_agents(self, state_id=None, **kwargs):
         return self.get_agents(limit_neighbors=True, state_id=state_id, **kwargs)
 
-    def get_agents(self, agents=None, limit_neighbors=False, **kwargs):
+    def get_agents(self, *args, limit=None, **kwargs):
+        it = self.iter_agents(*args, **kwargs)
+        if limit is not None:
+            it = islice(it, limit)
+        return list(it)
+
+    def iter_agents(self, agents=None, limit_neighbors=False, **kwargs):
         if limit_neighbors:
             agents = self.topology.neighbors(self.unique_id)
 
@@ -199,7 +204,7 @@ class NetworkAgent(BaseAgent):
 
     def subgraph(self, center=True, **kwargs):
         include = [self] if center else []
-        return self.topology.subgraph(n.unique_id for n in self.get_agents(**kwargs)+include)
+        return self.topology.subgraph(n.unique_id for n in list(self.get_agents(**kwargs))+include)
 
     def remove_node(self, unique_id):
         self.topology.remove_node(unique_id)
@@ -208,10 +213,10 @@ class NetworkAgent(BaseAgent):
         # return super(NetworkAgent, self).add_edge(node1=self.id, node2=other, **kwargs)
         if self.unique_id not in self.topology.nodes(data=False):
             raise ValueError('{} not in list of existing agents in the network'.format(self.unique_id))
-        if other not in self.topology.nodes(data=False):
+        if other.unique_id not in self.topology.nodes(data=False):
             raise ValueError('{} not in list of existing agents in the network'.format(other))
 
-        self.topology.add_edge(self.unique_id, other, edge_attr_dict=edge_attr_dict, *edge_attrs)
+        self.topology.add_edge(self.unique_id, other.unique_id, edge_attr_dict=edge_attr_dict, *edge_attrs)
 
 
     def ego_search(self, steps=1, center=False, node=None, **kwargs):
@@ -308,21 +313,21 @@ class FSM(NetworkAgent, metaclass=MetaFSM):
     def step(self):
         self.debug(f'Agent {self.unique_id} @ state {self["id"]}')
         interval = super().step()
-        if 'id' not in self:
-            if 'id' in self.state:
-                self.set_state(self['state_id'])
-            elif self.default_state:
+        if 'id' not in self.state:
+            # if 'id' in self.state:
+            #     self.set_state(self.state['id'])
+            if self.default_state:
                 self.set_state(self.default_state.id)
             else:
                 raise Exception('{} has no valid state id or default state'.format(self))
-        return self.states[self['id']](self) or interval
+        return self.states[self.state['id']](self) or interval
 
     def set_state(self, state):
         if hasattr(state, 'id'):
             state = state.id
         if state not in self.states:
             raise ValueError('{} is not a valid state'.format(state))
-        self['state_id'] = state
+        self.state['id'] = state
         return state
 
 
@@ -530,8 +535,6 @@ def select(agents, state_id=None, agent_type=None, ignore=None, iterator=False, 
         except TypeError:
             agent_type = tuple([agent_type])
 
-    checks = []
-
     f = agents
 
     if ignore:
@@ -547,7 +550,7 @@ def select(agents, state_id=None, agent_type=None, ignore=None, iterator=False, 
 
     if iterator:
         return f
-    return list(f)
+    return f
 
 
 from .BassModel import *
