@@ -12,9 +12,11 @@ from networkx.readwrite import json_graph
 
 import networkx as nx
 
+from tsih import History, Record, Key, NoHistory
+
 from mesa import Model
 
-from . import serialization, agents, analysis, history, utils, time
+from . import serialization, agents, analysis, utils, time
 
 # These properties will be copied when pickling/unpickling the environment
 _CONFIG_PROPS = [ 'name',
@@ -46,6 +48,7 @@ class Environment(Model):
                  schedule=None,
                  initial_time=0,
                  environment_params=None,
+                 history=True,
                  dir_path=None,
                  **kwargs):
 
@@ -78,8 +81,12 @@ class Environment(Model):
 
         self._env_agents = {}
         self.interval = interval
-        self._history = history.History(name=self.name,
-                                        backup=True)
+        if history:
+            history = History
+        else:
+            history = NoHistory
+        self._history = history(name=self.name,
+                                backup=True)
         self['SEED'] = seed
 
         if network_agents:
@@ -162,8 +169,15 @@ class Environment(Model):
         if agent_type:
             state = defstate
             a = agent_type(model=self,
-                           unique_id=agent_id,
-                           state=state)
+                           unique_id=agent_id)
+
+        for (k, v) in getattr(a, 'defaults', {}).items():
+            if not hasattr(a, k) or getattr(a, k) is None:
+                setattr(a, k, v)
+
+        for (k, v) in state.items():
+            setattr(a, k, v)
+
         node['agent'] = a
         self.schedule.add(a)
         return a
@@ -182,6 +196,11 @@ class Environment(Model):
             agent2 = agent2.id
         start = start or self.now
         return self.G.add_edge(agent1, agent2, **attrs)
+
+    def step(self):
+        super().step()
+        self.datacollector.collect(self)
+        self.schedule.step()
 
     def run(self, until, *args, **kwargs):
         self._save_state()
@@ -204,12 +223,12 @@ class Environment(Model):
 
     def __setitem__(self, key, value):
         if isinstance(key, tuple):
-            k = history.Key(*key)
+            k = Key(*key)
             self._history.save_record(*k,
                                       value=value)
             return
         self.environment_params[key] = value
-        self._history.save_record(agent_id='env',
+        self._history.save_record(dict_id='env',
                                   t_step=self.now,
                                   key=key,
                                   value=value)
@@ -274,16 +293,16 @@ class Environment(Model):
         if now is None:
             now = self.now
         for k, v in self.environment_params.items():
-            yield history.Record(agent_id='env',
-                                 t_step=now,
-                                 key=k,
-                                 value=v)
+            yield Record(dict_id='env',
+                         t_step=now,
+                         key=k,
+                         value=v)
         for agent in self.agents:
             for k, v in agent.state.items():
-                yield history.Record(agent_id=agent.id,
-                                     t_step=now,
-                                     key=k,
-                                     value=v)
+                yield Record(dict_id=agent.id,
+                             t_step=now,
+                             key=k,
+                             value=v)
 
     def history_to_tuples(self):
         return self._history.to_tuples()

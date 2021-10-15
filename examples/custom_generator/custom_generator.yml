@@ -13,4 +13,4 @@ network_agents:
   - agent_type: CounterModel
     weight: 1
     state:
-      id: 0
+      state_id: 0

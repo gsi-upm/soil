@@ -4,7 +4,8 @@ import glob
 import yaml
 from os.path import join
 
-from . import serialization, history
+from . import serialization
+from tsih import History
 
 
 def read_data(*args, group=False, **kwargs):
@@ -34,7 +35,7 @@ def _read_data(pattern, *args, from_csv=False, process_args=None, **kwargs):
 
 
 def read_sql(db, *args, **kwargs):
-    h = history.History(db_path=db, backup=False, readonly=True)
+    h = History(db_path=db, backup=False, readonly=True)
     df = h.read_sql(*args, **kwargs)
     return df
 

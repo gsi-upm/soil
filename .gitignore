@@ -8,3 +8,4 @@ soil_output
 docs/_build*
 build/*
 dist/*
+prof

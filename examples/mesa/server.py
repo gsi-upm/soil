@@ -23,7 +23,6 @@ def network_portrayal(env):
         }
         for (agent_id) in env.G.nodes
     ]
-    # import pdb;pdb.set_trace()
 
     portrayal["edges"] = [
         {"id": edge_id, "source": source, "target": target, "color": "#000000"}
@@ -65,7 +64,7 @@ model_params = {
     "N": UserSettableParameter(
         "slider",
         "N",
-        1,
+        5,
         1,
         10,
         1,

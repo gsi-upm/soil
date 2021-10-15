@@ -15,7 +15,6 @@ from .agents import *
 from . import agents
 from .simulation import *
 from .environment import Environment
-from .history import History
 from . import serialization
 from . import analysis
 from .utils import logger

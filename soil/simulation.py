@@ -9,6 +9,7 @@ import networkx as nx
 from networkx.readwrite import json_graph
 from multiprocessing import Pool
 from functools import partial
+from tsih import History
 
 import pickle
 
@@ -17,7 +18,6 @@ from .environment import Environment
 from .utils import logger
 from .exporters import default
 from .stats import defaultStats
-from .history import History
 
 
 #TODO: change documentation for simulation
@@ -159,7 +159,7 @@ class Simulation:
                                      **kwargs)
 
     def run_gen(self, *args, parallel=False, dry_run=False,
-                exporters=[default, ], stats=[defaultStats], outdir=None, exporter_params={},
+                exporters=[default, ], stats=[], outdir=None, exporter_params={},
                 stats_params={}, log_level=None,
                 **kwargs):
         '''Run the simulation and yield the resulting environments.'''

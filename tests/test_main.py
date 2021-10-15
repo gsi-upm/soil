@@ -9,7 +9,7 @@ from functools import partial
 
 from os.path import join
 from soil import (simulation, Environment, agents, serialization,
-                  history, utils)
+                  utils)
 from soil.time import Delta
 
 
@@ -21,8 +21,8 @@ class CustomAgent(agents.FSM):
     @agents.default_state
     @agents.state
     def normal(self):
-        self.state['neighbors'] = self.count_agents(state_id='normal',
-                                                    limit_neighbors=True)
+        self.neighbors = self.count_agents(state_id='normal',
+                                           limit_neighbors=True)
     @agents.state
     def unreachable(self):
         return
@@ -116,7 +116,7 @@ class TestMain(TestCase):
             'network_agents': [{
                 'agent_type': 'AggregatedCounter',
                 'weight': 1,
-                'state': {'id': 0}
+                'state': {'state_id': 0}
 
             }],
             'max_time': 10,
@@ -149,10 +149,9 @@ class TestMain(TestCase):
         }
         s = simulation.from_config(config)
         env = s.run_simulation(dry_run=True)[0]
-        assert env.get_agent(0).state['neighbors'] == 1
-        assert env.get_agent(0).state['neighbors'] == 1
         assert env.get_agent(1).count_agents(state_id='normal') == 2
         assert env.get_agent(1).count_agents(state_id='normal', limit_neighbors=True) == 1
+        assert env.get_agent(0).neighbors == 1
 
     def test_torvalds_example(self):
         """A complete example from a documentation should work."""
@@ -317,12 +316,6 @@ class TestMain(TestCase):
         assert recovered['key', 0] == 'test'
         assert recovered['key'] == 'test'
 
-    def test_history(self):
-        '''Test storing in and retrieving from history (sqlite)'''
-        h = history.History()
-        h.save_record(agent_id=0, t_step=0, key="test", value="hello")
-        assert h[0, 0, "test"] == "hello"
-
     def test_subgraph(self):
         '''An agent should be able to subgraph the global topology'''
         G = nx.Graph()
@@ -350,12 +343,13 @@ class TestMain(TestCase):
             'network_params': {},
             'agent_type': 'CounterModel',
             'max_time': 2,
-            'num_trials': 100,
+            'num_trials': 50,
             'environment_params': {}
         }
         s = simulation.from_config(config)
         runs = list(s.run_simulation(dry_run=True))
         over = list(x.now for x in runs if x.now>2)
+        assert len(runs) == config['num_trials']
         assert len(over) == 0
 
 
@@ -372,11 +366,11 @@ class TestMain(TestCase):
                 return self.ping
 
         a = ToggleAgent(unique_id=1, model=Environment())
-        assert a.state["id"] == a.ping.id
+        assert a.state_id == a.ping.id
         a.step()
-        assert a.state["id"] == a.pong.id
+        assert a.state_id == a.pong.id
         a.step()
-        assert a.state["id"] == a.ping.id
+        assert a.state_id == a.ping.id
 
     def test_fsm_when(self):
         '''Basic state change'''

@@ -16,7 +16,7 @@ template:
     - agent_type: CounterModel
       weight: "{{ x1 }}"
       state:
-        id: 0
+        state_id: 0
     - agent_type: AggregatedCounter
       weight: "{{ 1 - x1 }}"
   environment_params:

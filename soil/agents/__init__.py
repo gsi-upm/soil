@@ -6,7 +6,9 @@ from itertools import islice
 import json
 import networkx as nx
 
-from .. import serialization, history, utils, time
+from .. import serialization, utils, time
+
+from tsih import Key
 
 from mesa import Agent
 
@@ -16,6 +18,7 @@ def as_node(agent):
         return agent.id
     return agent
 
+IGNORED_FIELDS = ('model', 'logger')
 
 class BaseAgent(Agent):
     """
@@ -27,23 +30,20 @@ class BaseAgent(Agent):
     def __init__(self,
                  unique_id,
                  model,
-                 state=None,
                  name=None,
                  interval=None):
         # Check for REQUIRED arguments
         # Initialize agent parameters
         if isinstance(unique_id, Agent):
             raise Exception()
+        self._saved = set()
         super().__init__(unique_id=unique_id, model=model)
         self.name = name or '{}[{}]'.format(type(self).__name__, self.unique_id)
 
         self._neighbors = None
         self.alive = True
-        real_state = deepcopy(self.defaults)
-        real_state.update(state or {})
-        self.state = real_state
 
-        self.interval = interval or self.get('interval', getattr(self.model, 'interval', 1))
+        self.interval = interval or self.get('interval', 1)
         self.logger = logging.getLogger(self.model.name).getChild(self.name)
 
         if hasattr(self, 'level'):
@@ -75,7 +75,6 @@ class BaseAgent(Agent):
 
     @state.setter
     def state(self, value):
-        self._state = {}
         for k, v in value.items():
             self[k] = v
 
@@ -87,28 +86,36 @@ class BaseAgent(Agent):
     def environment_params(self, value):
         self.model.environment_params = value
 
+    def __setattr__(self, key, value):
+        if not key.startswith('_') and key not in IGNORED_FIELDS:
+            try:
+                k = Key(t_step=self.now,
+                        dict_id=self.unique_id,
+                        key=key)
+                self._saved.add(key)
+                self.model[k] = value
+            except AttributeError:
+                pass
+        super().__setattr__(key, value)
+
     def __getitem__(self, key):
         if isinstance(key, tuple):
             key, t_step = key
-            k = history.Key(key=key, t_step=t_step, agent_id=self.unique_id)
+            k = Key(key=key, t_step=t_step, dict_id=self.unique_id)
             return self.model[k]
-        return self._state.get(key, None)
+        return getattr(self, key)
 
     def __delitem__(self, key):
-        self._state[key] = None
+        return delattr(self, key)
 
     def __contains__(self, key):
-        return key in self._state
+        return hasattr(self, key)
 
     def __setitem__(self, key, value):
-        self._state[key] = value
-        k = history.Key(t_step=self.now,
-                        agent_id=self.id,
-                        key=key)
-        self.model[k] = value
+        setattr(self, key, value)
 
     def items(self):
-        return self._state.items()
+        return ((k, getattr(self, k)) for k in self._saved)
 
     def get(self, key, default=None):
         return self[key] if key in self else default
@@ -150,25 +157,6 @@ class BaseAgent(Agent):
     def info(self, *args, **kwargs):
         return self.log(*args, level=logging.INFO, **kwargs)
 
-    # def __getstate__(self):
-    #     '''
-    #     Serializing an agent will lose all its running information (you cannot
-    #     serialize an iterator), but it keeps the state and link to the environment,
-    #     so it can be used for inspection and dumping to a file
-    #     '''
-    #     state = {}
-    #     state['id'] = self.id
-    #     state['environment'] = self.model
-    #     state['_state'] = self._state
-    #     return state
-
-    # def __setstate__(self, state):
-    #     '''
-    #     Get back a serialized agent and try to re-compose it
-    #     '''
-    #     self.state_id = state['id']
-    #     self._state = state['_state']
-    #     self.model = state['environment']
 
 class NetworkAgent(BaseAgent):
 
@@ -303,15 +291,15 @@ class MetaFSM(type):
 class FSM(NetworkAgent, metaclass=MetaFSM):
     def __init__(self, *args, **kwargs):
         super(FSM, self).__init__(*args, **kwargs)
-        if 'id' not in self.state:
+        if not hasattr(self, 'state_id'):
             if not self.default_state:
                 raise ValueError('No default state specified for {}'.format(self.unique_id))
-            self['id'] = self.default_state.id
+            self.state_id = self.default_state.id
 
-        self.set_state(self.state['id'])
+        self.set_state(self.state_id)
 
     def step(self):
-        self.debug(f'Agent {self.unique_id} @ state {self["id"]}')
+        self.debug(f'Agent {self.unique_id} @ state {self.state_id}')
         interval = super().step()
         if 'id' not in self.state:
             # if 'id' in self.state:
@@ -320,14 +308,14 @@ class FSM(NetworkAgent, metaclass=MetaFSM):
                 self.set_state(self.default_state.id)
             else:
                 raise Exception('{} has no valid state id or default state'.format(self))
-        return self.states[self.state['id']](self) or interval
+        return self.states[self.state_id](self) or interval
 
     def set_state(self, state):
         if hasattr(state, 'id'):
             state = state.id
         if state not in self.states:
             raise ValueError('{} is not a valid state'.format(state))
-        self.state['id'] = state
+        self.state_id = state
         return state
 
 
@@ -541,7 +529,7 @@ def select(agents, state_id=None, agent_type=None, ignore=None, iterator=False, 
         f = filter(lambda x: x not in ignore, f)
 
     if state_id is not None:
-        f = filter(lambda agent: agent.state.get('id', None) in state_id, f)
+        f = filter(lambda agent: agent.get('state_id', None) in state_id, f)
 
     if agent_type is not None:
         f = filter(lambda agent: isinstance(agent, agent_type), f)

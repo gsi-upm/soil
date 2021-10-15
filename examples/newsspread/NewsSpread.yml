@@ -68,12 +68,12 @@ network_agents:
 - agent_type: HerdViewer
   state:
     has_tv: true
-    id: neutral
+    state_id: neutral
   weight: 1
 - agent_type: HerdViewer
   state:
     has_tv: true
-    id: neutral
+    state_id: neutral
   weight: 1
 network_params:
   generator: barabasi_albert_graph
@@ -95,7 +95,7 @@ network_agents:
 - agent_type: HerdViewer
   state:
     has_tv: true
-    id: neutral
+    state_id: neutral
   weight: 1
 - agent_type: WiseViewer
   state:
@@ -121,7 +121,7 @@ network_agents:
 - agent_type: WiseViewer
   state:
     has_tv: true
-    id: neutral
+    state_id: neutral
   weight: 1
 - agent_type: WiseViewer
   state:

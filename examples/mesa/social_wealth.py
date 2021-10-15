@@ -34,9 +34,7 @@ class MoneyAgent(MesaAgent):
             self.pos,
             moore=True,
             include_center=False)
-        print(self.pos, possible_steps)
         new_position = self.random.choice(possible_steps)
-        print(self.pos, new_position)
         self.model.grid.move_agent(self, new_position)
 
     def give_money(self):
@@ -74,21 +72,13 @@ class SocialMoneyAgent(NetworkAgent, MoneyAgent):
 class MoneyEnv(Environment):
     """A model with some number of agents."""
     def __init__(self, N, width, height, *args, network_params, **kwargs):
-        self.initialized = True
-        # import pdb;pdb.set_trace()
 
         network_params['n'] = N
         super().__init__(*args, network_params=network_params, **kwargs)
         self.grid = MultiGrid(width, height, False)
-        # self.schedule = RandomActivation(self)
-        self.running = True
 
         # Create agents
         for agent in self.agents:
-            self.schedule.add(agent)
-            # a = MoneyAgent(i, self)
-            # self.schedule.add(a)
-            # Add the agent to a random grid cell
             x = self.random.randrange(self.grid.width)
             y = self.random.randrange(self.grid.height)
             self.grid.place_agent(agent, (x, y))
@@ -97,10 +87,6 @@ class MoneyEnv(Environment):
             model_reporters={"Gini": compute_gini},
             agent_reporters={"Wealth": "wealth"})
 
-    def step(self):
-        super().step()
-        self.datacollector.collect(self)
-        self.schedule.step()
 
 def graph_generator(n=5):
     G = nx.Graph()

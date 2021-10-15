@@ -67,13 +67,13 @@ class TestAnalysis(TestCase):
     def test_count(self):
         env = self.env
         df = analysis.read_sql(env._history.db_path)
-        res = analysis.get_count(df, 'SEED', 'id')
+        res = analysis.get_count(df, 'SEED', 'state_id')
         assert res['SEED'][self.env['SEED']].iloc[0] == 1
         assert res['SEED'][self.env['SEED']].iloc[-1] == 1
-        assert res['id']['odd'].iloc[0] == 2
-        assert res['id']['even'].iloc[0] == 0
-        assert res['id']['odd'].iloc[-1] == 1
-        assert res['id']['even'].iloc[-1] == 1
+        assert res['state_id']['odd'].iloc[0] == 2
+        assert res['state_id']['even'].iloc[0] == 0
+        assert res['state_id']['odd'].iloc[-1] == 1
+        assert res['state_id']['even'].iloc[-1] == 1
 
     def test_value(self):
         env = self.env

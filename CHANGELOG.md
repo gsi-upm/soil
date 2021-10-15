@@ -5,23 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 ### Added
-* [WIP] Integration with MESA
+* Integration with MESA
 * `not_agent_ids` paramter to get sql in history
 ### Changed
 * `soil.Environment` now also inherits from `mesa.Model`
 * `soil.Agent` now also inherits from `mesa.Agent`
 * `soil.time` to replace `simpy` events, delays, duration, etc.
+* `agent.id` is not `agent.unique_id` to be compatible with `mesa`. A property `BaseAgent.id` has been added for compatibility.
+* `agent.environment` is now `agent.model`, for the same reason as above. The parameter name in `BaseAgent.__init__` has also been renamed.
 ### Removed
 * `simpy` dependency and compatibility. Each agent used to be a simpy generator, but that made debugging and error handling more complex. That has been replaced by a scheduler within the `soil.Environment` class, similar to how `mesa` does it.
+* `soil.history` is now a separate package named `tsih`. The keys namedtuple uses `dict_id` instead of `agent_id`.
 
-### TODO:
-* agent_id -> unique_id?
-* mesa has Agent.model and soil has Agent.env
-* Environments.agents and mesa.Agent.agents are not the same. env is a property, and it only takes into account network and environment agents. Might rename environment_agents to other_agents or sth like that
-* soil.History should mimic a mesa.datacollector :/
-* soil.Simulation *could* mimic a mesa.batchrunner
-* DONE include scheduler in environment
-* DONE environment inherits from `mesa.Model`
+### Added
+* An option to choose whether a database should be used for history 
 
 
 ## [0.15.2]

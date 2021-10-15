@@ -26,6 +26,8 @@ def timer(name='task', pre="", function=logger.info, to_object=None):
         to_object.end = end
 
 
+
+
 def safe_open(path, mode='r', backup=True, **kwargs):
     outdir = os.path.dirname(path)
     if outdir and not os.path.exists(outdir):
