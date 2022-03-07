@@ -26,7 +26,7 @@ test:
     - pip install -r requirements.txt -r test-requirements.txt
     - python setup.py test
 
-pypi:
+push_pypi:
   only:
     - tags
   tags:
@@ -39,7 +39,7 @@ pypi:
     - python setup.py sdist bdist_wheel
     - TWINE_PASSWORD=${PYPI_PASSWORD} TWINE_USERNAME={PYPI_USERNAME} python -m twine upload --ignore-existing dist/*
 
-pypi:
+check_pypi:
   only:
     - tags
   tags:
