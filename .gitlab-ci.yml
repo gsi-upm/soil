@@ -48,3 +48,6 @@ check_pypi:
   stage: check_published
   script:
     - pip install soil==$CI_COMMIT_TAG
+  # Allow PYPI to update its index before we try to install 
+  when: delayed
+  start_in: 2 minutes
