@@ -20,6 +20,10 @@ def as_node(agent):
 
 IGNORED_FIELDS = ('model', 'logger')
 
+
+class DeadAgent(Exception):
+    pass
+
 class BaseAgent(Agent):
     """
     A special Agent that keeps track of its state history.
@@ -129,13 +133,14 @@ class BaseAgent(Agent):
             return None
 
     def die(self, remove=False):
+        self.info(f'agent {self.unique_id}  is dying')
         self.alive = False
         if remove:
             self.remove_node(self.id)
 
     def step(self):
         if not self.alive:
-            return time.When('inf')
+            raise DeadAgent(self.unique_id)
         return super().step() or time.Delta(self.interval)
 
     def log(self, message, *args, level=logging.INFO, **kwargs):
@@ -300,7 +305,10 @@ class FSM(NetworkAgent, metaclass=MetaFSM):
 
     def step(self):
         self.debug(f'Agent {self.unique_id} @ state {self.state_id}')
-        interval = super().step()
+        try:
+            interval = super().step()
+        except DeadAgent:
+            return time.When('inf')
         if 'id' not in self.state:
             # if 'id' in self.state:
             #     self.set_state(self.state['id'])
