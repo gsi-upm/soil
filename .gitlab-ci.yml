@@ -1,9 +1,10 @@
 stages:
   - test
-  - build
+  - publish
+  - check_published
 
-build:
-  stage: build
+docker:
+  stage: publish
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
@@ -16,13 +17,34 @@ build:
   only:
     - tags
 
-
 test:
-  except:
-    - tags  # Avoid running tests for tags, because they are already run for the branch
   tags:
     - docker
   image: python:3.7
   stage: test
   script:
+    - pip install -r requirements.txt -r test-requirements.txt
     - python setup.py test
+
+pypi:
+  only:
+    - tags
+  tags:
+    - docker
+  image: python:3.7
+  stage: publish
+  script:
+    - echo $CI_COMMIT_TAG > soil/VERSION
+    - pip install twine
+    - python setup.py sdist bdist_wheel
+    - TWINE_PASSWORD=${PYPI_PASSWORD} TWINE_USERNAME={PYPI_USERNAME} python -m twine upload --ignore-existing dist/*
+
+pypi:
+  only:
+    - tags
+  tags:
+    - docker
+  image: python:3.7
+  stage: check_published
+  script:
+    - pip install soil==$CI_COMMIT_TAG
