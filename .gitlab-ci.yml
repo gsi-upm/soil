@@ -37,7 +37,7 @@ push_pypi:
     - echo $CI_COMMIT_TAG > soil/VERSION
     - pip install twine
     - python setup.py sdist bdist_wheel
-    - TWINE_PASSWORD=${PYPI_PASSWORD} TWINE_USERNAME={PYPI_USERNAME} python -m twine upload dist/*
+    - TWINE_PASSWORD=$PYPI_PASSWORD TWINE_USERNAME=$PYPI_USERNAME python -m twine upload dist/*
 
 check_pypi:
   only:
