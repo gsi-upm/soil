@@ -3,10 +3,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.20.0]
 ### Added
 * Integration with MESA
-* `not_agent_ids` paramter to get sql in history
+* `not_agent_ids` parameter to get sql in history
 ### Changed
 * `soil.Environment` now also inherits from `mesa.Model`
 * `soil.Agent` now also inherits from `mesa.Agent`
@@ -16,11 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Removed
 * `simpy` dependency and compatibility. Each agent used to be a simpy generator, but that made debugging and error handling more complex. That has been replaced by a scheduler within the `soil.Environment` class, similar to how `mesa` does it.
 * `soil.history` is now a separate package named `tsih`. The keys namedtuple uses `dict_id` instead of `agent_id`.
-
 ### Added
 * An option to choose whether a database should be used for history 
-
-
 ## [0.15.2]
 ### Fixed
 * Pass the right known_modules and parameters to stats discovery in simulation
