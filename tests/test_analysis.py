@@ -21,11 +21,13 @@ class Ping(agents.FSM):
     @agents.default_state
     @agents.state
     def even(self):
+        self.debug(f'Even {self["count"]}')
         self['count'] += 1
         return self.odd
 
     @agents.state
     def odd(self):
+        self.debug(f'Odd {self["count"]}')
         self['count'] += 1
         return self.even
 
@@ -65,13 +67,13 @@ class TestAnalysis(TestCase):
     def test_count(self):
         env = self.env
         df = analysis.read_sql(env._history.db_path)
-        res = analysis.get_count(df, 'SEED', 'id')
+        res = analysis.get_count(df, 'SEED', 'state_id')
         assert res['SEED'][self.env['SEED']].iloc[0] == 1
         assert res['SEED'][self.env['SEED']].iloc[-1] == 1
-        assert res['id']['odd'].iloc[0] == 2
-        assert res['id']['even'].iloc[0] == 0
-        assert res['id']['odd'].iloc[-1] == 1
-        assert res['id']['even'].iloc[-1] == 1
+        assert res['state_id']['odd'].iloc[0] == 2
+        assert res['state_id']['even'].iloc[0] == 0
+        assert res['state_id']['odd'].iloc[-1] == 1
+        assert res['state_id']['even'].iloc[-1] == 1
 
     def test_value(self):
         env = self.env
@@ -82,8 +84,7 @@ class TestAnalysis(TestCase):
 
         import numpy as np
         res_mean = analysis.get_value(df, 'count', aggfunc=np.mean)
-        assert res_mean['count'].iloc[0] == 1
+        assert res_mean['count'].iloc[15] == (16+8)/2
 
-        res_total = analysis.get_value(df)
-
+        res_total = analysis.get_majority(df)
         res_total['SEED'].iloc[0] == self.env['SEED']

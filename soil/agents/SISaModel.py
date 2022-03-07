@@ -29,8 +29,8 @@ class SISaModel(FSM):
         standard_variance
     """
 
-    def __init__(self, environment, agent_id=0, state=()):
-        super().__init__(environment=environment, agent_id=agent_id, state=state)
+    def __init__(self, environment, unique_id=0, state=()):
+        super().__init__(model=environment, unique_id=unique_id, state=state)
 
         self.neutral_discontent_spon_prob = np.random.normal(self.env['neutral_discontent_spon_prob'],
                                                              self.env['standard_variance'])

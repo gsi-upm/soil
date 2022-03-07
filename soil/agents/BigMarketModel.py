@@ -1,8 +1,8 @@
 import random
-from . import BaseAgent
+from . import FSM, state, default_state
 
 
-class BigMarketModel(BaseAgent):
+class BigMarketModel(FSM):
     """
     Settings:
         Names:
@@ -19,34 +19,25 @@ class BigMarketModel(BaseAgent):
             sentiment_about [Array]
     """
 
-    def __init__(self, environment=None, agent_id=0, state=()):
-        super().__init__(environment=environment, agent_id=agent_id, state=state)
-        self.enterprises = environment.environment_params['enterprises']
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.enterprises = self.env.environment_params['enterprises']
         self.type = ""
-        self.number_of_enterprises = len(environment.environment_params['enterprises'])
 
-        if self.id < self.number_of_enterprises:  # Enterprises
-            self.state['id'] = self.id
+        if self.id < len(self.enterprises):  # Enterprises
+            self.set_state(self.enterprise.id)
             self.type = "Enterprise"
             self.tweet_probability = environment.environment_params['tweet_probability_enterprises'][self.id]
         else:  # normal users
-            self.state['id'] = self.number_of_enterprises
             self.type = "User"
+            self.set_state(self.user.id)
             self.tweet_probability = environment.environment_params['tweet_probability_users']
             self.tweet_relevant_probability = environment.environment_params['tweet_relevant_probability']
             self.tweet_probability_about = environment.environment_params['tweet_probability_about']  # List
             self.sentiment_about = environment.environment_params['sentiment_about']  # List
 
-    def step(self):
-
-        if self.id < self.number_of_enterprises:  # Enterprise
-            self.enterpriseBehaviour()
-        else:  # Usuario
-            self.userBehaviour()
-            for i in range(self.number_of_enterprises):  # So that it never is set to 0 if there are not changes (logs)
-                self.attrs['sentiment_enterprise_%s'% self.enterprises[i]] = self.sentiment_about[i]
-
-    def enterpriseBehaviour(self):
+    @state
+    def enterprise(self):
 
         if random.random() < self.tweet_probability:  # Tweets
             aware_neighbors = self.get_neighboring_agents(state_id=self.number_of_enterprises)  # Nodes neighbour users
@@ -64,12 +55,12 @@ class BigMarketModel(BaseAgent):
 
                 x.attrs['sentiment_enterprise_%s'% self.enterprises[self.id]] = x.sentiment_about[self.id]
 
-    def userBehaviour(self):
-
+    @state
+    def user(self):
         if random.random() < self.tweet_probability:  # Tweets
             if random.random() < self.tweet_relevant_probability:  # Tweets something relevant
                 # Tweet probability per enterprise
-                for i in range(self.number_of_enterprises):
+                for i in range(len(self.enterprises)):
                     random_num = random.random()
                     if random_num < self.tweet_probability_about[i]:
                         # The condition is fulfilled, sentiments are evaluated towards that enterprise
@@ -82,8 +73,10 @@ class BigMarketModel(BaseAgent):
                         else:
                             # POSITIVO
                             self.userTweets("positive",i)
+        for i in range(len(self.enterprises)):  # So that it never is set to 0 if there are not changes (logs)
+            self.attrs['sentiment_enterprise_%s'% self.enterprises[i]] = self.sentiment_about[i]
 
-    def userTweets(self,sentiment,enterprise):
+    def userTweets(self, sentiment,enterprise):
         aware_neighbors = self.get_neighboring_agents(state_id=self.number_of_enterprises)  # Nodes neighbours users
         for x in aware_neighbors:
             if sentiment == "positive":

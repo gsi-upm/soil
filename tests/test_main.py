@@ -9,7 +9,8 @@ from functools import partial
 
 from os.path import join
 from soil import (simulation, Environment, agents, serialization,
-                  history, utils)
+                  utils)
+from soil.time import Delta
 
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
@@ -20,8 +21,8 @@ class CustomAgent(agents.FSM):
     @agents.default_state
     @agents.state
     def normal(self):
-        self.state['neighbors'] = self.count_agents(state_id='normal',
-                                                    limit_neighbors=True)
+        self.neighbors = self.count_agents(state_id='normal',
+                                           limit_neighbors=True)
     @agents.state
     def unreachable(self):
         return
@@ -115,7 +116,7 @@ class TestMain(TestCase):
             'network_agents': [{
                 'agent_type': 'AggregatedCounter',
                 'weight': 1,
-                'state': {'id': 0}
+                'state': {'state_id': 0}
 
             }],
             'max_time': 10,
@@ -126,7 +127,7 @@ class TestMain(TestCase):
         env = s.run_simulation(dry_run=True)[0]
         for agent in env.network_agents:
             last = 0
-            assert len(agent[None, None]) == 10
+            assert len(agent[None, None]) == 11
             for step, total in sorted(agent['total', None]):
                 assert total == last + 2
                 last = total
@@ -148,10 +149,9 @@ class TestMain(TestCase):
         }
         s = simulation.from_config(config)
         env = s.run_simulation(dry_run=True)[0]
-        assert env.get_agent(0).state['neighbors'] == 1
-        assert env.get_agent(0).state['neighbors'] == 1
         assert env.get_agent(1).count_agents(state_id='normal') == 2
         assert env.get_agent(1).count_agents(state_id='normal', limit_neighbors=True) == 1
+        assert env.get_agent(0).neighbors == 1
 
     def test_torvalds_example(self):
         """A complete example from a documentation should work."""
@@ -198,11 +198,11 @@ class TestMain(TestCase):
         """
         config = serialization.load_file(join(EXAMPLES, 'complete.yml'))[0]
         s = simulation.from_config(config)
-        for i in range(5):
-            s.run_simulation(dry_run=True)
-            nconfig = s.to_dict()
-            del nconfig['topology']
-            assert config == nconfig
+
+        s.run_simulation(dry_run=True)
+        nconfig = s.to_dict()
+        del nconfig['topology']
+        assert config == nconfig
 
     def test_row_conversion(self):
         env = Environment()
@@ -211,7 +211,7 @@ class TestMain(TestCase):
         res = list(env.history_to_tuples())
         assert len(res) == len(env.environment_params)
 
-        env._now = 1
+        env.schedule.time = 1
         env['test'] = 'second_value'
         res = list(env.history_to_tuples())
 
@@ -281,7 +281,7 @@ class TestMain(TestCase):
                 'weight': 2
             },
         ]
-        converted = agents.deserialize_distribution(agent_distro)
+        converted = agents.deserialize_definition(agent_distro)
         assert converted[0]['agent_type'] == agents.CounterModel
         assert converted[1]['agent_type'] == CustomAgent
         pickle.dumps(converted)
@@ -297,14 +297,14 @@ class TestMain(TestCase):
                 'weight': 2
             },
         ]
-        converted = agents.serialize_distribution(agent_distro)
+        converted = agents.serialize_definition(agent_distro)
         assert converted[0]['agent_type'] == 'CounterModel'
         assert converted[1]['agent_type'] == 'test_main.CustomAgent'
         pickle.dumps(converted)
 
     def test_pickle_agent_environment(self):
         env = Environment(name='Test')
-        a = agents.BaseAgent(environment=env, agent_id=25)
+        a = agents.BaseAgent(model=env, unique_id=25)
 
         a['key'] = 'test'
 
@@ -315,12 +315,6 @@ class TestMain(TestCase):
         assert list(recovered.env._history.to_tuples())
         assert recovered['key', 0] == 'test'
         assert recovered['key'] == 'test'
-
-    def test_history(self):
-        '''Test storing in and retrieving from history (sqlite)'''
-        h = history.History()
-        h.save_record(agent_id=0, t_step=0, key="test", value="hello")
-        assert h[0, 0, "test"] == "hello"
 
     def test_subgraph(self):
         '''An agent should be able to subgraph the global topology'''
@@ -345,14 +339,53 @@ class TestMain(TestCase):
 
     def test_until(self):
         config = {
-            'name': 'exporter_sim',
+            'name': 'until_sim',
             'network_params': {},
             'agent_type': 'CounterModel',
             'max_time': 2,
-            'num_trials': 100,
+            'num_trials': 50,
             'environment_params': {}
         }
         s = simulation.from_config(config)
         runs = list(s.run_simulation(dry_run=True))
         over = list(x.now for x in runs if x.now>2)
+        assert len(runs) == config['num_trials']
         assert len(over) == 0
+
+
+    def test_fsm(self):
+        '''Basic state change'''
+        class ToggleAgent(agents.FSM):
+            @agents.default_state
+            @agents.state
+            def ping(self):
+                return self.pong
+
+            @agents.state
+            def pong(self):
+                return self.ping
+
+        a = ToggleAgent(unique_id=1, model=Environment())
+        assert a.state_id == a.ping.id
+        a.step()
+        assert a.state_id == a.pong.id
+        a.step()
+        assert a.state_id == a.ping.id
+
+    def test_fsm_when(self):
+        '''Basic state change'''
+        class ToggleAgent(agents.FSM):
+            @agents.default_state
+            @agents.state
+            def ping(self):
+                return self.pong, 2
+
+            @agents.state
+            def pong(self):
+                return self.ping
+
+        a = ToggleAgent(unique_id=1, model=Environment())
+        when = a.step()
+        assert when == 2
+        when = a.step()
+        assert when == Delta(a.interval)

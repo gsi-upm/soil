@@ -34,8 +34,6 @@ class HerdViewer(DumbViewer):
     A viewer whose probability of infection depends on the state of its neighbors.
     '''
 
-    level = logging.DEBUG
-
     def infect(self):
         infected = self.count_neighboring_agents(state_id=self.infected.id)
         total = self.count_neighboring_agents()

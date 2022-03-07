@@ -5,6 +5,9 @@ Learn how to run your own simulations with our [documentation](http://soilsim.re
 
 Follow our [tutorial](examples/tutorial/soil_tutorial.ipynb) to develop your own agent models.
 
+## Citation 
+
+
 If you use Soil in your research, don't forget to cite this paper:
 
 ```bibtex
@@ -28,7 +31,24 @@ If you use Soil in your research, don't forget to cite this paper:
 
 ```
 
-@Copyright GSI - Universidad Politécnica de Madrid 2017
+## Mesa compatibility
+
+Soil is in the process of becoming fully compatible with MESA.
+As of this writing, 
+
+This is a non-exhaustive list of tasks to achieve compatibility:
+
+* Environments.agents and mesa.Agent.agents are not the same. env is a property, and it only takes into account network and environment agents. Might rename environment_agents to other_agents or sth like that
+- [ ] Integrate `soil.Simulation` with mesa's runners:
+  - [ ] `soil.Simulation` could mimic/become a `mesa.batchrunner`
+- [ ] Integrate `soil.Environment` with `mesa.Model`:
+  - [x] `Soil.Environment` inherits from `mesa.Model`
+  - [x] `Soil.Environment` includes a Mesa-like Scheduler (see the `soil.time` module.
+- [ ] Integrate `soil.Agent` with `mesa.Agent`:
+  - [x] Rename agent.id to unique_id?
+  - [x] mesa agents can be used in soil simulations (see `examples/mesa`)
+- [ ] Document the new APIs and usage
+
+@Copyright GSI - Universidad Politécnica de Madrid 2017-2021
 
 [![SOIL](logo_gsi.png)](https://www.gsi.upm.es)
-

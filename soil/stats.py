@@ -97,7 +97,7 @@ class defaultStats(Stats):
         return {
             'network ': {
                 'n_nodes': env.G.number_of_nodes(),
-                'n_edges': env.G.number_of_nodes(),
+                'n_edges': env.G.number_of_edges(),
             },
             'agents': {
                 'model_count': dict(c),

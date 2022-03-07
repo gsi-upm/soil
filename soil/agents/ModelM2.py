@@ -21,8 +21,8 @@ class SpreadModelM2(BaseAgent):
         prob_generate_anti_rumor
     """
 
-    def __init__(self, environment=None, agent_id=0, state=()):
-        super().__init__(environment=environment, agent_id=agent_id, state=state)
+    def __init__(self, model=None, unique_id=0, state=()):
+        super().__init__(model=environment, unique_id=unique_id, state=state)
 
         self.prob_neutral_making_denier = np.random.normal(environment.environment_params['prob_neutral_making_denier'],
                                                            environment.environment_params['standard_variance'])
@@ -123,8 +123,8 @@ class ControlModelM2(BaseAgent):
     """
 
 
-    def __init__(self, environment=None, agent_id=0, state=()):
-        super().__init__(environment=environment, agent_id=agent_id, state=state)
+    def __init__(self, model=None, unique_id=0, state=()):
+        super().__init__(model=environment, unique_id=unique_id, state=state)
 
         self.prob_neutral_making_denier = np.random.normal(environment.environment_params['prob_neutral_making_denier'],
                                                            environment.environment_params['standard_variance'])

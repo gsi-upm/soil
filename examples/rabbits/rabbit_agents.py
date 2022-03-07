@@ -1,7 +1,6 @@
 from soil.agents import FSM, state, default_state, BaseAgent, NetworkAgent
 from enum import Enum
 from random import random, choice
-from itertools import islice
 import logging
 import math
 
@@ -22,7 +21,7 @@ class RabbitModel(FSM):
         'offspring': 0,
     }
 
-    sexual_maturity = 4*30
+    sexual_maturity = 3 #4*30
     life_expectancy = 365 * 3
     gestation = 33
     pregnancy = -1
@@ -31,9 +30,11 @@ class RabbitModel(FSM):
     @default_state
     @state
     def newborn(self):
+        self.debug(f'I am a newborn at age {self["age"]}')
         self['age'] += 1
 
         if self['age'] >= self.sexual_maturity:
+            self.debug('I am fertile!')
             return self.fertile
 
     @state
@@ -46,8 +47,7 @@ class RabbitModel(FSM):
             return
 
         # Males try to mate
-        females = self.get_agents(state_id=self.fertile.id, gender=Genders.female.value, limit_neighbors=False)
-        for f in islice(females, self.max_females):
+        for f in self.get_agents(state_id=self.fertile.id, gender=Genders.female.value, limit_neighbors=False, limit=self.max_females):
             r = random()
             if r < self['mating_prob']:
                 self.impregnate(f)

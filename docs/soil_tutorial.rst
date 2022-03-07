@@ -47,12 +47,6 @@ There are three main elements in a soil simulation:
 -  The environment. It assigns agents to nodes in the network, and
    stores the environment parameters (shared state for all agents).
 
-Soil is based on ``simpy``, which is an event-based network simulation
-library. Soil provides several abstractions over events to make
-developing agents easier. This means you can use events (timeouts,
-delays) in soil, but for the most part we will assume your models will
-be step-based.
-
 Modeling behaviour
 ------------------
 

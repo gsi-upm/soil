@@ -10,10 +10,10 @@ class IndependentCascadeModel(BaseAgent):
         imitation_prob
     """
 
-    def __init__(self, environment=None, agent_id=0, state=()):
-        super().__init__(environment=environment, agent_id=agent_id, state=state)
-        self.innovation_prob = environment.environment_params['innovation_prob']
-        self.imitation_prob = environment.environment_params['imitation_prob']
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.innovation_prob = self.env.environment_params['innovation_prob']
+        self.imitation_prob = self.env.environment_params['imitation_prob']
         self.state['time_awareness'] = 0
         self.state['sentimentCorrelation'] = 0
 

@@ -11,13 +11,14 @@ try:
 except NameError:
     basestring = str
 
+from .agents import *
 from . import agents
 from .simulation import *
 from .environment import Environment
-from .history import History
 from . import serialization
 from . import analysis
 from .utils import logger
+from .time import *
 
 def main():
     import argparse

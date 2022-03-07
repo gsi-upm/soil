@@ -9,6 +9,7 @@ import networkx as nx
 from networkx.readwrite import json_graph
 from multiprocessing import Pool
 from functools import partial
+from tsih import History
 
 import pickle
 
@@ -17,7 +18,6 @@ from .environment import Environment
 from .utils import logger
 from .exporters import default
 from .stats import defaultStats
-from .history import History
 
 
 #TODO: change documentation for simulation
@@ -143,7 +143,7 @@ class Simulation:
         return list(self.run_gen(*args, **kwargs))
 
     def _run_sync_or_async(self, parallel=False, *args, **kwargs):
-        if parallel:
+        if parallel and not os.environ.get('SENPY_DEBUG', None):
             p = Pool()
             func = partial(self.run_trial_exceptions,
                            *args,
@@ -159,7 +159,7 @@ class Simulation:
                                      **kwargs)
 
     def run_gen(self, *args, parallel=False, dry_run=False,
-                exporters=[default, ], stats=[defaultStats], outdir=None, exporter_params={},
+                exporters=[default, ], stats=[], outdir=None, exporter_params={},
                 stats_params={}, log_level=None,
                 **kwargs):
         '''Run the simulation and yield the resulting environments.'''
@@ -226,12 +226,14 @@ class Simulation:
         opts.update({
             'name': trial_id,
             'topology': self.topology.copy(),
+            'network_params': self.network_params,
             'seed': '{}_trial_{}'.format(self.seed, trial_id),
             'initial_time': 0,
             'interval': self.interval,
             'network_agents': self.network_agents,
             'initial_time': 0,
             'states': self.states,
+            'dir_path': self.dir_path,
             'default_state': self.default_state,
             'environment_agents': self.environment_agents,
         })
@@ -304,10 +306,10 @@ class Simulation:
             if k[0] != '_':
                 state[k] = v
                 state['topology'] = json_graph.node_link_data(self.topology)
-                state['network_agents'] = agents.serialize_distribution(self.network_agents,
-                                                                        known_modules = [])
-                state['environment_agents'] = agents.serialize_distribution(self.environment_agents,
-                                                                            known_modules = [])
+                state['network_agents'] = agents.serialize_definition(self.network_agents,
+                                                                      known_modules = [])
+                state['environment_agents'] = agents.serialize_definition(self.environment_agents,
+                                                                          known_modules = [])
                 state['environment_class'] = serialization.serialize(self.environment_class,
                                                                      known_modules=['soil.environment'])[1]  # func, name
         if state['load_module'] is None:
@@ -325,7 +327,6 @@ class Simulation:
                                                               known_modules=[self.load_module])
         self.environment_class = serialization.deserialize(self.environment_class,
                                                    known_modules=[self.load_module, 'soil.environment', ])  # func, name
-        return state
 
 
 def all_from_config(config):

@@ -7,8 +7,8 @@ from shutil import copyfile
 from contextlib import contextmanager
 
 logger = logging.getLogger('soil')
-logging.basicConfig()
-logger.setLevel(logging.INFO)
+# logging.basicConfig()
+# logger.setLevel(logging.INFO)
 
 
 @contextmanager
@@ -24,6 +24,8 @@ def timer(name='task', pre="", function=logger.info, to_object=None):
     if to_object:
         to_object.start = start
         to_object.end = end
+
+
 
 
 def safe_open(path, mode='r', backup=True, **kwargs):
