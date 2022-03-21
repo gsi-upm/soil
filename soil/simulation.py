@@ -1,4 +1,5 @@
 import os
+from time import time as current_time, strftime 
 import importlib
 import sys
 import yaml
@@ -6,7 +7,6 @@ import traceback
 import logging
 import networkx as nx
 
-from time import strftime
 from networkx.readwrite import json_graph
 from multiprocessing import Pool
 from functools import partial
@@ -83,8 +83,9 @@ class Simulation:
         Class for the environment. It defailts to soil.environment.Environment
     load_module : str, module name, deprecated
         If specified, soil will load the content of this module under 'soil.agents.custom'
-
-
+    history: tsih.History subclass, optional
+        Class to use to store the history of the simulation (and environments). It defailts to tsih.History
+        If set to True, tsih.History will be used. If set to False or None, tsih.NoHistory will be used.
     """
 
     def __init__(self, name=None, group=None, topology=None, network_params=None,
@@ -93,7 +94,7 @@ class Simulation:
                  max_time=100, load_module=None, seed=None,
                  dir_path=None, environment_agents=None,
                  environment_params=None, environment_class=None,
-                 **kwargs):
+                 history=History, **kwargs):
 
         self.load_module = load_module
         self.network_params = network_params
@@ -133,7 +134,12 @@ class Simulation:
         self.states = agents._validate_states(states,
                                               self.topology)
 
-        self._history = History(name=self.name,
+        if history == True:
+            history = History
+        elif not history:
+            history = NoHistory
+
+        self._history = history(name=self.name,
                                 backup=False)
 
     def run_simulation(self, *args, **kwargs):
@@ -233,6 +239,7 @@ class Simulation:
             'states': self.states,
             'dir_path': self.dir_path,
             'default_state': self.default_state,
+            'history': bool(self._history),
             'environment_agents': self.environment_agents,
         })
         opts.update(kwargs)

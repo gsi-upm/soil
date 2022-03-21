@@ -2,7 +2,6 @@ import os
 import io
 import tempfile
 import shutil
-from time import time
 
 from unittest import TestCase
 from soil import exporters
@@ -68,6 +67,7 @@ class Exporters(TestCase):
             'agent_type': 'CounterModel',
             'max_time': 2,
             'num_trials': n_trials,
+            'dry_run': False,
             'environment_params': {}
         }
         output = io.StringIO()
@@ -79,6 +79,7 @@ class Exporters(TestCase):
                                     exporters.gexf,
                                 ],
                                 stats=[distribution,],
+                                dry_run=False,
                                 outdir=tmpdir,
                                 exporter_params={'copy_to': output})
         result = output.getvalue()

@@ -13,7 +13,7 @@ from networkx.readwrite import json_graph
 
 import networkx as nx
 
-from tsih import History, Record, Key, NoHistory
+from tsih import History, NoHistory, Record, Key
 
 from mesa import Model
 
@@ -33,7 +33,7 @@ class Environment(Model):
     params, which are used as shared state between agents.
 
     The environment parameters and the state of every agent can be accessed
-    both by using the environment as a dictionary or with the environment's 
+    both by using the environment as a dictionary or with the environment's
     :meth:`soil.environment.Environment.get` method.
     """
 
@@ -49,7 +49,7 @@ class Environment(Model):
                  schedule=None,
                  initial_time=0,
                  environment_params=None,
-                 history=True,
+                 history=False,
                  dir_path=None,
                  **kwargs):
 
@@ -82,10 +82,12 @@ class Environment(Model):
 
         self._env_agents = {}
         self.interval = interval
+
         if history:
             history = History
         else:
             history = NoHistory
+
         self._history = history(name=self.name,
                                 backup=True)
         self['SEED'] = seed
@@ -298,6 +300,9 @@ class Environment(Model):
             else:
                 raise ValueError('Unknown format: {}'.format(f))
 
+    def df(self):
+        return self._history[None, None, None].df()
+        
     def dump_sqlite(self, f):
         return self._history.dump(f)
 
@@ -316,8 +321,14 @@ class Environment(Model):
                              key=k,
                              value=v)
 
-    def history_to_tuples(self):
-        return self._history.to_tuples()
+    def history_to_tuples(self, agent_id=None):
+        if isinstance(self._history, NoHistory):
+            tuples = self.state_to_tuples()
+        else:
+            tuples = self._history.to_tuples()
+        if agent_id is None:
+            return tuples
+        return filter(lambda x: str(x[0]) == str(agent_id), tuples)
 
     def history_to_graph(self):
         G = nx.Graph(self.G)
@@ -329,10 +340,10 @@ class Environment(Model):
             spells = []
             lastvisible = False
             laststep = None
-            history = self[agent.id, None, None]
+            history = sorted(list(self.history_to_tuples(agent_id=agent.id)))
             if not history:
                 continue
-            for t_step, attribute, value in sorted(list(history)):
+            for _, t_step, attribute, value in history:
                 if attribute == 'visible':
                     nowvisible = value
                     if nowvisible and not lastvisible:

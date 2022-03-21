@@ -1,6 +1,6 @@
 import os
 import csv as csvlib
-import time
+from time import time as current_time
 from io import BytesIO
 
 import matplotlib.pyplot as plt
@@ -133,7 +133,7 @@ class dummy(Exporter):
 
     def start(self):
         with self.output('dummy', 'w') as f:
-            f.write('simulation started @ {}\n'.format(time.time()))
+            f.write('simulation started @ {}\n'.format(current_time()))
 
     def trial(self, env, stats):
         with self.output('dummy', 'w') as f:
@@ -143,7 +143,7 @@ class dummy(Exporter):
 
     def sim(self, stats):
         with self.output('dummy', 'a') as f:
-            f.write('simulation ended @ {}\n'.format(time.time()))
+            f.write('simulation ended @ {}\n'.format(current_time()))
 
 
 

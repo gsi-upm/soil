@@ -49,6 +49,7 @@ setup(
     extras_require=extras_require,
     tests_require=test_reqs,
     setup_requires=['pytest-runner', ],
+    pytest_plugins = ['pytest_profiling'],
     include_package_data=True,
     entry_points={
         'console_scripts':

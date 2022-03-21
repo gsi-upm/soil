@@ -11,6 +11,7 @@ from os.path import join
 from soil import (simulation, Environment, agents, serialization,
                   utils)
 from soil.time import Delta
+from tsih import NoHistory, History
 
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
@@ -205,7 +206,7 @@ class TestMain(TestCase):
         assert config == nconfig
 
     def test_row_conversion(self):
-        env = Environment()
+        env = Environment(history=True)
         env['test'] = 'test_value'
 
         res = list(env.history_to_tuples())
@@ -228,7 +229,14 @@ class TestMain(TestCase):
         f = io.BytesIO()
         env.dump_gexf(f)
 
-    def test_save_graph(self):
+    def test_nohistory(self):
+        '''
+        Make sure that no history(/sqlite) is used by default
+        '''
+        env = Environment(topology=nx.Graph(), network_agents=[])
+        assert isinstance(env._history, NoHistory)
+
+    def test_save_graph_history(self):
         '''
         The history_to_graph method should return a valid networkx graph.
 
@@ -236,12 +244,29 @@ class TestMain(TestCase):
         '''
         G = nx.cycle_graph(5)
         distribution = agents.calculate_distribution(None, agents.BaseAgent)
-        env = Environment(topology=G, network_agents=distribution)
+        env = Environment(topology=G, network_agents=distribution, history=True)
         env[0, 0, 'testvalue'] = 'start'
         env[0, 10, 'testvalue'] = 'finish'
         nG = env.history_to_graph()
         values = nG.nodes[0]['attr_testvalue']
         assert ('start', 0, 10) in values
+        assert ('finish', 10, None) in values
+
+    def test_save_graph_nohistory(self):
+        '''
+        The history_to_graph method should return a valid networkx graph.
+
+        When NoHistory is used, only the last known value is known
+        '''
+        G = nx.cycle_graph(5)
+        distribution = agents.calculate_distribution(None, agents.BaseAgent)
+        env = Environment(topology=G, network_agents=distribution, history=False)
+        env.get_agent(0)['testvalue'] = 'start'
+        env.schedule.time = 10
+        env.get_agent(0)['testvalue'] = 'finish'
+        nG = env.history_to_graph()
+        values = nG.nodes[0]['attr_testvalue']
+        assert ('start', 0, None) not in values
         assert ('finish', 10, None) in values
 
     def test_serialize_class(self):
@@ -303,7 +328,7 @@ class TestMain(TestCase):
         pickle.dumps(converted)
 
     def test_pickle_agent_environment(self):
-        env = Environment(name='Test')
+        env = Environment(name='Test', history=True)
         a = agents.BaseAgent(model=env, unique_id=25)
 
         a['key'] = 'test'

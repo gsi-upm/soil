@@ -35,7 +35,7 @@ class distribution(Stats):
         self.counts = []
 
     def trial(self, env):
-        df = env[None, None, None].df()
+        df = env.df()
         df = df.drop('SEED', axis=1)
         ix = df.index[-1]
         attrs = df.columns.get_level_values(0)

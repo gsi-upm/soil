@@ -50,6 +50,7 @@ class TestAnalysis(TestCase):
             'states': [{'interval': 1}, {'interval': 2}],
             'max_time': 30,
             'num_trials': 1,
+            'history': True,
             'environment_params': {
             }
         }

@@ -1,5 +1,5 @@
 import logging
-import time
+from time import time as current_time, strftime, gmtime, localtime
 import os
 
 from shutil import copyfile
@@ -13,13 +13,13 @@ logger = logging.getLogger('soil')
 
 @contextmanager
 def timer(name='task', pre="", function=logger.info, to_object=None):
-    start = time.time()
+    start = current_time()
     function('{}Starting {} at {}.'.format(pre, name,
-                                           time.strftime("%X", time.gmtime(start))))
+                                           strftime("%X", gmtime(start))))
     yield start
-    end = time.time()
+    end = current_time()
     function('{}Finished {} at {} in {} seconds'.format(pre, name,
-                                                        time.strftime("%X", time.gmtime(end)),
+                                                        strftime("%X", gmtime(end)),
                                                         str(end-start)))
     if to_object:
         to_object.start = start
@@ -34,7 +34,7 @@ def safe_open(path, mode='r', backup=True, **kwargs):
         os.makedirs(outdir)
     if backup and 'w' in mode and os.path.exists(path):
         creation = os.path.getctime(path)
-        stamp = time.strftime('%Y-%m-%d_%H.%M.%S', time.localtime(creation))
+        stamp = strftime('%Y-%m-%d_%H.%M.%S', localtime(creation))
 
         backup_dir = os.path.join(outdir, 'backup')
         if not os.path.exists(backup_dir):
@@ -45,11 +45,13 @@ def safe_open(path, mode='r', backup=True, **kwargs):
     return open(path, mode=mode, **kwargs)
 
 
+@contextmanager
 def open_or_reuse(f, *args, **kwargs):
     try:
-        return safe_open(f, *args, **kwargs)
+        with safe_open(f, *args, **kwargs) as f:
+            yield f
     except (AttributeError, TypeError):
-        return f
+        yield f
 
 def flatten_dict(d):
     if not isinstance(d, dict):
