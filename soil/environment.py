@@ -1,23 +1,20 @@
+from __future__ import annotations
 import os
 import sqlite3
-import csv
 import math
 import random
-import yaml
-import tempfile
-import logging
-import pandas as pd
 from time import time as current_time
 from copy import deepcopy
 from networkx.readwrite import json_graph
 
-import networkx as nx
 
-from tsih import History, NoHistory, Record, Key
+import networkx as nx
 
 from mesa import Model
 
-from . import serialization, agents, analysis, utils, time
+from tsih import Record
+
+from . import serialization, agents, analysis, utils, time, config
 
 # These properties will be copied when pickling/unpickling the environment
 _CONFIG_PROPS = [ 'name',
@@ -49,7 +46,6 @@ class Environment(Model):
                  schedule=None,
                  initial_time=0,
                  environment_params=None,
-                 history=False,
                  dir_path=None,
                  **kwargs):
 
@@ -76,20 +72,11 @@ class Environment(Model):
             topology = nx.Graph()
         self.G = nx.Graph(topology) 
 
-
         self.environment_params = environment_params or {}
         self.environment_params.update(kwargs)
 
         self._env_agents = {}
         self.interval = interval
-
-        if history:
-            history = History
-        else:
-            history = NoHistory
-
-        self._history = history(name=self.name,
-                                backup=True)
         self['SEED'] = seed
 
         if network_agents:
@@ -105,6 +92,19 @@ class Environment(Model):
         self.environment_agents = environment_agents
 
         self.logger = utils.logger.getChild(self.name)
+
+    @staticmethod
+    def from_config(conf: config.Config, trial_id, **kwargs) -> Environment:
+        '''Create an environment for a trial of the simulation'''
+
+        conf = config.Config(conf, **kwargs)
+        conf.seed = '{}_{}'.format(conf.seed, trial_id)
+        conf.name = '{}_trial_{}'.format(conf.name, trial_id).replace('.', '-')
+        opts = conf.environment_params.copy()
+        opts.update(conf)
+        opts.update(kwargs)
+        env = serialization.deserialize(conf.environment_class)(**opts)
+        return env
 
     @property
     def now(self):
@@ -212,11 +212,14 @@ class Environment(Model):
         return self.logger.log(level, message, extra=extra)
 
     def step(self):
+        '''
+        Advance one step in the simulation, and update the data collection and scheduler appropriately
+        '''
         super().step()
         self.schedule.step()
 
     def run(self, until, *args, **kwargs):
-        self._save_state()
+        until = until or float('inf')
 
         while self.schedule.next_time < until:
             self.step()
@@ -252,14 +255,16 @@ class Environment(Model):
 
     def get(self, key, default=None):
         '''
-        Get the value of an environment attribute in a
-        given point in the simulation (history).
-        If key is an attribute name, this method returns
-        the current value.
-        To get values at other times, use a
-        :meth: `soil.history.Key` tuple.
+        Get the value of an environment attribute.
+        Return `default` if the value is not set.
         '''
-        return self[key] if key in self else default
+        return self.environment_params.get(key, default)
+
+    def __getitem__(self, key):
+        return self.environment_params.get(key)
+
+    def __setitem__(self, key, value):
+        return self.environment_params.__setitem__(key, value)
 
     def get_agent(self, agent_id):
         return self.G.nodes[agent_id]['agent']
@@ -269,112 +274,31 @@ class Environment(Model):
             return self.agents
         return (self.G.nodes[i]['agent'] for i in nodes)
 
-    def dump_csv(self, f):
-        with utils.open_or_reuse(f, 'w') as f:
-            cr = csv.writer(f)
-            cr.writerow(('agent_id', 't_step', 'key', 'value'))
-            for i in self.history_to_tuples():
-                cr.writerow(i)
-
-    def dump_gexf(self, f):
-        G = self.history_to_graph()
-        # Workaround for geometric models
-        # See soil/soil#4
-        for node in G.nodes():
-            if 'pos' in G.nodes[node]:
-                G.nodes[node]['viz'] = {"position": {"x": G.nodes[node]['pos'][0], "y": G.nodes[node]['pos'][1], "z": 0.0}}
-                del (G.nodes[node]['pos'])
-
-        nx.write_gexf(G, f, version="1.2draft")
-
-    def dump(self, *args, formats=None, **kwargs):
-        if not formats:
-            return
-        functions = {
-            'csv': self.dump_csv,
-            'gexf': self.dump_gexf
-        }
-        for f in formats:
-            if f in functions:
-                functions[f](*args, **kwargs)
-            else:
-                raise ValueError('Unknown format: {}'.format(f))
-
-    def df(self):
-        return self._history[None, None, None].df()
-        
-    def dump_sqlite(self, f):
-        return self._history.dump(f)
-
-    def state_to_tuples(self, now=None):
+    def _agent_to_tuples(self, agent, now=None):
         if now is None:
             now = self.now
+        for k, v in agent.state.items():
+            yield Record(dict_id=agent.id,
+                          t_step=now,
+                          key=k,
+                          value=v)
+
+    def state_to_tuples(self, agent_id=None, now=None):
+        if now is None:
+            now = self.now
+
+        if agent_id:
+            agent = self.get_agent(agent_id)
+            yield from self._agent_to_tuples(agent, now)
+            return
+
         for k, v in self.environment_params.items():
             yield Record(dict_id='env',
                          t_step=now,
                          key=k,
                          value=v)
         for agent in self.agents:
-            for k, v in agent.state.items():
-                yield Record(dict_id=agent.id,
-                             t_step=now,
-                             key=k,
-                             value=v)
-
-    def history_to_tuples(self, agent_id=None):
-        if isinstance(self._history, NoHistory):
-            tuples = self.state_to_tuples()
-        else:
-            tuples = self._history.to_tuples()
-        if agent_id is None:
-            return tuples
-        return filter(lambda x: str(x[0]) == str(agent_id), tuples)
-
-    def history_to_graph(self):
-        G = nx.Graph(self.G)
-
-        for agent in self.network_agents:
-
-            attributes = {'agent': str(agent.__class__)}
-            lastattributes = {}
-            spells = []
-            lastvisible = False
-            laststep = None
-            history = sorted(list(self.history_to_tuples(agent_id=agent.id)))
-            if not history:
-                continue
-            for _, t_step, attribute, value in history:
-                if attribute == 'visible':
-                    nowvisible = value
-                    if nowvisible and not lastvisible:
-                        laststep = t_step
-                    if not nowvisible and lastvisible:
-                        spells.append((laststep, t_step))
-
-                    lastvisible = nowvisible
-                    continue
-                key = 'attr_' + attribute
-                if key not in attributes:
-                    attributes[key] = list()
-                if key not in lastattributes:
-                    lastattributes[key] = (value, t_step)
-                elif lastattributes[key][0] != value:
-                    last_value, laststep = lastattributes[key]
-                    commit_value = (last_value, laststep, t_step)
-                    if key not in attributes:
-                        attributes[key] = list()
-                    attributes[key].append(commit_value)
-                    lastattributes[key] = (value, t_step)
-            for k, v in lastattributes.items():
-                attributes[k].append((v[0], v[1], None))
-            if lastvisible:
-                spells.append((laststep, None))
-            if spells:
-                G.add_node(agent.id, spells=spells, **attributes)
-            else:
-                G.add_node(agent.id, **attributes)
-
-        return G
+            yield from self._agent_to_tuples(agent, now)
 
     def __getstate__(self):
         state = {}
@@ -382,7 +306,6 @@ class Environment(Model):
             state[prop] = self.__dict__[prop]
         state['G'] = json_graph.node_link_data(self.G)
         state['environment_agents'] = self._env_agents
-        state['history'] = self._history
         state['schedule'] = self.schedule
         return state
 
@@ -391,7 +314,6 @@ class Environment(Model):
             self.__dict__[prop] = state[prop]
         self._env_agents = state['environment_agents']
         self.G = json_graph.node_link_graph(state['G'])
-        self._history = state['history']
         # self._env = None
         self.schedule = state['schedule']
         self._queue = []

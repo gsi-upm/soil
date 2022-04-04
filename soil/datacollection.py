@@ -8,19 +8,17 @@ class SoilDataCollector(MDC):
         # Populate model and env reporters so they have a key per 
         # So they can be shown in the web interface
         self.environment = environment
-
+        raise NotImplementedError()
 
     @property
     def model_vars(self):
-        pass
+        raise NotImplementedError()
 
     @model_vars.setter
     def model_vars(self, value):
-        pass
+        raise NotImplementedError()
 
     @property
     def agent_reporters(self):
-        self.model._history._
-
-        pass
+        raise NotImplementedError()
 

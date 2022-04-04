@@ -2,6 +2,7 @@ import os
 import logging
 import ast
 import sys
+import re
 import importlib
 from glob import glob
 from itertools import product, chain
@@ -17,6 +18,9 @@ logger = logging.getLogger('soil')
 
 def load_network(network_params, dir_path=None):
     G = nx.Graph()
+
+    if not network_params:
+        return G
 
     if 'path' in network_params:
         path = network_params['path']
@@ -169,6 +173,9 @@ def serialize(v, known_modules=[]):
     func = serializer(tname)
     return func(v), tname
 
+
+IS_CLASS = re.compile(r"<class '(.*)'>")
+
 def deserializer(type_, known_modules=[]):
     if type(type_) != str:  # Already deserialized
         return type_
@@ -179,6 +186,13 @@ def deserializer(type_, known_modules=[]):
     if hasattr(builtins, type_):  # Check if it's a builtin type
         cls = getattr(builtins, type_)
         return lambda x=None: ast.literal_eval(x) if x is not None else cls()
+    match = IS_CLASS.match(type_)
+    if match:
+        modname, tname = match.group(1).rsplit(".", 1)
+        module = importlib.import_module(modname)
+        cls = getattr(module, tname)
+        return getattr(cls, 'deserialize', cls)
+        
     # Otherwise, see if we can find the module and the class
     modules = known_modules or []
     options = []
@@ -189,7 +203,7 @@ def deserializer(type_, known_modules=[]):
 
     if '.' in type_:  # Fully qualified module
         module, type_ = type_.rsplit(".", 1)
-        options.append ((module, type_))
+        options.append((module, type_))
 
     errors = []
     for modname, tname in options:
@@ -213,10 +227,10 @@ def deserialize(type_, value=None, **kwargs):
 
 
 def deserialize_all(names, *args, known_modules=['soil'], **kwargs):
-    '''Return the set of exporters for a simulation, given the exporter names'''
-    exporters = []
+    '''Return the list of deserialized objects'''
+    objects = []
     for name in names:
         mod = deserialize(name, known_modules=known_modules)
-        exporters.append(mod(*args, **kwargs))
-    return exporters
+        objects.append(mod(*args, **kwargs))
+    return objects
 

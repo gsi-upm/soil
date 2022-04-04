@@ -26,7 +26,14 @@ class DeadAgent(Exception):
 
 class BaseAgent(Agent):
     """
-    A special Agent that keeps track of its state history.
+    A special type of Mesa Agent that:
+
+    * Can be used as a dictionary to access its state.
+    * Has logging built-in
+    * Can be given default arguments through a defaults class attribute,
+    which will be used on construction to initialize each agent's state
+
+    Any attribute that is not preceded by an underscore (`_`) will also be added to its state.
     """
 
     defaults = {}
@@ -61,6 +68,9 @@ class BaseAgent(Agent):
         for (k, v) in kwargs.items():
             setattr(self, k, v)
 
+        for (k, v) in getattr(self, 'defaults', {}).items():
+            if not hasattr(self, k) or getattr(self, k) is None:
+                setattr(self, k, v)
 
     # TODO: refactor to clean up mesa compatibility
     @property
@@ -79,7 +89,6 @@ class BaseAgent(Agent):
     def state(self):
         '''
         Return the agent itself, which behaves as a dictionary.
-        Changes made to `agent.state` will be reflected in the history.
 
         This method shouldn't be used, but is kept here for backwards compatibility.
         '''

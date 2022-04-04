@@ -48,20 +48,24 @@ class Exporter:
         self.simulation = simulation
         outdir = outdir or os.path.join(os.getcwd(), 'soil_output')
         self.outdir = os.path.join(outdir,
-                                   simulation.group or '',
-                                   simulation.name)
+                                   simulation.config.group or '',
+                                   simulation.config.name)
         self.dry_run = dry_run
         self.copy_to = copy_to
 
-    def start(self):
+    def sim_start(self):
         '''Method to call when the simulation starts'''
         pass
 
-    def end(self, stats):
+    def sim_end(self, stats):
         '''Method to call when the simulation ends'''
         pass
 
-    def trial(self, env, stats):
+    def trial_start(self, env):
+        '''Method to call when a trial start'''
+        pass
+
+    def trial_end(self, env, stats):
         '''Method to call when a trial ends'''
         pass
 
@@ -80,21 +84,21 @@ class Exporter:
 class default(Exporter):
     '''Default exporter. Writes sqlite results, as well as the simulation YAML'''
 
-    def start(self):
+    def sim_start(self):
         if not self.dry_run:
             logger.info('Dumping results to %s', self.outdir)
             self.simulation.dump_yaml(outdir=self.outdir)
         else:
             logger.info('NOT dumping results')
 
-    def trial(self, env, stats):
+    def trial_start(self, env, stats):
         if not self.dry_run:
             with timer('Dumping simulation {} trial {}'.format(self.simulation.name,
                                                                env.name)):
                 with self.output('{}.sqlite'.format(env.name), mode='wb') as f:
                     env.dump_sqlite(f)
 
-    def end(self, stats):
+    def sim_end(self, stats):
           with timer('Dumping simulation {}\'s stats'.format(self.simulation.name)):
               with self.output('{}.sqlite'.format(self.simulation.name), mode='wb') as f:
                   self.simulation.dump_sqlite(f)
@@ -102,15 +106,14 @@ class default(Exporter):
 
 
 class csv(Exporter):
+
     '''Export the state of each environment (and its agents) in a separate CSV file'''
-    def trial(self, env, stats):
+    def trial_end(self, env, stats):
         with timer('[CSV] Dumping simulation {} trial {} @ dir {}'.format(self.simulation.name,
                                                                           env.name,
                                                                           self.outdir)):
-            with self.output('{}.csv'.format(env.name)) as f:
-                env.dump_csv(f)
 
-            with self.output('{}.stats.csv'.format(env.name)) as f:
+            with self.output('{}.stats.{}.csv'.format(env.name, stats.name)) as f:
                 statwriter = csvlib.writer(f, delimiter='\t', quotechar='"', quoting=csvlib.QUOTE_ALL)
 
                 for stat in stats:
@@ -118,7 +121,7 @@ class csv(Exporter):
 
 
 class gexf(Exporter):
-    def trial(self, env, stats):
+    def trial_end(self, env, stats):
         if self.dry_run:
             logger.info('Not dumping GEXF in dry_run mode')
             return
@@ -126,22 +129,32 @@ class gexf(Exporter):
         with timer('[GEXF] Dumping simulation {} trial {}'.format(self.simulation.name,
                                                                   env.name)):
             with self.output('{}.gexf'.format(env.name), mode='wb') as f:
-                env.dump_gexf(f)
+                self.dump_gexf(env, f)
 
+    def dump_gexf(self, env, f):
+        G = env.history_to_graph()
+        # Workaround for geometric models
+        # See soil/soil#4
+        for node in G.nodes():
+            if 'pos' in G.nodes[node]:
+                G.nodes[node]['viz'] = {"position": {"x": G.nodes[node]['pos'][0], "y": G.nodes[node]['pos'][1], "z": 0.0}}
+                del (G.nodes[node]['pos'])
+
+        nx.write_gexf(G, f, version="1.2draft")
 
 class dummy(Exporter):
 
-    def start(self):
+    def sim_start(self):
         with self.output('dummy', 'w') as f:
             f.write('simulation started @ {}\n'.format(current_time()))
 
-    def trial(self, env, stats):
+    def trial_end(self, env, stats):
         with self.output('dummy', 'w') as f:
-            for i in env.history_to_tuples():
+            for i in stats:
                 f.write(','.join(map(str, i)))
                 f.write('\n')
 
-    def sim(self, stats):
+    def sim_end(self, stats):
         with self.output('dummy', 'a') as f:
             f.write('simulation ended @ {}\n'.format(current_time()))
 
@@ -149,10 +162,57 @@ class dummy(Exporter):
 
 class graphdrawing(Exporter):
 
-    def trial(self, env, stats):
+    def trial_end(self, env, stats):
         # Outside effects
         f = plt.figure()
         nx.draw(env.G, node_size=10, width=0.2, pos=nx.spring_layout(env.G, scale=100), ax=f.add_subplot(111))
         with open('graph-{}.png'.format(env.name)) as f:
             f.savefig(f)
 
+'''
+Convert an environment into a NetworkX graph
+'''
+def env_to_graph(env, history=None):
+    G = nx.Graph(env.G)
+
+    for agent in env.network_agents:
+
+        attributes = {'agent': str(agent.__class__)}
+        lastattributes = {}
+        spells = []
+        lastvisible = False
+        laststep = None
+        if not history:
+            history = sorted(list(env.state_to_tuples()))
+        for _, t_step, attribute, value in history:
+            if attribute == 'visible':
+                nowvisible = value
+                if nowvisible and not lastvisible:
+                    laststep = t_step
+                if not nowvisible and lastvisible:
+                    spells.append((laststep, t_step))
+
+                lastvisible = nowvisible
+                continue
+            key = 'attr_' + attribute
+            if key not in attributes:
+                attributes[key] = list()
+            if key not in lastattributes:
+                lastattributes[key] = (value, t_step)
+            elif lastattributes[key][0] != value:
+                last_value, laststep = lastattributes[key]
+                commit_value = (last_value, laststep, t_step)
+                if key not in attributes:
+                    attributes[key] = list()
+                attributes[key].append(commit_value)
+                lastattributes[key] = (value, t_step)
+        for k, v in lastattributes.items():
+            attributes[k].append((v[0], v[1], None))
+        if lastvisible:
+            spells.append((laststep, None))
+        if spells:
+            G.add_node(agent.id, spells=spells, **attributes)
+        else:
+            G.add_node(agent.id, **attributes)
+
+    return G

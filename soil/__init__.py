@@ -36,13 +36,13 @@ def main():
     parser.add_argument('--module', '-m', type=str,
                         help='file containing the code of any custom agents.')
     parser.add_argument('--dry-run', '--dry', action='store_true',
-                        help='Do not store the results of the simulation.')
+                        help='Do not store the results of the simulation to disk, show in terminal instead.')
     parser.add_argument('--pdb', action='store_true',
                         help='Use a pdb console in case of exception.')
     parser.add_argument('--graph', '-g', action='store_true',
-                        help='Dump GEXF graph. Defaults to false.')
+                        help='Dump each trial\'s network topology as a GEXF graph. Defaults to false.')
     parser.add_argument('--csv', action='store_true',
-                        help='Dump history in CSV format. Defaults to false.')
+                        help='Dump all data collected in CSV format. Defaults to false.')
     parser.add_argument('--level', type=str,
                         help='Logging level')
     parser.add_argument('--output', '-o', type=str, default="soil_output",

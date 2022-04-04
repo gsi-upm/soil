@@ -8,18 +8,23 @@ class Stats:
     if you don't plan to implement all the methods.
     '''
 
-    def __init__(self, simulation):
+    def __init__(self, simulation, name=None):
+        self.name = name or type(self).__name__
         self.simulation = simulation
 
-    def start(self):
+    def sim_start(self):
         '''Method to call when the simulation starts'''
         pass
 
-    def end(self):
+    def sim_end(self):
         '''Method to call when the simulation ends'''
         return {}
 
-    def trial(self, env):
+    def trial_start(self, env):
+        '''Method to call when a trial starts'''
+        return {}
+
+    def trial_end(self, env):
         '''Method to call when a trial ends'''
         return {}
 
@@ -30,12 +35,12 @@ class distribution(Stats):
     the mean value, and its deviation.
     '''
 
-    def start(self):
+    def sim_start(self):
         self.means = []
         self.counts = []
 
-    def trial(self, env):
-        df = env.df()
+    def trial_end(self, env):
+        df = pd.DataFrame(env.state_to_tuples())
         df = df.drop('SEED', axis=1)
         ix = df.index[-1]
         attrs = df.columns.get_level_values(0)
@@ -60,7 +65,7 @@ class distribution(Stats):
 
         return stats
 
-    def end(self):
+    def sim_end(self):
         dfm = pd.DataFrame(self.means, columns=['metric', 'key', 'value'])
         dfc = pd.DataFrame(self.counts, columns=['metric', 'key', 'value', 'count'])
 
@@ -87,7 +92,7 @@ class distribution(Stats):
 
 class defaultStats(Stats):
 
-    def trial(self, env):
+    def trial_end(self, env):
         c = Counter()
         c.update(a.__class__.__name__ for a in env.network_agents)
 
