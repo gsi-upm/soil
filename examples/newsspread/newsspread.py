@@ -17,7 +17,7 @@ class DumbViewer(FSM):
     def neutral(self):
         if self['has_tv']:
             if prob(self.env['prob_tv_spread']):
-                self.set_state(self.infected)
+                return self.infected
 
     @state
     def infected(self):
@@ -26,6 +26,12 @@ class DumbViewer(FSM):
                 neighbor.infect()
 
     def infect(self):
+        '''
+        This is not a state. It is a function that other agents can use to try to
+        infect this agent. DumbViewer always gets infected, but other agents like
+        HerdViewer might not become infected right away
+        '''
+
         self.set_state(self.infected)
 
 
@@ -35,12 +41,13 @@ class HerdViewer(DumbViewer):
     '''
 
     def infect(self):
+        '''Notice again that this is NOT a state. See DumbViewer.infect for reference'''
         infected = self.count_neighboring_agents(state_id=self.infected.id)
         total = self.count_neighboring_agents()
         prob_infect = self.env['prob_neighbor_spread'] * infected/total
         self.debug('prob_infect', prob_infect)
         if prob(prob_infect):
-            self.set_state(self.infected.id)
+            self.set_state(self.infected)
 
 
 class WiseViewer(HerdViewer):
@@ -75,5 +82,5 @@ class WiseViewer(HerdViewer):
                        1.0)
         prob_cure = self.env['prob_neighbor_cure'] * (cured/infected)
         if prob(prob_cure):
-            return self.cure()
+            return self.cured
         return self.set_state(super().infected)

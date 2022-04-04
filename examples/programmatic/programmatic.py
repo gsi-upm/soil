@@ -18,7 +18,9 @@ class MyAgent(agents.FSM):
     @agents.default_state
     @agents.state
     def neutral(self):
-        self.info('I am running')
+        self.debug('I am running')
+        if agents.prob(0.2):
+            self.info('This runs 2/10 times on average')
 
 
 s = Simulation(name='Programmatic',
@@ -29,10 +31,10 @@ s = Simulation(name='Programmatic',
                dry_run=True)
 
 
+# By default, logging will only print WARNING logs (and above).
+# You need to choose a lower logging level to get INFO/DEBUG traces
 logging.basicConfig(level=logging.INFO)
 envs = s.run()
 
-s.dump_yaml()
-
-for env in envs:
-    env.dump_csv()
+# Uncomment this to output the simulation to a YAML file
+# s.dump_yaml('simulation.yaml')

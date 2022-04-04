@@ -12,8 +12,6 @@ class Genders(Enum):
 
 class RabbitModel(FSM):
 
-    level = logging.INFO
-
     defaults = {
         'age': 0,
         'gender': Genders.male.value,
