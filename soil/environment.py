@@ -16,13 +16,6 @@ from tsih import Record
 
 from . import serialization, agents, analysis, utils, time, config
 
-# These properties will be copied when pickling/unpickling the environment
-_CONFIG_PROPS = [ 'name',
-                  'states',
-                  'default_state',
-                  'interval',
-                 ]
-
 class Environment(Model):
     """
     The environment is key in a simulation. It contains the network topology,
@@ -34,76 +27,62 @@ class Environment(Model):
     :meth:`soil.environment.Environment.get` method.
     """
 
-    def __init__(self, name=None,
-                 network_agents=None,
-                 environment_agents=None,
-                 states=None,
-                 default_state=None,
-                 interval=1,
-                 network_params=None,
-                 seed=None,
-                 topology=None,
+    def __init__(self,
+                 env_id,
+                 seed='default',
                  schedule=None,
-                 initial_time=0,
-                 environment_params=None,
+                 env_params=None,
                  dir_path=None,
                  **kwargs):
 
-
         super().__init__()
 
-        self.schedule = schedule
-        if schedule is None:
-            self.schedule = time.TimedActivation()
 
-        self.name = name or 'UnnamedEnvironment'
+        self.seed = '{}_{}'.format(seed, env_id)
+        self.id = env_id
+
+        self.dir_path = dir_path or os.getcwd()
+
+        if schedule is None:
+            schedule = time.TimedActivation()
+        self.schedule = schedule
+
         seed = seed or current_time()
+
         random.seed(seed)
+
         if isinstance(states, list):
             states = dict(enumerate(states))
         self.states = deepcopy(states) if states else {}
         self.default_state = deepcopy(default_state) or {}
 
-        if topology is None:
-            network_params = network_params or {}
-            topology = serialization.load_network(network_params,
-                                                  dir_path=dir_path)
-        if not topology:
-            topology = nx.Graph()
-        self.G = nx.Graph(topology) 
 
-        self.environment_params = environment_params or {}
-        self.environment_params.update(kwargs)
+        self.set_topology(topology=topology,
+                          network_params=network_params)
 
-        self._env_agents = {}
+        self.agents = agents or {}
+
+        self.env_params = env_params or {}
+        self.env_params.update(kwargs)
+
         self.interval = interval
         self['SEED'] = seed
 
-        if network_agents:
-            distro = agents.calculate_distribution(network_agents)
-            self.network_agents = agents._convert_agent_types(distro)
-        else:
-            self.network_agents = []
-
-        environment_agents = environment_agents or []
-        if environment_agents:
-            distro = agents.calculate_distribution(environment_agents)
-            environment_agents = agents._convert_agent_types(distro)
-        self.environment_agents = environment_agents
 
         self.logger = utils.logger.getChild(self.name)
 
     @staticmethod
     def from_config(conf: config.Config, trial_id, **kwargs) -> Environment:
         '''Create an environment for a trial of the simulation'''
-
-        conf = config.Config(conf, **kwargs)
-        conf.seed = '{}_{}'.format(conf.seed, trial_id)
-        conf.name = '{}_trial_{}'.format(conf.name, trial_id).replace('.', '-')
-        opts = conf.environment_params.copy()
+        conf = conf
+        if kwargs:
+            conf = config.Config(**conf.dict(exclude_defaults=True), **kwargs)
+        seed = '{}_{}'.format(conf.general.seed, trial_id)
+        id = '{}_trial_{}'.format(conf.general.id, trial_id).replace('.', '-')
+        opts = conf.environment.params.copy()
         opts.update(conf)
         opts.update(kwargs)
-        env = serialization.deserialize(conf.environment_class)(**opts)
+        env = serialization.deserialize(conf.environment.environment_class)(env_id=id, seed=seed, **opts)
         return env
 
     @property
@@ -112,21 +91,30 @@ class Environment(Model):
             return self.schedule.time
         raise Exception('The environment has not been scheduled, so it has no sense of time')
 
+
+    def set_topology(self, topology, network_params=None, dir_path=None):
+        if topology is None:
+            network_params = network_params or {}
+            topology = serialization.load_network(network_params,
+                                                  dir_path=dir_path or self.dir_path)
+        if not topology:
+            topology = nx.Graph()
+        self.G = nx.Graph(topology)
+
     @property
     def agents(self):
-        yield from self.environment_agents
-        yield from self.network_agents
+        for agents in self.agents.values():
+            yield from agents
 
-    @property
-    def environment_agents(self):
-        for ref in self._env_agents.values():
-            yield ref
+    @agents.setter
+    def agents(self, agents):
+        self.agents = {}
 
-    @environment_agents.setter
-    def environment_agents(self, environment_agents):
-        self._environment_agents = environment_agents
-
-        self._env_agents = agents._definition_to_dict(definition=environment_agents)
+        for (k, v) in agents.items():
+            self.agents[k] = agents.from_config(v)
+        for agent in self.agents.get('network', []):
+            node = self.G.nodes[agent.unique_id]
+            node['agent'] = agent
 
     @property
     def network_agents(self):
@@ -134,12 +122,6 @@ class Environment(Model):
             node = self.G.nodes[i]
             if 'agent' in node:
                 yield node['agent']
-
-    @network_agents.setter
-    def network_agents(self, network_agents):
-        self._network_agents = network_agents
-        for ix in self.G.nodes():
-            self.init_agent(ix, agent_definitions=network_agents)
 
     def init_agent(self, agent_id, agent_definitions):
         node = self.G.nodes[agent_id]
@@ -251,20 +233,20 @@ class Environment(Model):
                                   value=value)
 
     def __contains__(self, key):
-        return key in self.environment_params
+        return key in self.env_params
 
     def get(self, key, default=None):
         '''
         Get the value of an environment attribute.
         Return `default` if the value is not set.
         '''
-        return self.environment_params.get(key, default)
+        return self.env_params.get(key, default)
 
     def __getitem__(self, key):
-        return self.environment_params.get(key)
+        return self.env_params.get(key)
 
     def __setitem__(self, key, value):
-        return self.environment_params.__setitem__(key, value)
+        return self.env_params.__setitem__(key, value)
 
     def get_agent(self, agent_id):
         return self.G.nodes[agent_id]['agent']
@@ -292,31 +274,13 @@ class Environment(Model):
             yield from self._agent_to_tuples(agent, now)
             return
 
-        for k, v in self.environment_params.items():
+        for k, v in self.env_params.items():
             yield Record(dict_id='env',
                          t_step=now,
                          key=k,
                          value=v)
         for agent in self.agents:
             yield from self._agent_to_tuples(agent, now)
-
-    def __getstate__(self):
-        state = {}
-        for prop in _CONFIG_PROPS:
-            state[prop] = self.__dict__[prop]
-        state['G'] = json_graph.node_link_data(self.G)
-        state['environment_agents'] = self._env_agents
-        state['schedule'] = self.schedule
-        return state
-
-    def __setstate__(self, state):
-        for prop in _CONFIG_PROPS:
-            self.__dict__[prop] = state[prop]
-        self._env_agents = state['environment_agents']
-        self.G = json_graph.node_link_graph(state['G'])
-        # self._env = None
-        self.schedule = state['schedule']
-        self._queue = []
 
 
 SoilEnvironment = Environment

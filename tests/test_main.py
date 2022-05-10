@@ -3,6 +3,7 @@ from unittest import TestCase
 import os
 import io
 import yaml
+import copy
 import pickle
 import networkx as nx
 from functools import partial
@@ -11,8 +12,6 @@ from os.path import join
 from soil import (simulation, Environment, agents, serialization,
                   utils)
 from soil.time import Delta
-from tsih import NoHistory, History
-
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
 EXAMPLES = join(ROOT, '..', 'examples')
@@ -79,9 +78,31 @@ class TestMain(TestCase):
             'environment_params': {
             }
         }
-        s = simulation.from_config(config)
+        s = simulation.from_old_config(config)
         s.run_simulation(dry_run=True)
 
+
+    def test_network_agent(self):
+        """
+        The initial states should be applied to the agent and the
+        agent should be able to update its state."""
+        config = {
+            'name': 'CounterAgent',
+            'network_params': {
+                'generator': nx.complete_graph,
+                'n': 2,
+            },
+            'agent_type': 'CounterModel',
+            'states': {
+                0: {'times': 10},
+                1: {'times': 20},
+            },
+            'max_time': 2,
+            'num_trials': 1,
+            'environment_params': {
+            }
+        }
+        s = simulation.from_old_config(config)
     def test_counter_agent(self):
         """
         The initial states should be applied to the agent and the
@@ -98,40 +119,12 @@ class TestMain(TestCase):
             'environment_params': {
             }
         }
-        s = simulation.from_config(config)
+        s = simulation.from_old_config(config)
         env = s.run_simulation(dry_run=True)[0]
         assert env.get_agent(0)['times', 0] == 11
         assert env.get_agent(0)['times', 1] == 12
         assert env.get_agent(1)['times', 0] == 21
         assert env.get_agent(1)['times', 1] == 22
-
-    def test_counter_agent_history(self):
-        """
-        The evolution of the state should be recorded in the logging agent
-        """
-        config = {
-            'name': 'CounterAgent',
-            'network_params': {
-                'path': join(ROOT, 'test.gexf')
-            },
-            'network_agents': [{
-                'agent_type': 'AggregatedCounter',
-                'weight': 1,
-                'state': {'state_id': 0}
-
-            }],
-            'max_time': 10,
-            'environment_params': {
-            }
-        }
-        s = simulation.from_config(config)
-        env = s.run_simulation(dry_run=True)[0]
-        for agent in env.network_agents:
-            last = 0
-            assert len(agent[None, None]) == 10
-            for step, total in sorted(agent['total', None]):
-                assert total == last + 2
-                last = total
 
     def test_custom_agent(self):
         """Allow for search of neighbors with a certain state_id"""
@@ -148,7 +141,7 @@ class TestMain(TestCase):
             'environment_params': {
             }
         }
-        s = simulation.from_config(config)
+        s = simulation.from_old_config(config)
         env = s.run_simulation(dry_run=True)[0]
         assert env.get_agent(1).count_agents(state_id='normal') == 2
         assert env.get_agent(1).count_agents(state_id='normal', limit_neighbors=True) == 1
@@ -159,7 +152,7 @@ class TestMain(TestCase):
         config = serialization.load_file(join(EXAMPLES, 'torvalds.yml'))[0]
         config['network_params']['path'] = join(EXAMPLES,
                                                 config['network_params']['path'])
-        s = simulation.from_config(config)
+        s = simulation.from_old_config(config)
         env = s.run_simulation(dry_run=True)[0]
         for a in env.network_agents:
             skill_level = a.state['skill_level']
@@ -178,19 +171,23 @@ class TestMain(TestCase):
 
     def test_yaml(self):
         """
-        The YAML version of a newly created simulation
-        should be equivalent to the configuration file used
+        The YAML version of a newly created configuration should be equivalent
+        to the configuration file used.
+        Values not present in the original config file should have reasonable
+        defaults.
         """
         with utils.timer('loading'):
             config = serialization.load_file(join(EXAMPLES, 'complete.yml'))[0]
-            s = simulation.from_config(config)
+            s = simulation.from_old_config(config)
         with utils.timer('serializing'):
-            serial = s.to_yaml()
+            serial = s.config.to_yaml()
         with utils.timer('recovering'):
             recovered = yaml.load(serial, Loader=yaml.SafeLoader)
         with utils.timer('deleting'):
             del recovered['topology']
-        assert config == recovered
+        for (k, v) in config.items():
+            assert recovered[k] == v
+        # assert config == recovered
 
     def test_configuration_changes(self):
         """
@@ -198,26 +195,13 @@ class TestMain(TestCase):
          the simulation.
         """
         config = serialization.load_file(join(EXAMPLES, 'complete.yml'))[0]
-        s = simulation.from_config(config)
+        s = simulation.from_old_config(config)
+        init_config = copy.copy(s.config)
 
         s.run_simulation(dry_run=True)
-        nconfig = s.to_dict()
-        del nconfig['topology']
-        assert config == nconfig
-
-    def test_row_conversion(self):
-        env = Environment(history=True)
-        env['test'] = 'test_value'
-
-        res = list(env.history_to_tuples())
-        assert len(res) == len(env.environment_params)
-
-        env.schedule.time = 1
-        env['test'] = 'second_value'
-        res = list(env.history_to_tuples())
-
-        assert env['env', 0, 'test' ] == 'test_value'
-        assert env['env', 1, 'test' ] == 'second_value'
+        nconfig = s.config
+        # del nconfig['to
+        assert init_config == nconfig
 
     def test_save_geometric(self):
         """
@@ -229,49 +213,13 @@ class TestMain(TestCase):
         f = io.BytesIO()
         env.dump_gexf(f)
 
-    def test_nohistory(self):
-        '''
-        Make sure that no history(/sqlite) is used by default
-        '''
-        env = Environment(topology=nx.Graph(), network_agents=[])
-        assert isinstance(env._history, NoHistory)
-
-    def test_save_graph_history(self):
-        '''
-        The history_to_graph method should return a valid networkx graph.
-
-        The state of the agent should be encoded as intervals in the nx graph.
-        '''
-        G = nx.cycle_graph(5)
-        distribution = agents.calculate_distribution(None, agents.BaseAgent)
-        env = Environment(topology=G, network_agents=distribution, history=True)
-        env[0, 0, 'testvalue'] = 'start'
-        env[0, 10, 'testvalue'] = 'finish'
-        nG = env.history_to_graph()
-        values = nG.nodes[0]['attr_testvalue']
-        assert ('start', 0, 10) in values
-        assert ('finish', 10, None) in values
-
-    def test_save_graph_nohistory(self):
-        '''
-        The history_to_graph method should return a valid networkx graph.
-
-        When NoHistory is used, only the last known value is known
-        '''
-        G = nx.cycle_graph(5)
-        distribution = agents.calculate_distribution(None, agents.BaseAgent)
-        env = Environment(topology=G, network_agents=distribution, history=False)
-        env.get_agent(0)['testvalue'] = 'start'
-        env.schedule.time = 10
-        env.get_agent(0)['testvalue'] = 'finish'
-        nG = env.history_to_graph()
-        values = nG.nodes[0]['attr_testvalue']
-        assert ('start', 0, None) not in values
-        assert ('finish', 10, None) in values
-
     def test_serialize_class(self):
-        ser, name = serialization.serialize(agents.BaseAgent)
+        ser, name = serialization.serialize(agents.BaseAgent, known_modules=[])
         assert name == 'soil.agents.BaseAgent'
+        assert ser == agents.BaseAgent
+
+        ser, name = serialization.serialize(agents.BaseAgent, known_modules=['soil', ])
+        assert name == 'BaseAgent'
         assert ser == agents.BaseAgent
 
         ser, name = serialization.serialize(CustomAgent)
@@ -327,20 +275,6 @@ class TestMain(TestCase):
         assert converted[1]['agent_type'] == 'test_main.CustomAgent'
         pickle.dumps(converted)
 
-    def test_pickle_agent_environment(self):
-        env = Environment(name='Test', history=True)
-        a = agents.BaseAgent(model=env, unique_id=25)
-
-        a['key'] = 'test'
-
-        pickled = pickle.dumps(a)
-        recovered = pickle.loads(pickled)
-
-        assert recovered.env.name == 'Test'
-        assert list(recovered.env._history.to_tuples())
-        assert recovered['key', 0] == 'test'
-        assert recovered['key'] == 'test'
-
     def test_subgraph(self):
         '''An agent should be able to subgraph the global topology'''
         G = nx.Graph()
@@ -371,7 +305,7 @@ class TestMain(TestCase):
             'num_trials': 50,
             'environment_params': {}
         }
-        s = simulation.from_config(config)
+        s = simulation.from_old_config(config)
         runs = list(s.run_simulation(dry_run=True))
         over = list(x.now for x in runs if x.now>2)
         assert len(runs) == config['num_trials']

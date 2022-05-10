@@ -2,6 +2,8 @@ import os
 import csv as csvlib
 from time import time as current_time
 from io import BytesIO
+from sqlalchemy import create_engine
+
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -48,8 +50,8 @@ class Exporter:
         self.simulation = simulation
         outdir = outdir or os.path.join(os.getcwd(), 'soil_output')
         self.outdir = os.path.join(outdir,
-                                   simulation.config.group or '',
-                                   simulation.config.name)
+                                   simulation.config.general.group or '',
+                                   simulation.config.general.id)
         self.dry_run = dry_run
         self.copy_to = copy_to
 
@@ -84,24 +86,33 @@ class Exporter:
 class default(Exporter):
     '''Default exporter. Writes sqlite results, as well as the simulation YAML'''
 
-    def sim_start(self):
-        if not self.dry_run:
-            logger.info('Dumping results to %s', self.outdir)
-            self.simulation.dump_yaml(outdir=self.outdir)
-        else:
-            logger.info('NOT dumping results')
+    # def sim_start(self):
+    #     if not self.dry_run:
+    #         logger.info('Dumping results to %s', self.outdir)
+    #         self.simulation.dump_yaml(outdir=self.outdir)
+    #     else:
+    #         logger.info('NOT dumping results')
 
-    def trial_start(self, env, stats):
-        if not self.dry_run:
-            with timer('Dumping simulation {} trial {}'.format(self.simulation.name,
-                                                               env.name)):
-                with self.output('{}.sqlite'.format(env.name), mode='wb') as f:
-                    env.dump_sqlite(f)
+    # def trial_start(self, env, stats):
+    #     if not self.dry_run:
+    #         with timer('Dumping simulation {} trial {}'.format(self.simulation.name,
+    #                                                            env.name)):
+    #             engine = create_engine('sqlite:///{}.sqlite'.format(env.name), echo=False)
 
-    def sim_end(self, stats):
-          with timer('Dumping simulation {}\'s stats'.format(self.simulation.name)):
-              with self.output('{}.sqlite'.format(self.simulation.name), mode='wb') as f:
-                  self.simulation.dump_sqlite(f)
+    #             dc = env.datacollector
+    #             tables = {'env': dc.get_model_vars_dataframe(),
+    #                       'agents': dc.get_agent_vars_dataframe(),
+    #                       'agents': dc.get_agent_vars_dataframe()}
+    #             for table in dc.tables:
+    #                 tables[table] = dc.get_table_dataframe(table)
+    #             for (t, df) in tables.items():
+    #                 df.to_sql(t, con=engine)
+
+    # def sim_end(self, stats):
+    #       with timer('Dumping simulation {}\'s stats'.format(self.simulation.name)):
+    #           engine = create_engine('sqlite:///{}.sqlite'.format(self.simulation.name), echo=False)
+    #           with self.output('{}.sqlite'.format(self.simulation.name), mode='wb') as f:
+    #               self.simulation.dump_sqlite(f)
 
 
 

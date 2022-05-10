@@ -51,8 +51,6 @@ def load_network(network_params, dir_path=None):
     return G
 
 
-
-
 def load_file(infile):
     folder = os.path.dirname(infile)
     if folder not in sys.path:
@@ -138,7 +136,9 @@ def load_config(config):
 
 builtins = importlib.import_module('builtins')
 
-def name(value, known_modules=[]):
+KNOWN_MODULES = ['soil', ]
+
+def name(value, known_modules=KNOWN_MODULES):
     '''Return a name that can be imported, to serialize/deserialize an object'''
     if value is None:
         return 'None'
@@ -167,7 +167,7 @@ def serializer(type_):
     return lambda x: x
 
 
-def serialize(v, known_modules=[]):
+def serialize(v, known_modules=KNOWN_MODULES):
     '''Get a text representation of an object.'''
     tname = name(v, known_modules=known_modules)
     func = serializer(tname)
@@ -176,7 +176,7 @@ def serialize(v, known_modules=[]):
 
 IS_CLASS = re.compile(r"<class '(.*)'>")
 
-def deserializer(type_, known_modules=[]):
+def deserializer(type_, known_modules=KNOWN_MODULES):
     if type(type_) != str:  # Already deserialized
         return type_
     if type_ == 'str':
@@ -194,10 +194,9 @@ def deserializer(type_, known_modules=[]):
         return getattr(cls, 'deserialize', cls)
         
     # Otherwise, see if we can find the module and the class
-    modules = known_modules or []
     options = []
 
-    for mod in modules:
+    for mod in known_modules:
         if mod:
             options.append((mod, type_))
 
@@ -226,7 +225,7 @@ def deserialize(type_, value=None, **kwargs):
     return des(value)
 
 
-def deserialize_all(names, *args, known_modules=['soil'], **kwargs):
+def deserialize_all(names, *args, known_modules=KNOWN_MODULES, **kwargs):
     '''Return the list of deserialized objects'''
     objects = []
     for name in names:

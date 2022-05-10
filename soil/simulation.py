@@ -18,7 +18,7 @@ from .utils import logger
 from .exporters import default
 from .stats import defaultStats
 
-from .config import Config
+from .config import Config, convert_old
 
 
 #TODO: change documentation for simulation
@@ -34,18 +34,21 @@ class Simulation:
 
     def __init__(self, config=None,
                  **kwargs):
-
-        if bool(config) == bool(kwargs):
-            raise ValueError("Specify either a configuration or the parameters to initialize a configuration")
-
         if kwargs:
-            config = Config(**kwargs)
+            cfg = {}
+            if config:
+                cfg.update(config.dict(include_defaults=False))
+            cfg.update(kwargs)
+            config = Config(**cfg)
+        if not config:
+            raise ValueError("You need to specify a simulation configuration")
 
         self.config = config
 
+
     @property
     def name(self) -> str:
-        return self.config.name
+        return self.config.general.id
 
     def run_simulation(self, *args, **kwargs):
         return self.run(*args, **kwargs)
@@ -58,13 +61,13 @@ class Simulation:
         if parallel and not os.environ.get('SENPY_DEBUG', None):
             p = Pool()
             func = partial(self.run_trial_exceptions, **kwargs)
-            for i in p.imap_unordered(func, range(self.config.num_trials)):
+            for i in p.imap_unordered(func, range(self.config.general.num_trials)):
                 if isinstance(i, Exception):
                     logger.error('Trial failed:\n\t%s', i.message)
                     continue
                 yield i
         else:
-            for i in range(self.config.num_trials):
+            for i in range(self.config.general.num_trials):
                 yield self.run_trial(trial_id=i,
                                      **kwargs)
 
@@ -88,7 +91,7 @@ class Simulation:
                                              known_modules=['soil.stats',],
                                              **stats_params)
 
-        with utils.timer('simulation {}'.format(self.config.name)):
+        with utils.timer('simulation {}'.format(self.config.general.id)):
             for stat in stats:
                 stat.sim_start()
 
@@ -157,11 +160,11 @@ class Simulation:
         if log_level:
             logger.setLevel(log_level)
         # Set-up trial environment and graph
-        until = until or self.config.max_time
+        until = until or self.config.general.max_time
 
         env = Environment.from_config(self.config, trial_id=trial_id)
         # Set up agents on nodes
-        with utils.timer('Simulation {} trial {}'.format(self.config.name, trial_id)):
+        with utils.timer('Simulation {} trial {}'.format(self.config.general.id, trial_id)):
             env.run(until)
         return env
 
@@ -194,15 +197,22 @@ def from_config(conf_or_path):
     sim = Simulation(**config)
     return sim
 
+def from_old_config(conf_or_path):
+    config = list(serialization.load_config(conf_or_path))
+    if len(config) > 1:
+        raise AttributeError('Provide only one configuration')
+    config = convert_old(config[0][0])
+    return Simulation(config)
+
 
 def run_from_config(*configs, **kwargs):
     for config_def in configs:
         # logger.info("Found {} config(s)".format(len(ls)))
         for config, path in serialization.load_config(config_def):
-            name = config.get('name', 'unnamed')
+            name = config.general.id
             logger.info("Using config(s): {name}".format(name=name))
 
-            dir_path = config.pop('dir_path', os.path.dirname(path))
+            dir_path = config.general.dir_path or os.path.dirname(path)
             sim = Simulation(dir_path=dir_path,
                              **config)
             sim.run_simulation(**kwargs)

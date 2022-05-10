@@ -1,251 +1,183 @@
+from __future__ import annotations
+from pydantic import BaseModel, ValidationError, validator, root_validator
+
 import yaml
 import os
 import sys
-import networkx as nx
-import collections.abc
 
-from . import serialization, utils, basestring, agents
+from typing import Any, Callable, Dict, List, Optional, Union, Type
+from pydantic import BaseModel, Extra
 
-class Config(collections.abc.Mapping):
-    """
+class General(BaseModel):
+    id: str = 'Unnamed Simulation'
+    group: str = None
+    dir_path: str = None
+    num_trials: int = 1
+    max_time: float = 100
+    interval: float = 1
+    seed: str = ""
 
-        1) agent type can be specified by name or by class.
-        2) instead of just one type, a network agents distribution can be used.
-           The distribution specifies the weight (or probability) of each
-           agent type in the topology. This is an example distribution: ::
-
-                  [
-                    {'agent_type': 'agent_type_1',
-                     'weight': 0.2,
-                     'state': {
-                         'id': 0
-                      }
-                    },
-                    {'agent_type': 'agent_type_2',
-                     'weight': 0.8,
-                     'state': {
-                         'id': 1
-                      }
-                    }
-                  ]
-
-          In this example, 20% of the nodes will be marked as type
-          'agent_type_1'.
-        3) if no initial state is given, each node's state will be set
-           to `{'id': 0}`.
-
-    Parameters
-    ---------
-    name : str, optional
-        name of the Simulation
-    group : str, optional
-        a group name can be used to link simulations
-    topology (optional): networkx.Graph instance or Node-Link topology as a dict or string (will be loaded with `json_graph.node_link_graph(topology`).
-    network_params : dict
-        parameters used to create a topology with networkx, if no topology is given
-    network_agents : dict
-        definition of agents to populate the topology with
-    agent_type : NetworkAgent subclass, optional
-        Default type of NetworkAgent to use for nodes not specified in network_agents
-    states : list, optional
-        List of initial states corresponding to the nodes in the topology. Basic form is a list of integers
-        whose value indicates the state
-    dir_path: str, optional
-        Directory path to load simulation assets (files, modules...)
-    seed : str, optional
-        Seed to use for the random generator
-    num_trials : int, optional
-        Number of independent simulation runs
-    max_time : int, optional
-        Maximum step/time for each simulation
-    environment_params : dict, optional
-        Dictionary of globally-shared environmental parameters
-    environment_agents: dict, optional
-        Similar to network_agents. Distribution of Agents that control the environment
-    environment_class: soil.environment.Environment subclass, optional
-        Class for the environment. It defailts to soil.environment.Environment
-    """
-    __slots__ = 'name', 'agent_type', 'group', 'network_agents', 'environment_agents', 'states', 'default_state', 'interval', 'network_params', 'seed', 'num_trials', 'max_time', 'topology', 'schedule', 'initial_time', 'environment_params', 'environment_class', 'dir_path', '_added_to_path'
-
-    def __init__(self, name=None,
-                 group=None,
-                 agent_type='BaseAgent',
-                 network_agents=None,
-                 environment_agents=None,
-                 states=None,
-                 default_state=None,
-                 interval=1,
-                 network_params=None,
-                 seed=None,
-                 num_trials=1,
-                 max_time=None,
-                 topology=None,
-                 schedule=None,
-                 initial_time=0,
-                 environment_params={},
-                 environment_class='soil.Environment',
-                 dir_path=None):
-
-        self.network_params = network_params
-        self.name = name or 'Unnamed'
-        self.seed = str(seed or name)
-        self.group = group or ''
-        self.num_trials = num_trials
-        self.max_time = max_time
-        self.default_state = default_state or {}
-        self.dir_path = dir_path or os.getcwd()
-        self.interval = interval
-
-        self._added_to_path = list(x for x in [os.getcwd(), self.dir_path] if x not in sys.path)
-        sys.path += self._added_to_path
-
-        self.topology = topology
-
-        self.schedule = schedule
-        self.initial_time = initial_time
+    @staticmethod
+    def default():
+        return General()
 
 
-        self.environment_class = environment_class
-        self.environment_params = dict(environment_params)
+# Could use TypeAlias in python >= 3.10
+nodeId = int
 
-        #TODO: Check agent distro vs fixed agents
-        self.environment_agents = environment_agents or []
-        
-        self.agent_type = agent_type
-
-        self.network_agents = network_agents or {}
-
-        self.states = states or {}
+class Node(BaseModel):
+    id: nodeId
+    state: Dict[str, Any]
 
 
-    def validate(self):
-        agents._validate_states(self.states,
-                                self._topology)
+class Edge(BaseModel):
+    source: nodeId
+    target: nodeId
+    value: float = 1
 
-    def restore_path(self):
-        for added in self._added_to_path:
-            sys.path.remove(added)
 
-    def to_yaml(self):
-        return yaml.dump(self.to_dict())
+class Topology(BaseModel):
+    nodes: List[Node]
+    directed: bool
+    links: List[Edge]
 
-    def dump_yaml(self, f=None, outdir=None):
-        if not f and not outdir:
-            raise ValueError('specify a file or an output directory')
 
-        if not f:
-            f = os.path.join(outdir, '{}.dumped.yml'.format(self.name))
+class NetParams(BaseModel, extra=Extra.allow):
+    generator: Union[Callable, str]
+    n: int 
 
-        with utils.open_or_reuse(f, 'w') as f:
-            f.write(self.to_yaml())
 
-    def to_yaml(self):
-        return yaml.dump(self.to_dict())
+class NetConfig(BaseModel):
+    group: str = 'network'
+    params: Optional[NetParams]
+    topology: Optional[Topology]
+    path: Optional[str]
 
-    # TODO: See note on getstate
-    def to_dict(self):
-        return self.__getstate__()
+    @staticmethod
+    def default():
+        return NetConfig(topology=None, params=None)
 
-    def dump_yaml(self, f=None, outdir=None):
-        if not f and not outdir:
-            raise ValueError('specify a file or an output directory')
-
-        if not f:
-            f = os.path.join(outdir, '{}.dumped.yml'.format(self.name))
-
-        with utils.open_or_reuse(f, 'w') as f:
-            f.write(self.to_yaml())
-
-    def __getitem__(self, key):
-        return getattr(self, key)
-
-    def __iter__(self):
-        return (k for k in self.__slots__ if k[0] != '_')
-
-    def __len__(self):
-        return len(self.__slots__)
-
-    def dump_pickle(self, f=None, outdir=None):
-        if not outdir and not f:
-            raise ValueError('specify a file or an output directory')
-
-        if not f:
-            f = os.path.join(outdir,
-                             '{}.simulation.pickle'.format(self.name))
-        with utils.open_or_reuse(f, 'wb') as f:
-            pickle.dump(self, f)
-
-    # TODO: remove this. A config should be sendable regardless. Non-pickable objects could be computed via properties and the like
-    # def __getstate__(self):
-    #     state={}
-    #     for k, v in self.__dict__.items():
-    #         if k[0] != '_':
-    #             state[k] = v
-    #             state['topology'] = json_graph.node_link_data(self.topology)
-    #             state['network_agents'] = agents.serialize_definition(self.network_agents,
-    #                                                                   known_modules = [])
-    #             state['environment_agents'] = agents.serialize_definition(self.environment_agents,
-    #                                                                       known_modules = [])
-    #             state['environment_class'] = serialization.serialize(self.environment_class,
-    #                                                                  known_modules=['soil.environment'])[1]  # func, name
-    #     if state['load_module'] is None:
-    #         del state['load_module']
-    #     return state
-
-    # # TODO: remove, same as __getstate__
-    # def __setstate__(self, state):
-    #     self.__dict__ = state
-    #     self.load_module = getattr(self, 'load_module', None)
-    #     if self.dir_path not in sys.path:
-    #         sys.path += [self.dir_path, os.getcwd()]
-    #     self.topology = json_graph.node_link_graph(state['topology'])
-    #     self.network_agents = agents.calculate_distribution(agents._convert_agent_types(self.network_agents))
-    #     self.environment_agents = agents._convert_agent_types(self.environment_agents,
-    #                                                           known_modules=[self.load_module])
-    #     self.environment_class = serialization.deserialize(self.environment_class,
-                                                           # known_modules=[self.load_module,
-                                                           #                'soil.environment', ])  # func, name
-
-class CalculatedConfig(Config):
-    def __init__(self, config):
-        """
-        Returns a configuration object that replaces some "plain" attributes (e.g., `environment_class` string) into
-        a Python object (`soil.environment.Environment` class).
-        """
-        self._config = config
-        values = dict(config)
-        values['environment_class'] = self._environment_class()
-        values['environment_agents'] = self._environment_agents()
-        values['topology'] = self._topology()
-        values['network_agents'] = self._network_agents()
-        values['agent_type'] = serialization.deserialize(self.agent_type, known_modules=['soil.agents'])
-
+    @root_validator
+    def validate_all(cls,  values):
+        if 'params' not in values and 'topology' not in values:
+            raise ValueError('You must specify either a topology or the parameters to generate a graph')
         return values
 
-    def _topology(self):
-        topology = self._config.topology
-        if topology is None:
-            topology = serialization.load_network(self._config.network_params,
-                                                  dir_path=self._config.dir_path)
 
-        elif isinstance(topology, basestring) or isinstance(topology, dict):
-            topology = json_graph.node_link_graph(topology)
+class EnvConfig(BaseModel):
+    environment_class: Union[Type, str] = 'soil.Environment'
+    params: Dict[str, Any] = {}
+    schedule: Union[Type, str] = 'soil.time.TimedActivation'
 
-        return nx.Graph(topology)
+    @staticmethod
+    def default():
+        return EnvConfig()
 
-    def _environment_class(self):
-        return serialization.deserialize(self._config.environment_class,
-                                         known_modules=['soil.environment', ]) or Environment
 
-    def _environment_agents(self):
-        return agents._convert_agent_types(self._config.environment_agents)
+class SingleAgentConfig(BaseModel):
+    agent_class: Union[Type, str] = 'soil.Agent'
+    agent_id: Optional[Union[str, int]] = None
+    params: Dict[str, Any] = {}
+    state: Dict[str, Any] = {}
 
-    def _network_agents(self):
-        distro = agents.calculate_distribution(self._config.network_agents,
-                                               self._config.agent_type)
-        return agents._convert_agent_types(distro)
 
-    def _environment_class(self):
-        return serialization.deserialize(self._config.environment_class,
-                                         known_modules=['soil.environment', ])  # func, name
+class AgentDistro(SingleAgentConfig):
+    weight: Optional[float] = None
+    n: Optional[int] = None
 
+    @root_validator
+    def validate_all(cls,  values):
+        if 'weight' in values and 'count' in values:
+            raise ValueError("You may either specify a weight in the distribution or an agent count")
+        return values
+
+
+class AgentConfig(SingleAgentConfig):
+    n: Optional[int] = None
+    distribution: Optional[List[AgentDistro]] = None
+    fixed: Optional[List[SingleAgentConfig]] = None
+
+    @staticmethod
+    def default():
+        return AgentConfig()
+
+
+class Config(BaseModel, extra=Extra.forbid):
+    general: General = General.default()
+    network: Optional[NetConfig] = None
+    environment: EnvConfig = EnvConfig.default()
+    agents: Dict[str, AgentConfig] = {}
+
+
+def convert_old(old):
+    '''
+    Try to convert old style configs into the new format.
+
+    This is still a work in progress and might not work in many cases.
+    '''
+    new = {}
+
+
+    general = {}
+    for k in ['id', 
+              'group',
+              'dir_path',
+              'num_trials',
+              'max_time',
+              'interval',
+              'seed']:
+        if k in old:
+            general[k] = old[k]
+
+    network = {'group': 'network'}
+
+
+    if 'network_params' in old and old['network_params']:
+        for (k, v) in old['network_params'].items():
+            if k == 'path':
+                network['path'] = v
+            else:
+                network.setdefault('params', {})[k] = v
+
+    if 'topology' in old:
+        network['topology'] = old['topology']
+
+    agents = {
+        'environment': {
+            'fixed': []
+        },
+        'network': {},
+        'default': {},
+    }
+
+    if 'agent_type' in old:
+        agents['default']['agent_class'] = old['agent_type']
+
+    if 'default_state' in old:
+        agents['default']['state'] = old['default_state']
+
+
+    def updated_agent(agent):
+        newagent = dict(agent)
+        newagent['agent_class'] = newagent['agent_type']
+        del newagent['agent_type']
+        return newagent
+
+    for agent in old.get('environment_agents', []):
+        agents['environment']['fixed'].append(updated_agent(agent))
+
+    for agent in old.get('network_agents', []):
+        agents['network'].setdefault('distribution', []).append(updated_agent(agent))
+
+    environment = {'params': {}}
+    if 'environment_class' in old:
+        environment['environment_class'] = old['environment_class']
+
+    for (k, v) in old.get('environment_params', {}).items():
+        environment['params'][k] = v
+
+
+    return Config(general=general,
+                  network=network,
+                  environment=environment,
+                  agents=agents)

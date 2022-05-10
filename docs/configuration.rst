@@ -88,9 +88,18 @@ For example, the following configuration is equivalent to :code:`nx.complete_gra
 
 Environment
 ============
+
 The environment is the place where the shared state of the simulation is stored.
-For instance, the probability of disease outbreak.
-The configuration file may specify the initial value of the environment parameters:
+That means both global parameters, such as the probability of disease outbreak.
+But it also means other data, such as a map, or a network topology that connects multiple agents.
+As a result, it is also typical to add custom functions in an environment that help agents interact with each other and with the state of the simulation.
+
+Last but not least, an environment controls when and how its agents will be executed.
+By default, soil environments incorporate a ``soil.time.TimedActivation`` model for agent execution (more on this on the following section).
+
+Soil environments are very similar, and often interchangeable with, mesa models (``mesa.Model``).
+
+A configuration may specify the initial value of the environment parameters:
 
 .. code:: yaml
 
@@ -98,23 +107,33 @@ The configuration file may specify the initial value of the environment paramete
         daily_probability_of_earthquake: 0.001
         number_of_earthquakes: 0
 
-All agents have access to the environment parameters.
+All agents have access to the environment (and its parameters).
 
 In some scenarios, it is useful to have a custom environment, to provide additional methods or to control the way agents update environment state.
 For example, if our agents play the lottery, the environment could provide a method to decide whether the agent wins, instead of leaving it to the agent.
 
-
 Agents
 ======
+
 Agents are a way of modelling behavior.
 Agents can be characterized with two variables: agent type (``agent_type``) and state.
-Only one agent is executed at a time (generally, every ``interval`` seconds), and it has access to its state and the environment parameters.
+The agent type is a ``soil.Agent`` class, which contains the code that encapsulates the behavior of the agent.
+The state is a set of variables, which may change during the simulation, and that the code may use to control the behavior.
+All agents provide a ``step`` method either explicitly or implicitly (by inheriting it from a superclass), which controls how the agent will behave in each step of the simulation.
+
+When and how agent steps are executed in a simulation depends entirely on the ``environment``.
+Most environments will internally use a scheduler (``mesa.time.BaseScheduler``), which controls the activation of agents.
+
+In soil, we generally used the ``soil.time.TimedActivation`` scheduler, which allows agents to specify when their next activation will happen, defaulting to a 
+
+When an agent's step is executed (generally, every ``interval`` seconds), the agent has access to its state and the environment.
 Through the environment, it can access the network topology and the state of other agents.
 
-There are three three types of agents according to how they are added to the simulation: network agents and environment agent.
+There are two types of agents according to how they are added to the simulation: network agents and environment agent.
 
 Network Agents
 ##############
+
 Network agents are attached to a node in the topology.
 The configuration file allows you to specify how agents will be mapped to topology nodes.
 
@@ -125,7 +144,9 @@ Hence, every node in the network will be associated to an agent of that type.
 
    agent_type: SISaModel
 
-It is also possible to add more than one type of agent to the simulation, and to control the ratio of each type (using the ``weight`` property).
+It is also possible to add more than one type of agent to the simulation.
+
+To control the ratio of each type (using the ``weight`` property).
 For instance, with following configuration, it is five times more likely for a node to be assigned a CounterModel type than a SISaModel type.
 
 .. code:: yaml

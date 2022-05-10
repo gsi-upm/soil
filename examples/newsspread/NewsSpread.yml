@@ -1,6 +1,5 @@
 ---
 default_state: {}
-load_module: newsspread
 environment_agents: []
 environment_params:
   prob_neighbor_spread: 0.0
@@ -9,11 +8,11 @@ interval: 1
 max_time: 300
 name: Sim_all_dumb
 network_agents:
-- agent_type: DumbViewer
+- agent_type: newsspread.DumbViewer
   state:
     has_tv: false
   weight: 1
-- agent_type: DumbViewer
+- agent_type: newsspread.DumbViewer
   state:
     has_tv: true
   weight: 1
@@ -24,7 +23,6 @@ network_params:
 num_trials: 50
 ---
 default_state: {}
-load_module: newsspread
 environment_agents: []
 environment_params:
   prob_neighbor_spread: 0.0
@@ -33,19 +31,19 @@ interval: 1
 max_time: 300
 name: Sim_half_herd
 network_agents:
-- agent_type: DumbViewer
+- agent_type: newsspread.DumbViewer
   state:
     has_tv: false
   weight: 1
-- agent_type: DumbViewer
+- agent_type: newsspread.DumbViewer
   state:
     has_tv: true
   weight: 1
-- agent_type: HerdViewer
+- agent_type: newsspread.HerdViewer
   state:
     has_tv: false
   weight: 1
-- agent_type: HerdViewer
+- agent_type: newsspread.HerdViewer
   state:
     has_tv: true
   weight: 1
@@ -56,7 +54,6 @@ network_params:
 num_trials: 50
 ---
 default_state: {}
-load_module: newsspread
 environment_agents: []
 environment_params:
   prob_neighbor_spread: 0.0
@@ -65,12 +62,12 @@ interval: 1
 max_time: 300
 name: Sim_all_herd
 network_agents:
-- agent_type: HerdViewer
+- agent_type: newsspread.HerdViewer
   state:
     has_tv: true
     state_id: neutral
   weight: 1
-- agent_type: HerdViewer
+- agent_type: newsspread.HerdViewer
   state:
     has_tv: true
     state_id: neutral
@@ -82,7 +79,6 @@ network_params:
 num_trials: 50
 ---
 default_state: {}
-load_module: newsspread
 environment_agents: []
 environment_params:
   prob_neighbor_spread: 0.0
@@ -92,12 +88,12 @@ interval: 1
 max_time: 300
 name: Sim_wise_herd
 network_agents:
-- agent_type: HerdViewer
+- agent_type: newsspread.HerdViewer
   state:
     has_tv: true
     state_id: neutral
   weight: 1
-- agent_type: WiseViewer
+- agent_type: newsspread.WiseViewer
   state:
     has_tv: true
   weight: 1
@@ -108,7 +104,6 @@ network_params:
 num_trials: 50
 ---
 default_state: {}
-load_module: newsspread
 environment_agents: []
 environment_params:
   prob_neighbor_spread: 0.0
@@ -118,12 +113,12 @@ interval: 1
 max_time: 300
 name: Sim_all_wise
 network_agents:
-- agent_type: WiseViewer
+- agent_type: newsspread.WiseViewer
   state:
     has_tv: true
     state_id: neutral
   weight: 1
-- agent_type: WiseViewer
+- agent_type: newsspread.WiseViewer
   state:
     has_tv: true
   weight: 1

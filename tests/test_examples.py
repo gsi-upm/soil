@@ -18,10 +18,10 @@ def make_example_test(path, config):
     def wrapped(self):
         root = os.getcwd()
         for s in simulation.all_from_config(path):
-            iterations = s.max_time * s.num_trials
+            iterations = s.config.max_time * s.config.num_trials
             if iterations > 1000:
-                s.max_time = 100
-                s.num_trials = 1
+                s.config.max_time = 100
+                s.config.num_trials = 1
             if config.get('skip_test', False) and not FORCE_TESTS:
                 self.skipTest('Example ignored.')
             envs = s.run_simulation(dry_run=True)

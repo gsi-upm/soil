@@ -1,27 +1,38 @@
 ---
-name: simple
-group: tests
-dir_path: "/tmp/"
-num_trials: 3
-max_time: 100
-interval: 1
-seed: "CompleteSeed!"
-network_params:
-  generator: complete_graph
-  n: 10
-network_agents:
-  - agent_type: CounterModel
-    weight: 1
+general:
+  name: simple
+  group: tests
+  dir_path: "/tmp/"
+  num_trials: 3
+  max_time: 100
+  interval: 1
+  seed: "CompleteSeed!"
+network:
+  group:
+    network
+  params:
+    generator: complete_graph
+    n: 10
+environment:
+  environment_class: Environment
+  params:
+    am_i_complete: true
+agents:
+  default:
+    agent_class: CounterModel
     state:
-      state_id: 0
-  - agent_type: AggregatedCounter
-    weight: 0.2
-environment_agents: []
-environment_class: Environment
-environment_params:
-  am_i_complete: true
-default_state:
-  incidents: 0
-states:
-  - name: 'The first node'
-  - name: 'The second node'
+      times: 1
+  environment:
+    fixed:
+      - agent_id: 'Environment Agent 1'
+        agent_class: CounterModel
+        state:
+          times: 10
+  network:
+    distribution:
+      - agent_class: CounterModel
+        weight: 1
+        state:
+          state_id: 0
+      - agent_class: AggregatedCounter
+        weight: 0.2

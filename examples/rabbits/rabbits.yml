@@ -1,5 +1,4 @@
 ---
-load_module: rabbit_agents
 name: rabbits_example
 max_time: 100
 interval: 1

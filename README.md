@@ -39,6 +39,7 @@ As of this writing,
 This is a non-exhaustive list of tasks to achieve compatibility:
 
 * Environments.agents and mesa.Agent.agents are not the same. env is a property, and it only takes into account network and environment agents. Might rename environment_agents to other_agents or sth like that
+
 - [ ] Integrate `soil.Simulation` with mesa's runners:
   - [ ] `soil.Simulation` could mimic/become a `mesa.batchrunner`
 - [ ] Integrate `soil.Environment` with `mesa.Model`:
