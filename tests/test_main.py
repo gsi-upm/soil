@@ -127,7 +127,7 @@ class TestMain(TestCase):
         env = s.run_simulation(dry_run=True)[0]
         for agent in env.network_agents:
             last = 0
-            assert len(agent[None, None]) == 11
+            assert len(agent[None, None]) == 10
             for step, total in sorted(agent['total', None]):
                 assert total == last + 2
                 last = total

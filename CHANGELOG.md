@@ -3,6 +3,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.3]
+### Fixed
+* Default state values are now deepcopied again.
+* Seeds for environments only concatenate the trial id (i.e., a number), to provide repeatable results.
+* `Environment.run` now calls `Environment.step`, to allow for easy overloading of the environment step
+### Removed
+* Datacollectors are not being used for now.
+* `time.TimedActivation.step` does not use an `until` parameter anymore.
+### Changed
+* Simulations now run right up to `until` (open interval)
+* Time instants (`time.When`) don't need to be floats anymore. Now we can avoid precision issues with big numbers by using ints.
+* Rabbits simulation is more idiomatic (using subclasses)
+
 ## [0.20.2]
 ### Fixed
 * CI/CD testing issues

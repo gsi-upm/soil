@@ -6,9 +6,11 @@ from .utils import logger
 from mesa import Agent
 
 
+INFINITY = float('inf')
+
 class When:
     def __init__(self, time):
-        self._time = float(time)
+        self._time = time
 
     def abs(self, time):
         return self._time
@@ -40,48 +42,34 @@ class TimedActivation(BaseScheduler):
             heappush(self._queue, (self.time, agent.unique_id))
             super().add(agent)
 
-    def step(self, until: float =float('inf')) -> None:
+    def step(self) -> None:
         """
         Executes agents in order, one at a time. After each step,
         an agent will signal when it wants to be scheduled next.
         """
 
-        when = None
-        agent_id = None
-        unsched = []
-        until = until or float('inf')
+        if self.next_time == INFINITY:
+            return
+
+        self.time = self.next_time
+        when = self.time
+
+        while self._queue and self._queue[0][0] == self.time:
+            (when, agent_id) = heappop(self._queue)
+            logger.debug(f'Stepping agent {agent_id}')
+
+            when = (self._agents[agent_id].step() or Delta(1)).abs(self.time)
+            if when < self.time:
+                raise Exception("Cannot schedule an agent for a time in the past ({} < {})".format(when, self.time))
+
+            heappush(self._queue, (when, agent_id))
+
+        self.steps += 1
 
         if not self._queue:
-            self.time = until
-            self.next_time = float('inf')
+            self.time = INFINITY
+            self.next_time = INFINITY
             return
 
-        (when, agent_id) = self._queue[0]
+        self.next_time = self._queue[0][0]
 
-        if until and when > until:
-            self.time = until
-            self.next_time = when
-            return
-
-        self.time = when
-        next_time = float("inf")
-
-        while when == self.time:
-            heappop(self._queue)
-            logger.debug(f'Stepping agent {agent_id}')
-            when = (self._agents[agent_id].step() or Delta(1)).abs(self.time)
-            heappush(self._queue, (when, agent_id))
-            if when < next_time:
-                next_time = when
-
-            if not self._queue or self._queue[0][0] > self.time:
-                agent_id = None
-                break
-            else:
-                (when, agent_id) = self._queue[0]
-
-        if when and when < self.time:
-            raise Exception("Invalid scheduling time")
-
-        self.next_time = next_time
-        self.steps += 1

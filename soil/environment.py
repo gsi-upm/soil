@@ -169,11 +169,12 @@ class Environment(Model):
         if agent_type:
             state = defstate
             a = agent_type(model=self,
-                           unique_id=agent_id)
+                           unique_id=agent_id
+            )
 
         for (k, v) in getattr(a, 'defaults', {}).items():
             if not hasattr(a, k) or getattr(a, k) is None:
-                setattr(a, k, v)
+                setattr(a, k, deepcopy(v))
 
         for (k, v) in state.items():
             setattr(a, k, v)
@@ -199,15 +200,15 @@ class Environment(Model):
 
     def step(self):
         super().step()
-        self.datacollector.collect(self)
         self.schedule.step()
 
     def run(self, until, *args, **kwargs):
         self._save_state()
 
-        while self.schedule.next_time <= until and not math.isinf(self.schedule.next_time):
-            self.schedule.step(until=until)
+        while self.schedule.next_time < until:
+            self.step()
             utils.logger.debug(f'Simulation step {self.schedule.time}/{until}. Next: {self.schedule.next_time}')
+        self.schedule.time = until
         self._history.flush_cache()
 
     def _save_state(self, now=None):

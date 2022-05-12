@@ -34,6 +34,17 @@ class RabbitModel(FSM):
         if self['age'] >= self.sexual_maturity:
             self.debug('I am fertile!')
             return self.fertile
+    @state
+    def fertile(self):
+        raise Exception("Each subclass should define its fertile state")
+
+    @state
+    def dead(self):
+        self.info('Agent {} is dying'.format(self.id))
+        self.die()
+
+
+class Male(RabbitModel):
 
     @state
     def fertile(self):
@@ -45,19 +56,25 @@ class RabbitModel(FSM):
             return
 
         # Males try to mate
-        for f in self.get_agents(state_id=self.fertile.id, gender=Genders.female.value, limit_neighbors=False, limit=self.max_females):
+        for f in self.get_agents(state_id=Female.fertile.id,
+                                 agent_type=Female,
+                                 limit_neighbors=False,
+                                 limit=self.max_females):
             r = random()
             if r < self['mating_prob']:
                 self.impregnate(f)
                 break # Take a break
-
     def impregnate(self, whom):
-        if self['gender'] == Genders.female.value:
-            raise NotImplementedError('Females cannot impregnate')
         whom['pregnancy'] = 0
         whom['mate'] = self.id
         whom.set_state(whom.pregnant)
         self.debug('{} impregnating: {}. {}'.format(self.id, whom.id, whom.state))
+
+class Female(RabbitModel):
+    @state
+    def fertile(self):
+        # Just wait for a Male
+        pass
 
     @state
     def pregnant(self):
@@ -88,11 +105,9 @@ class RabbitModel(FSM):
 
     @state
     def dead(self):
-        self.info('Agent {} is dying'.format(self.id))
+        super().dead()
         if 'pregnancy' in self and self['pregnancy'] > -1:
             self.info('A mother has died carrying a baby!!')
-        self.die()
-        return
 
 
 class RandomAccident(NetworkAgent):

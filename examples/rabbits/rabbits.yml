@@ -4,9 +4,9 @@ name: rabbits_example
 max_time: 100
 interval: 1
 seed: MySeed
-agent_type: RabbitModel
+agent_type: rabbit_agents.RabbitModel
 environment_agents:
-    - agent_type: RandomAccident
+    - agent_type: rabbit_agents.RandomAccident
 environment_params:
   prob_death: 0.001
 default_state:
@@ -14,10 +14,8 @@ default_state:
 topology:
   nodes:
     - id: 1
-      state:
-        gender: female
+      agent_type: rabbit_agents.Male
     - id: 0
-      state:
-        gender: male
+      agent_type: rabbit_agents.Female
   directed: true
   links: []

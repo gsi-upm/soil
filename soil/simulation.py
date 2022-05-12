@@ -145,9 +145,7 @@ class Simulation:
     def _run_sync_or_async(self, parallel=False, *args, **kwargs):
         if parallel and not os.environ.get('SENPY_DEBUG', None):
             p = Pool()
-            func = partial(self.run_trial_exceptions,
-                           *args,
-                           **kwargs)
+            func = lambda x: self.run_trial_exceptions(trial_id=x, *args, **kwargs)
             for i in p.imap_unordered(func, range(self.num_trials)):
                 if isinstance(i, Exception):
                     logger.error('Trial failed:\n\t%s', i.message)
@@ -155,7 +153,8 @@ class Simulation:
                 yield i
         else:
             for i in range(self.num_trials):
-                yield self.run_trial(*args,
+                yield self.run_trial(trial_id=i,
+                                     *args,
                                      **kwargs)
 
     def run_gen(self, *args, parallel=False, dry_run=False,
@@ -224,7 +223,7 @@ class Simulation:
         '''Create an environment for a trial of the simulation'''
         opts = self.environment_params.copy()
         opts.update({
-            'name': trial_id,
+            'name': '{}_trial_{}'.format(self.name, trial_id),
             'topology': self.topology.copy(),
             'network_params': self.network_params,
             'seed': '{}_trial_{}'.format(self.seed, trial_id),
@@ -241,12 +240,11 @@ class Simulation:
         env = self.environment_class(**opts)
         return env
 
-    def run_trial(self, until=None, log_level=logging.INFO, **opts):
+    def run_trial(self, trial_id=0, until=None, log_level=logging.INFO, **opts):
         """
         Run a single trial of the simulation
 
         """
-        trial_id = '{}_trial_{}'.format(self.name, time.time()).replace('.', '-')
         if log_level:
             logger.setLevel(log_level)
         # Set-up trial environment and graph

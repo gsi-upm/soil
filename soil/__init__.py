@@ -65,6 +65,10 @@ def main():
 
     logger.info('Loading config file: {}'.format(args.file))
 
+    if args.pdb:
+        args.synchronous = True
+
+
     try:
         exporters = list(args.exporter or ['default', ])
         if args.csv:
