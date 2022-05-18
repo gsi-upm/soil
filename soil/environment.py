@@ -175,10 +175,6 @@ class Environment(Model):
                            unique_id=agent_id
             )
 
-        for (k, v) in getattr(a, 'defaults', {}).items():
-            if not hasattr(a, k) or getattr(a, k) is None:
-                setattr(a, k, deepcopy(v))
-
         for (k, v) in state.items():
             setattr(a, k, v)
 

@@ -54,8 +54,13 @@ class BaseAgent(Agent):
 
         if hasattr(self, 'level'):
             self.logger.setLevel(self.level)
+        for (k, v) in self.defaults.items():
+            if not hasattr(self, k) or getattr(self, k) is None:
+                setattr(self, k, deepcopy(v))
+
         for (k, v) in kwargs.items():
             setattr(self, k, v)
+
 
     # TODO: refactor to clean up mesa compatibility
     @property
