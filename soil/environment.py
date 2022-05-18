@@ -5,6 +5,7 @@ import math
 import random
 import yaml
 import tempfile
+import logging
 import pandas as pd
 from time import time as current_time
 from copy import deepcopy
@@ -100,6 +101,8 @@ class Environment(Model):
             distro = agents.calculate_distribution(environment_agents)
             environment_agents = agents._convert_agent_types(distro)
         self.environment_agents = environment_agents
+
+        self.logger = utils.logger.getChild(self.name)
 
     @property
     def now(self):
@@ -197,6 +200,18 @@ class Environment(Model):
             agent2 = agent2.id
         start = start or self.now
         return self.G.add_edge(agent1, agent2, **attrs)
+
+    def log(self, message, *args, level=logging.INFO, **kwargs):
+        if not self.logger.isEnabledFor(level):
+            return
+        message = message + " ".join(str(i) for i in args)
+        message = " @{:>3}: {}".format(self.now, message)
+        for k, v in kwargs:
+            message += " {k}={v} ".format(k, v)
+        extra = {}
+        extra['now'] = self.now
+        extra['unique_id'] = self.name
+        return self.logger.log(level, message, extra=extra)
 
     def step(self):
         super().step()

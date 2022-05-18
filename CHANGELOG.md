@@ -3,6 +3,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.4]
+### Added
+* Agents can now be given any kwargs, which will be used to set their state
+* Environments have a default logger `self.logger` and a log method, just like agents
 ## [0.20.3]
 ### Fixed
 * Default state values are now deepcopied again.

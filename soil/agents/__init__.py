@@ -35,7 +35,9 @@ class BaseAgent(Agent):
                  unique_id,
                  model,
                  name=None,
-                 interval=None):
+                 interval=None,
+                 **kwargs
+    ):
         # Check for REQUIRED arguments
         # Initialize agent parameters
         if isinstance(unique_id, Agent):
@@ -52,7 +54,8 @@ class BaseAgent(Agent):
 
         if hasattr(self, 'level'):
             self.logger.setLevel(self.level)
-
+        for (k, v) in kwargs.items():
+            setattr(self, k, v)
 
     # TODO: refactor to clean up mesa compatibility
     @property
