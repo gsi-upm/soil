@@ -1,11 +1,12 @@
 import os
-import time
 import importlib
 import sys
 import yaml
 import traceback
 import logging
 import networkx as nx
+
+from time import strftime
 from networkx.readwrite import json_graph
 from multiprocessing import Pool
 from functools import partial
@@ -98,7 +99,7 @@ class Simulation:
         self.network_params = network_params
         self.name = name or 'Unnamed'
         self.seed = str(seed or name)
-        self._id = '{}_{}'.format(self.name, time.strftime("%Y-%m-%d_%H.%M.%S"))
+        self._id = '{}_{}'.format(self.name, strftime("%Y-%m-%d_%H.%M.%S"))
         self.group = group or ''
         self.num_trials = num_trials
         self.max_time = max_time
@@ -142,10 +143,10 @@ class Simulation:
         '''Run the simulation and return the list of resulting environments'''
         return list(self.run_gen(*args, **kwargs))
 
-    def _run_sync_or_async(self, parallel=False, *args, **kwargs):
+    def _run_sync_or_async(self, parallel=False, **kwargs):
         if parallel and not os.environ.get('SENPY_DEBUG', None):
             p = Pool()
-            func = lambda x: self.run_trial_exceptions(trial_id=x, *args, **kwargs)
+            func = partial(self.run_trial_exceptions, **kwargs)
             for i in p.imap_unordered(func, range(self.num_trials)):
                 if isinstance(i, Exception):
                     logger.error('Trial failed:\n\t%s', i.message)
@@ -154,10 +155,9 @@ class Simulation:
         else:
             for i in range(self.num_trials):
                 yield self.run_trial(trial_id=i,
-                                     *args,
                                      **kwargs)
 
-    def run_gen(self, *args, parallel=False, dry_run=False,
+    def run_gen(self, parallel=False, dry_run=False,
                 exporters=[default, ], stats=[], outdir=None, exporter_params={},
                 stats_params={}, log_level=None,
                 **kwargs):
@@ -183,8 +183,7 @@ class Simulation:
 
             for exporter in exporters:
                 exporter.start()
-            for env in self._run_sync_or_async(*args,
-                                               parallel=parallel,
+            for env in self._run_sync_or_async(parallel=parallel,
                                                log_level=log_level,
                                                **kwargs):
 

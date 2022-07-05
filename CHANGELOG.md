@@ -3,6 +3,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [UNRELEASED]
+## [0.20.6]
+### Fixed
+* Agents now return `time.INFINITY` when dead, instead of 'inf'
+* `soil.__init__` does not re-export built-in time (change in `soil.simulation`. It used to create subtle import conflicts when importing soil.time.
+* Parallel simulations were broken because lambdas cannot be pickled properly, which is needed for multiprocessing.
+### Changed
+* Some internal simulation methods do not accept `*args` anymore, to avoid ambiguity and bugs.
 ## [0.20.5]
 ### Changed
 * Defaults are now set in the agent __init__, not in the environment. This decouples both classes a bit more, and it is more intuitive 

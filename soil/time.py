@@ -15,6 +15,8 @@ class When:
     def abs(self, time):
         return self._time
 
+NEVER = When(INFINITY)
+
 
 class Delta:
     def __init__(self, delta):

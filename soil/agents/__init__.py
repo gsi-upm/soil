@@ -145,6 +145,7 @@ class BaseAgent(Agent):
         self.alive = False
         if remove:
             self.remove_node(self.id)
+        return time.INFINITY
 
     def step(self):
         if not self.alive:
@@ -313,18 +314,16 @@ class FSM(NetworkAgent, metaclass=MetaFSM):
 
     def step(self):
         self.debug(f'Agent {self.unique_id} @ state {self.state_id}')
-        try:
-            interval = super().step()
-        except DeadAgent:
-            return time.When('inf')
+        interval = super().step()
         if 'id' not in self.state:
-            # if 'id' in self.state:
-            #     self.set_state(self.state['id'])
             if self.default_state:
                 self.set_state(self.default_state.id)
             else:
                 raise Exception('{} has no valid state id or default state'.format(self))
-        return self.states[self.state_id](self) or interval
+        interval = self.states[self.state_id](self) or interval
+        if not self.alive:
+            return time.NEVER
+        return interval
 
     def set_state(self, state):
         if hasattr(state, 'id'):
