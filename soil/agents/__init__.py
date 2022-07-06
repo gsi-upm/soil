@@ -145,7 +145,7 @@ class BaseAgent(Agent):
         self.alive = False
         if remove:
             self.remove_node(self.id)
-        return time.INFINITY
+        return time.NEVER
 
     def step(self):
         if not self.alive:

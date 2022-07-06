@@ -10,6 +10,8 @@ INFINITY = float('inf')
 
 class When:
     def __init__(self, time):
+        if isinstance(time, When):
+            return time
         self._time = time
 
     def abs(self, time):
@@ -18,7 +20,7 @@ class When:
 NEVER = When(INFINITY)
 
 
-class Delta:
+class Delta(When):
     def __init__(self, delta):
         self._delta = delta
 
@@ -60,7 +62,8 @@ class TimedActivation(BaseScheduler):
             (when, agent_id) = heappop(self._queue)
             logger.debug(f'Stepping agent {agent_id}')
 
-            when = (self._agents[agent_id].step() or Delta(1)).abs(self.time)
+            returned = self._agents[agent_id].step()
+            when = (returned or Delta(1)).abs(self.time)
             if when < self.time:
                 raise Exception("Cannot schedule an agent for a time in the past ({} < {})".format(when, self.time))
 

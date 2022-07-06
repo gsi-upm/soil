@@ -16,9 +16,7 @@ class TestMain(TestCase):
         d.step()
         with pytest.raises(agents.DeadAgent):
             d.step()
+
     def test_die_returns_infinity(self):
         d = Dead(unique_id=0, model=environment.Environment())
         assert d.step().abs(0) == stime.INFINITY
-
-
-
