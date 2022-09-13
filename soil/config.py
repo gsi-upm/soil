@@ -11,7 +11,7 @@ from pydantic import BaseModel, Extra
 class General(BaseModel):
     id: str = 'Unnamed Simulation'
     group: str = None
-    dir_path: str = None
+    dir_path: Optional[str] = None
     num_trials: int = 1
     max_time: float = 100
     interval: float = 1
@@ -27,13 +27,13 @@ nodeId = int
 
 class Node(BaseModel):
     id: nodeId
-    state: Dict[str, Any]
+    state: Optional[Dict[str, Any]] = {}
 
 
 class Edge(BaseModel):
     source: nodeId
     target: nodeId
-    value: float = 1
+    value: Optional[float] = 1
 
 
 class Topology(BaseModel):
@@ -75,46 +75,62 @@ class EnvConfig(BaseModel):
 
 
 class SingleAgentConfig(BaseModel):
-    agent_class: Union[Type, str] = 'soil.Agent'
+    agent_class: Optional[Union[Type, str]] = None
     agent_id: Optional[Union[str, int]] = None
-    params: Dict[str, Any] = {}
-    state: Dict[str, Any] = {}
+    topology: Optional[str] = None
+    state: Optional[Dict[str, Any]] = {}
 
-
-class AgentDistro(SingleAgentConfig):
-    weight: Optional[float] = None
-    n: Optional[int] = None
+class FixedAgentConfig(SingleAgentConfig):
+    n: Optional[int] = 1
 
     @root_validator
     def validate_all(cls,  values):
-        if 'weight' in values and 'count' in values:
-            raise ValueError("You may either specify a weight in the distribution or an agent count")
+        if 'agent_id' in values and values.get('n', 1) > 1:
+            raise ValueError("An agent_id can only be provided when there is only one agent")
         return values
+
+
+class AgentDistro(SingleAgentConfig):
+    weight: Optional[float] = 1
 
 
 class AgentConfig(SingleAgentConfig):
     n: Optional[int] = None
+    topology: Optional[str] = None
     distribution: Optional[List[AgentDistro]] = None
-    fixed: Optional[List[SingleAgentConfig]] = None
+    fixed: Optional[List[FixedAgentConfig]] = None
 
     @staticmethod
     def default():
         return AgentConfig()
 
+    @root_validator
+    def validate_all(cls,  values):
+        if 'distribution' in values and ('n' not in values and 'topology' not in values):
+            raise ValueError("You need to provide the number of agents or a topology to extract the value from.")
+        return values
+
 
 class Config(BaseModel, extra=Extra.forbid):
+    version: Optional[str] = '1'
     general: General = General.default()
-    network: Optional[NetConfig] = None
+    topologies: Optional[Dict[str, NetConfig]] = {}
     environment: EnvConfig = EnvConfig.default()
-    agents: Dict[str, AgentConfig] = {}
+    agents: Optional[Dict[str, AgentConfig]] = {}
 
 
-def convert_old(old):
+def convert_old(old, strict=True):
     '''
     Try to convert old style configs into the new format.
 
     This is still a work in progress and might not work in many cases.
     '''
+
+    # TODO: translate states
+
+    if strict and old.get('states', {}):
+        raise ValueError('Custom (i.e., manual) agent states cannot be translated to v2 configuration files. Please, convert your configuration file to the new format.')
+
     new = {}
 
 
@@ -129,7 +145,10 @@ def convert_old(old):
         if k in old:
             general[k] = old[k]
 
-    network = {'group': 'network'}
+    if 'name' in old:
+        general['id'] = old['name']
+
+    network = {}
 
 
     if 'network_params' in old and old['network_params']:
@@ -143,9 +162,6 @@ def convert_old(old):
         network['topology'] = old['topology']
 
     agents = {
-        'environment': {
-            'fixed': []
-        },
         'network': {},
         'default': {},
     }
@@ -164,10 +180,31 @@ def convert_old(old):
         return newagent
 
     for agent in old.get('environment_agents', []):
-        agents['environment']['fixed'].append(updated_agent(agent))
+        agents['environment'] = {'distribution': [], 'fixed': []}
+        if 'agent_id' not in agent:
+            agents['environment']['distribution'].append(updated_agent(agent))
+        else:
+            agents['environment']['fixed'].append(updated_agent(agent))
 
-    for agent in old.get('network_agents', []):
-        agents['network'].setdefault('distribution', []).append(updated_agent(agent))
+    by_weight = []
+    fixed = []
+
+    if 'network_agents' in old:
+        agents['network']['topology'] = 'default'
+
+        for agent in old['network_agents']:
+            agent = updated_agent(agent)
+            if 'agent_id' in agent:
+                fixed.append(agent)
+            else:
+                by_weight.append(agent)
+
+    if 'agent_type' in old and (not fixed and not by_weight):
+        agents['network']['topology'] = 'default'
+        by_weight = [{'agent_type': old['agent_type']}]
+
+    agents['network']['fixed'] = fixed
+    agents['network']['distribution'] = by_weight
 
     environment = {'params': {}}
     if 'environment_class' in old:
@@ -176,8 +213,8 @@ def convert_old(old):
     for (k, v) in old.get('environment_params', {}).items():
         environment['params'][k] = v
 
-
-    return Config(general=general,
-                  network=network,
+    return Config(version='2',
+                  general=general,
+                  topologies={'default': network},
                   environment=environment,
                   agents=agents)

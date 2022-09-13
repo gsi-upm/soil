@@ -9,7 +9,7 @@ import networkx as nx
 from functools import partial
 
 from os.path import join
-from soil import (simulation, Environment, agents, serialization,
+from soil import (simulation, Environment, agents, network, serialization,
                   utils)
 from soil.time import Delta
 
@@ -17,7 +17,7 @@ ROOT = os.path.abspath(os.path.dirname(__file__))
 EXAMPLES = join(ROOT, '..', 'examples')
 
 
-class CustomAgent(agents.FSM):
+class CustomAgent(agents.FSM, agents.NetworkAgent):
     @agents.default_state
     @agents.state
     def normal(self):
@@ -39,7 +39,7 @@ class TestMain(TestCase):
                 'path': join(ROOT, 'test.gexf')
             }
         }
-        G = serialization.load_network(config['network_params'])
+        G = network.from_config(config['network_params'])
         assert G
         assert len(G) == 2
         with self.assertRaises(AttributeError):
@@ -48,7 +48,7 @@ class TestMain(TestCase):
                     'path': join(ROOT, 'unknown.extension')
                 }
             }
-            G = serialization.load_network(config['network_params'])
+            G = network.from_config(config['network_params'])
             print(G)
 
     def test_generate_barabasi(self):
@@ -56,16 +56,16 @@ class TestMain(TestCase):
         If no path is given, a generator and network parameters
         should be used to generate a network
         """
-        config = {
-            'network_params': {
+        cfg = {
+            'params': {
                 'generator': 'barabasi_albert_graph'
             }
         }
-        with self.assertRaises(TypeError):
-            G = serialization.load_network(config['network_params'])
-        config['network_params']['n'] = 100
-        config['network_params']['m'] = 10
-        G = serialization.load_network(config['network_params'])
+        with self.assertRaises(Exception):
+            G = network.from_config(cfg)
+        cfg['params']['n'] = 100
+        cfg['params']['m'] = 10
+        G = network.from_config(cfg)
         assert len(G) == 100
 
     def test_empty_simulation(self):
@@ -103,28 +103,43 @@ class TestMain(TestCase):
             }
         }
         s = simulation.from_old_config(config)
+
     def test_counter_agent(self):
         """
         The initial states should be applied to the agent and the
         agent should be able to update its state."""
         config = {
-            'name': 'CounterAgent',
-            'network_params': {
-                'path': join(ROOT, 'test.gexf')
+            'version': '2',
+            'general': {
+                'name': 'CounterAgent',
+                'max_time': 2,
+                'dry_run': True,
+                'num_trials': 1,
             },
-            'agent_type': 'CounterModel',
-            'states': [{'times': 10}, {'times': 20}],
-            'max_time': 2,
-            'num_trials': 1,
-            'environment_params': {
+            'topologies': {
+                'default': {
+                    'path': join(ROOT, 'test.gexf')
+                }
+            },
+            'agents': {
+                'default': {
+                    'agent_class': 'CounterModel',
+                },
+                'counters': {
+                    'topology': 'default',
+                    'fixed': [{'state': {'times': 10}}, {'state': {'times': 20}}],
+                }
             }
         }
-        s = simulation.from_old_config(config)
-        env = s.run_simulation(dry_run=True)[0]
-        assert env.get_agent(0)['times', 0] == 11
-        assert env.get_agent(0)['times', 1] == 12
-        assert env.get_agent(1)['times', 0] == 21
-        assert env.get_agent(1)['times', 1] == 22
+        s = simulation.from_config(config)
+        env = s.get_env()
+        assert isinstance(env.agents[0], agents.CounterModel)
+        assert env.agents[0].topology == env.topologies['default']
+        assert env.agents[0]['times'] == 10
+        assert env.agents[0]['times'] == 10
+        env.step()
+        assert env.agents[0]['times'] == 11
+        assert env.agents[1]['times'] == 21
 
     def test_custom_agent(self):
         """Allow for search of neighbors with a certain state_id"""
@@ -143,9 +158,9 @@ class TestMain(TestCase):
         }
         s = simulation.from_old_config(config)
         env = s.run_simulation(dry_run=True)[0]
-        assert env.get_agent(1).count_agents(state_id='normal') == 2
-        assert env.get_agent(1).count_agents(state_id='normal', limit_neighbors=True) == 1
-        assert env.get_agent(0).neighbors == 1
+        assert env.agents[1].count_agents(state_id='normal') == 2
+        assert env.agents[1].count_agents(state_id='normal', limit_neighbors=True) == 1
+        assert env.agents[0].neighbors == 1
 
     def test_torvalds_example(self):
         """A complete example from a documentation should work."""
@@ -180,11 +195,9 @@ class TestMain(TestCase):
             config = serialization.load_file(join(EXAMPLES, 'complete.yml'))[0]
             s = simulation.from_old_config(config)
         with utils.timer('serializing'):
-            serial = s.config.to_yaml()
+            serial = s.to_yaml()
         with utils.timer('recovering'):
             recovered = yaml.load(serial, Loader=yaml.SafeLoader)
-        with utils.timer('deleting'):
-            del recovered['topology']
         for (k, v) in config.items():
             assert recovered[k] == v
         # assert config == recovered

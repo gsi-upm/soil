@@ -1,38 +1,59 @@
 ---
+version: '2'
 general:
-  name: simple
+  id: simple
   group: tests
   dir_path: "/tmp/"
   num_trials: 3
   max_time: 100
   interval: 1
   seed: "CompleteSeed!"
-network:
-  group:
-    network
-  params:
-    generator: complete_graph
-    n: 10
+topologies:
+  default:
+    params:
+      generator: complete_graph
+      n: 10
+  another_graph:
+    params:
+      generator: complete_graph
+      n: 2
 environment:
   environment_class: Environment
   params:
     am_i_complete: true
 agents:
-  default:
+# Agents are split into groups, each with its own definition
+  default: # This is a special group. Its values will be used as default values for the rest of the groups
     agent_class: CounterModel
+    topology: default
     state:
       times: 1
   environment:
+    # In this group we are not specifying any topology
     fixed:
       - agent_id: 'Environment Agent 1'
         agent_class: CounterModel
         state:
           times: 10
-  network:
+  general_counters:
+    topology: default
     distribution:
       - agent_class: CounterModel
         weight: 1
         state:
-          state_id: 0
+          id: 0
+          times: 3
       - agent_class: AggregatedCounter
         weight: 0.2
+  other_counters:
+    topology: another_graph
+    fixed:
+      - agent_class: CounterModel
+        id: 0
+        state:
+          times: 1
+          total: 0
+      - agent_class: CounterModel
+        id: 1
+        # If not specified, it will use the state set in the default
+        # state:

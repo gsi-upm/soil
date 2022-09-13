@@ -3,7 +3,7 @@ from queue import Empty
 from heapq import heappush, heappop
 import math
 from .utils import logger
-from mesa import Agent
+from mesa import Agent as MesaAgent
 
 
 INFINITY = float('inf')
@@ -41,7 +41,7 @@ class TimedActivation(BaseScheduler):
         self._queue = []
         self.next_time = 0
 
-    def add(self, agent: Agent):
+    def add(self, agent: MesaAgent):
         if agent.unique_id not in self._agents:
             heappush(self._queue, (self.time, agent.unique_id))
             super().add(agent)

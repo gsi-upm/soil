@@ -96,7 +96,7 @@ class Simulation:
                 stat.sim_start()
 
             for exporter in exporters:
-                exporter.start()
+                exporter.sim_start()
 
             for env in self._run_sync_or_async(parallel=parallel,
                                                log_level=log_level,
@@ -107,7 +107,7 @@ class Simulation:
 
                 collected = list(stat.trial_end(env) for stat in stats)
 
-                saved = self._update_stats(collected, t_step=env.now, trial_id=env.name)
+                saved = self._update_stats(collected, t_step=env.now, trial_id=env.id)
 
                 for exporter in exporters:
                     exporter.trial_end(env, saved)
@@ -116,6 +116,9 @@ class Simulation:
 
             collected = list(stat.end() for stat in stats)
             saved = self._update_stats(collected)
+
+            for stat in stats:
+                stat.sim_end()
 
             for exporter in exporters:
                 exporter.sim_end(saved)
@@ -131,24 +134,24 @@ class Simulation:
 
     def get_env(self, trial_id=0, **kwargs):
         '''Create an environment for a trial of the simulation'''
-        opts = self.environment_params.copy()
-        opts.update({
-            'name': '{}_trial_{}'.format(self.name, trial_id),
-            'topology': self.topology.copy(),
-            'network_params': self.network_params,
-            'seed': '{}_trial_{}'.format(self.seed, trial_id),
-            'initial_time': 0,
-            'interval': self.interval,
-            'network_agents': self.network_agents,
-            'initial_time': 0,
-            'states': self.states,
-            'dir_path': self.dir_path,
-            'default_state': self.default_state,
-            'history': bool(self._history),
-            'environment_agents': self.environment_agents,
-        })
-        opts.update(kwargs)
-        env = self.environment_class(**opts)
+        # opts = self.environment_params.copy()
+        # opts.update({
+        #     'name': '{}_trial_{}'.format(self.name, trial_id),
+        #     'topology': self.topology.copy(),
+        #     'network_params': self.network_params,
+        #     'seed': '{}_trial_{}'.format(self.seed, trial_id),
+        #     'initial_time': 0,
+        #     'interval': self.interval,
+        #     'network_agents': self.network_agents,
+        #     'initial_time': 0,
+        #     'states': self.states,
+        #     'dir_path': self.dir_path,
+        #     'default_state': self.default_state,
+        #     'history': bool(self._history),
+        #     'environment_agents': self.environment_agents,
+        # })
+        # opts.update(kwargs)
+        env = Environment.from_config(self.config, trial_id=trial_id, **kwargs)
         return env
 
     def run_trial(self, trial_id=None, until=None, log_level=logging.INFO, **opts):
@@ -162,7 +165,7 @@ class Simulation:
         # Set-up trial environment and graph
         until = until or self.config.general.max_time
 
-        env = Environment.from_config(self.config, trial_id=trial_id)
+        env = self.get_env(trial_id, **opts)
         # Set up agents on nodes
         with utils.timer('Simulation {} trial {}'.format(self.config.general.id, trial_id)):
             env.run(until)
@@ -181,21 +184,31 @@ class Simulation:
             ex.message = ''.join(traceback.format_exception(type(ex), ex, ex.__traceback__)[:])
             return ex
 
+    def to_dict(self):
+        return self.config.dict()
+
+    def to_yaml(self):
+        return yaml.dump(self.config.dict())
+
 
 def all_from_config(config):
     configs = list(serialization.load_config(config))
-    for config, _ in configs:
-        sim = Simulation(**config)
+    for config, path in configs:
+        if config.get('version', '1') == '1':
+            config = convert_old(config)
+        if not isinstance(config, Config):
+            config = Config(**config)
+        if not config.general.dir_path:
+            config.general.dir_path = os.path.dirname(path)
+        sim = Simulation(config=config)
         yield sim
 
 
 def from_config(conf_or_path):
-    config = list(serialization.load_config(conf_or_path))
-    if len(config) > 1:
+    lst = list(all_from_config(conf_or_path))
+    if len(lst) > 1:
         raise AttributeError('Provide only one configuration')
-    config = config[0][0]
-    sim = Simulation(**config)
-    return sim
+    return lst[0]
 
 def from_old_config(conf_or_path):
     config = list(serialization.load_config(conf_or_path))
@@ -206,13 +219,7 @@ def from_old_config(conf_or_path):
 
 
 def run_from_config(*configs, **kwargs):
-    for config_def in configs:
-        # logger.info("Found {} config(s)".format(len(ls)))
-        for config, path in serialization.load_config(config_def):
-            name = config.general.id
-            logger.info("Using config(s): {name}".format(name=name))
-
-            dir_path = config.general.dir_path or os.path.dirname(path)
-            sim = Simulation(dir_path=dir_path,
-                             **config)
-            sim.run_simulation(**kwargs)
+    for sim in all_from_config(configs):
+        name = config.general.id
+        logger.info("Using config(s): {name}".format(name=name))
+        sim.run_simulation(**kwargs)

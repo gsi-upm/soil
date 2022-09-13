@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [UNRELEASED]
+### Changed
+* Configuration schema is very different now. Check `soil.config` for more information. We are using Pydantic for (de)serialization.
+* There may be more than one topology/network in the simulation
+* Agents are split into groups now. Each group may be assigned a given set of agents or an agent distribution, and a network topology to be assigned to.
+### Removed
+* Any `tsih` and `History` integration in the main classes. To record the state of environments/agents, just use a datacollector. In some cases this may be slower or consume more memory than the previous system. However, few cases actually used the full potential of the history, and it came at the cost of unnecessary complexity and worse performance for the majority of cases.
 ## [0.20.7]
 ### Changed
 * Creating a `time.When` from another `time.When` does not nest them anymore (it returns the argument)

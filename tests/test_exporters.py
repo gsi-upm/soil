@@ -18,17 +18,17 @@ class Dummy(exporters.Exporter):
     called_trial = 0
     called_end = 0
 
-    def start(self):
+    def sim_start(self):
         self.__class__.called_start += 1
         self.__class__.started = True
 
-    def trial(self, env, stats):
+    def trial_end(self, env, stats):
         assert env
         self.__class__.trials += 1
         self.__class__.total_time += env.now
         self.__class__.called_trial += 1
 
-    def end(self, stats):
+    def sim_end(self, stats):
         self.__class__.ended = True
         self.__class__.called_end += 1
 

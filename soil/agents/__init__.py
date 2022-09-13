@@ -1,16 +1,17 @@
 import logging
 from collections import OrderedDict, defaultdict
+from collections.abc import Mapping, Set
 from copy import deepcopy
 from functools import partial, wraps
-from itertools import islice
+from itertools import islice, chain
 import json
 import networkx as nx
 
-from .. import serialization, utils, time
+from mesa import Agent as MesaAgent
+from typing import Dict, List
 
-from tsih import Key
+from .. import serialization, utils, time, config
 
-from mesa import Agent
 
 
 def as_node(agent):
@@ -24,7 +25,7 @@ IGNORED_FIELDS = ('model', 'logger')
 class DeadAgent(Exception):
     pass
 
-class BaseAgent(Agent):
+class BaseAgent(MesaAgent):
     """
     A special type of Mesa Agent that:
 
@@ -47,9 +48,8 @@ class BaseAgent(Agent):
     ):
         # Check for REQUIRED arguments
         # Initialize agent parameters
-        if isinstance(unique_id, Agent):
+        if isinstance(unique_id, MesaAgent):
             raise Exception()
-        self._saved = set()
         super().__init__(unique_id=unique_id, model=model)
         self.name = name or '{}[{}]'.format(type(self).__name__, self.unique_id)
 
@@ -57,7 +57,7 @@ class BaseAgent(Agent):
         self.alive = True
 
         self.interval = interval or self.get('interval', 1)
-        self.logger = logging.getLogger(self.model.name).getChild(self.name)
+        self.logger = logging.getLogger(self.model.id).getChild(self.name)
 
         if hasattr(self, 'level'):
             self.logger.setLevel(self.level)
@@ -66,6 +66,7 @@ class BaseAgent(Agent):
                 setattr(self, k, deepcopy(v))
 
         for (k, v) in kwargs.items():
+
             setattr(self, k, v)
 
         for (k, v) in getattr(self, 'defaults', {}).items():
@@ -107,23 +108,7 @@ class BaseAgent(Agent):
     def environment_params(self, value):
         self.model.environment_params = value
 
-    def __setattr__(self, key, value):
-        if not key.startswith('_') and key not in IGNORED_FIELDS:
-            try:
-                k = Key(t_step=self.now,
-                        dict_id=self.unique_id,
-                        key=key)
-                self._saved.add(key)
-                self.model[k] = value
-            except AttributeError:
-                pass
-        super().__setattr__(key, value)
-
     def __getitem__(self, key):
-        if isinstance(key, tuple):
-            key, t_step = key
-            k = Key(key=key, t_step=t_step, dict_id=self.unique_id)
-            return self.model[k]
         return getattr(self, key)
 
     def __delitem__(self, key):
@@ -135,8 +120,11 @@ class BaseAgent(Agent):
     def __setitem__(self, key, value):
         setattr(self, key, value)
 
+    def keys(self):
+        return (k for k in self.__dict__ if k[0] != '_')
+
     def items(self):
-        return ((k, getattr(self, k)) for k in self._saved)
+        return ((k, v) for (k, v) in self.__dict__.items() if k[0] != '_')
 
     def get(self, key, default=None):
         return self[key] if key in self else default
@@ -174,22 +162,32 @@ class BaseAgent(Agent):
         extra['agent_name'] = self.name
         return self.logger.log(level, message, extra=extra)
 
+
+
     def debug(self, *args, **kwargs):
         return self.log(*args, level=logging.DEBUG, **kwargs)
 
     def info(self, *args, **kwargs):
         return self.log(*args, level=logging.INFO, **kwargs)
 
+# Alias
+# Agent = BaseAgent
 
 class NetworkAgent(BaseAgent):
-
-    @property
-    def topology(self):
-        return self.model.G
+    def __init__(self,
+                 *args,
+                 graph_name: str,
+                 node_id: int = None,
+                 **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.graph_name = graph_name
+        self.topology = self.env.topologies[self.graph_name]
+        self.node_id = node_id
 
     @property
     def G(self):
-        return self.model.G
+        return self.model.topologies[self._topology]
 
     def count_agents(self, **kwargs):
         return len(list(self.get_agents(**kwargs)))
@@ -210,8 +208,7 @@ class NetworkAgent(BaseAgent):
         if limit_neighbors:
             agents = self.topology.neighbors(self.unique_id)
 
-        agents = self.model.get_agents(agents)
-        return select(agents, **kwargs)
+        return self.model.agents(ids=agents, **kwargs)
 
     def subgraph(self, center=True, **kwargs):
         include = [self] if center else []
@@ -228,7 +225,6 @@ class NetworkAgent(BaseAgent):
             raise ValueError('{} not in list of existing agents in the network'.format(other))
 
         self.topology.add_edge(self.unique_id, other.unique_id, edge_attr_dict=edge_attr_dict, *edge_attrs)
-
 
     def ego_search(self, steps=1, center=False, node=None, **kwargs):
         '''Get a list of nodes in the ego network of *node* of radius *steps*'''
@@ -311,7 +307,7 @@ class MetaFSM(type):
         cls.states = states
 
 
-class FSM(NetworkAgent, metaclass=MetaFSM):
+class FSM(BaseAgent, metaclass=MetaFSM):
     def __init__(self, *args, **kwargs):
         super(FSM, self).__init__(*args, **kwargs)
         if not hasattr(self, 'state_id'):
@@ -537,32 +533,171 @@ def _definition_to_dict(definition, size=None, default_state=None):
     return agents
 
 
-def select(agents, state_id=None, agent_type=None, ignore=None, iterator=False, **kwargs):
+class AgentView(Mapping, Set):
+    """A lazy-loaded list of agents.
+    """
 
-    if state_id is not None and not isinstance(state_id, (tuple, list)):
-        state_id = tuple([state_id])
-    if agent_type is not None:
-        try:
-            agent_type = tuple(agent_type)
-        except TypeError:
-            agent_type = tuple([agent_type])
+    __slots__ = ("_agents",)
 
-    f = agents
 
-    if ignore:
-        f = filter(lambda x: x not in ignore, f)
+    def __init__(self, agents):
+        self._agents = agents
 
-    if state_id is not None:
-        f = filter(lambda agent: agent.get('state_id', None) in state_id, f)
+    def __getstate__(self):
+        return {"_agents": self._agents}
 
-    if agent_type is not None:
-        f = filter(lambda agent: isinstance(agent, agent_type), f)
-    for k, v in kwargs.items():
-        f = filter(lambda agent: agent.state.get(k, None) == v, f)
+    def __setstate__(self, state):
+        self._agents = state["_agents"]
 
-    if iterator:
-        return f
-    return f
+    # Mapping methods
+    def __len__(self):
+        return sum(len(x) for x in self._agents.values())
+
+    def __iter__(self):
+        return iter(chain.from_iterable(g.values() for g in self._agents.values()))
+
+    def __getitem__(self, agent_id):
+        if isinstance(agent_id, slice):
+            raise ValueError(f"Slicing is not supported")
+        for group in self._agents.values():
+            if agent_id in group:
+                return group[agent_id]
+        raise ValueError(f"Agent {agent_id} not found")
+
+    def filter(self, ids=None, groups=None, state_id=None, agent_type=None, ignore=None, iterator=False, **kwargs):
+
+        if state_id is not None and not isinstance(state_id, (tuple, list)):
+            state_id = tuple([state_id])
+
+        agents = self._agents
+
+        if groups:
+            agents = {(k,v) for (k, v) in agents.items() if k in groups}
+
+        if agent_type is not None:
+            try:
+                agent_type = tuple(agent_type)
+            except TypeError:
+                agent_type = tuple([agent_type])
+
+        if ids:
+            agents = (v[aid] for v in agents.values() for aid in ids if aid in v)
+        else:
+            agents = (a for v in agents.values() for a in v.values())
+
+        f = agents
+        if ignore:
+            f = filter(lambda x: x not in ignore, f)
+
+        if state_id is not None:
+            f = filter(lambda agent: agent.get('state_id', None) in state_id, f)
+
+        if agent_type is not None:
+            f = filter(lambda agent: isinstance(agent, agent_type), f)
+        for k, v in kwargs.items():
+            f = filter(lambda agent: agent.state.get(k, None) == v, f)
+
+        if iterator:
+            return f
+        return list(f)
+
+    def __call__(self, *args, **kwargs):
+        return self.filter(*args, **kwargs)
+
+    def __contains__(self, agent_id):
+        return any(agent_id in g for g in self._agents)
+
+    def __str__(self):
+        return str(list(a.id for a in self))
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self})"
+
+
+def from_config(cfg: Dict[str, config.AgentConfig], env):
+    '''
+    Agents are specified in groups.
+    Each group can be specified in two ways, either through a fixed list in which each item has
+    has the agent type, number of agents to create, and the other parameters, or through what we call
+    an `agent distribution`, which is similar but instead of number of agents, it specifies the weight
+    of each agent type.
+    '''
+    default = cfg.get('default', None)
+    return {k: _group_from_config(c, default=default, env=env) for (k, c)  in cfg.items() if k is not 'default'}
+
+
+def _group_from_config(cfg: config.AgentConfig, default: config.SingleAgentConfig, env):
+    agents = {}
+    if cfg.fixed is not None:
+        agents = _from_fixed(cfg.fixed, topology=cfg.topology, default=default, env=env)
+    if cfg.distribution:
+        n = cfg.n or len(env.topologies[cfg.topology])
+        agents.update(_from_distro(cfg.distribution, n - len(agents),
+                                   topology=cfg.topology or default.topology,
+                                   default=default,
+                                   env=env))
+    return agents
+
+
+def _from_fixed(lst: List[config.FixedAgentConfig], topology: str, default: config.SingleAgentConfig, env):
+    agents = {}
+
+    for fixed in lst:
+      agent_id = fixed.agent_id
+      if agent_id is None:
+          agent_id = env.next_id()
+
+      cls = serialization.deserialize(fixed.agent_class or default.agent_class)
+      state = fixed.state.copy()
+      state.update(default.state)
+      agents[agent_id] = cls(unique_id=agent_id,
+                             model=env,
+                             graph_name=fixed.topology or topology or default.topology,
+                             **state)
+
+    return agents
+
+
+def _from_distro(distro: List[config.AgentDistro],
+                 n: int,
+                 topology: str,
+                 default: config.SingleAgentConfig,
+                 env):
+
+    agents = {}
+
+    if n is None:
+        if any(lambda dist: dist.n is None, distro):
+            raise ValueError('You must provide a total number of agents, or the number of each type')
+        n = sum(dist.n for dist in distro)
+
+
+    total = sum((dist.weight if dist.weight is not None else 1) for dist in distro)
+    thres = {}
+    last = 0
+    for i in sorted(distro, key=lambda x: x.weight):
+
+        cls = serialization.deserialize(i.agent_class or default.agent_class)
+        thres[(last, last + i.weight/total)] = (cls, i)
+
+    acc = 0
+
+    # using np.choice would be more efficient, but this allows us to use soil without
+    # numpy
+    for i in range(n):
+        r = random.random()
+        for (t, (cls, d)) in thres.items():
+            if r >= t[0] and r <= t[1]:
+                agent_id = d.agent_id
+                if agent_id is None:
+                    agent_id = env.next_id()
+
+                state = d.state.copy()
+                state.update(default.state)
+                agents[agent_id] = cls(unique_id=agent_id, model=env, graph_name=d.topology or topology or default.topology, **state)
+                break
+
+    return agents
 
 
 from .BassModel import *

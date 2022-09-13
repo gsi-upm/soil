@@ -16,39 +16,39 @@ from jinja2 import Template
 logger = logging.getLogger('soil')
 
 
-def load_network(network_params, dir_path=None):
-    G = nx.Graph()
+# def load_network(network_params, dir_path=None):
+#     G = nx.Graph()
 
-    if not network_params:
-        return G
+#     if not network_params:
+#         return G
 
-    if 'path' in network_params:
-        path = network_params['path']
-        if dir_path and not os.path.isabs(path):
-            path = os.path.join(dir_path, path)
-        extension = os.path.splitext(path)[1][1:]
-        kwargs = {}
-        if extension == 'gexf':
-            kwargs['version'] = '1.2draft'
-            kwargs['node_type'] = int
-        try:
-            method = getattr(nx.readwrite, 'read_' + extension)
-        except AttributeError:
-            raise AttributeError('Unknown format')
-        G = method(path, **kwargs)
+#     if 'path' in network_params:
+#         path = network_params['path']
+#         if dir_path and not os.path.isabs(path):
+#             path = os.path.join(dir_path, path)
+#         extension = os.path.splitext(path)[1][1:]
+#         kwargs = {}
+#         if extension == 'gexf':
+#             kwargs['version'] = '1.2draft'
+#             kwargs['node_type'] = int
+#         try:
+#             method = getattr(nx.readwrite, 'read_' + extension)
+#         except AttributeError:
+#             raise AttributeError('Unknown format')
+#         G = method(path, **kwargs)
 
-    elif 'generator' in network_params:
-        net_args = network_params.copy()
-        net_gen = net_args.pop('generator')
+#     elif 'generator' in network_params:
+#         net_args = network_params.copy()
+#         net_gen = net_args.pop('generator')
 
-        if dir_path not in sys.path:
-            sys.path.append(dir_path)
+#         if dir_path not in sys.path:
+#             sys.path.append(dir_path)
 
-        method = deserializer(net_gen,
-                              known_modules=['networkx.generators',])
-        G = method(**net_args)
+#         method = deserializer(net_gen,
+#                               known_modules=['networkx.generators',])
+#         G = method(**net_args)
 
-    return G
+#     return G
 
 
 def load_file(infile):
@@ -122,8 +122,8 @@ def load_files(*patterns, **kwargs):
         for i in glob(pattern, **kwargs):
             for config in load_file(i):
                 path = os.path.abspath(i)
-                if 'dir_path' not in config:
-                    config['dir_path'] = os.path.dirname(path)
+                if 'general' in config and 'dir_path' not in config['general']:
+                    config['general']['dir_path'] = os.path.dirname(path)
                 yield config, path
 
 

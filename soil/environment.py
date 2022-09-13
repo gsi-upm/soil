@@ -3,6 +3,10 @@ import os
 import sqlite3
 import math
 import random
+import logging
+
+from typing import Dict
+from collections import namedtuple
 from time import time as current_time
 from copy import deepcopy
 from networkx.readwrite import json_graph
@@ -12,9 +16,11 @@ import networkx as nx
 
 from mesa import Model
 
-from tsih import Record
+from . import serialization, agents, analysis, utils, time, config, network
 
-from . import serialization, agents, analysis, utils, time, config
+
+Record = namedtuple('Record', 'dict_id t_step key value')
+
 
 class Environment(Model):
     """
@@ -28,15 +34,17 @@ class Environment(Model):
     """
 
     def __init__(self,
-                 env_id,
+                 env_id='unnamed_env',
                  seed='default',
                  schedule=None,
-                 env_params=None,
                  dir_path=None,
-                 **kwargs):
+                 interval=1,
+                 agents: Dict[str, config.AgentConfig] = {},
+                 topologies: Dict[str, config.NetConfig] = {},
+                 **env_params):
 
         super().__init__()
-
+        self.current_id = -1
 
         self.seed = '{}_{}'.format(seed, env_id)
         self.id = env_id
@@ -51,25 +59,28 @@ class Environment(Model):
 
         random.seed(seed)
 
-        if isinstance(states, list):
-            states = dict(enumerate(states))
-        self.states = deepcopy(states) if states else {}
-        self.default_state = deepcopy(default_state) or {}
 
-
-        self.set_topology(topology=topology,
-                          network_params=network_params)
-
+        self.topologies = {}
+        for (name, cfg) in topologies.items():
+            self.set_topology(cfg=cfg,
+                              graph=name)
         self.agents = agents or {}
 
         self.env_params = env_params or {}
-        self.env_params.update(kwargs)
 
         self.interval = interval
         self['SEED'] = seed
 
+        self.logger = utils.logger.getChild(self.id)
 
-        self.logger = utils.logger.getChild(self.name)
+    @property
+    def topology(self):
+        return self.topologies['default']
+
+    @property
+    def network_agents(self):
+        yield from self.agents(agent_type=agents.NetworkAgent, iterator=True)
+
 
     @staticmethod
     def from_config(conf: config.Config, trial_id, **kwargs) -> Environment:
@@ -92,39 +103,30 @@ class Environment(Model):
         raise Exception('The environment has not been scheduled, so it has no sense of time')
 
 
-    def set_topology(self, topology, network_params=None, dir_path=None):
-        if topology is None:
-            network_params = network_params or {}
-            topology = serialization.load_network(network_params,
-                                                  dir_path=dir_path or self.dir_path)
-        if not topology:
-            topology = nx.Graph()
-        self.G = nx.Graph(topology)
+    def set_topology(self, cfg=None, dir_path=None, graph='default'):
+        self.topologies[graph] = network.from_config(cfg, dir_path=dir_path)
 
     @property
     def agents(self):
-        for agents in self.agents.values():
-            yield from agents
+        return agents.AgentView(self._agents)
 
     @agents.setter
-    def agents(self, agents):
-        self.agents = {}
+    def agents(self, agents_def: Dict[str, config.AgentConfig]):
+        self._agents = agents.from_config(agents_def, env=self)
+        for d in self._agents.values():
+            for a in d.values():
+                self.schedule.add(a)
 
-        for (k, v) in agents.items():
-            self.agents[k] = agents.from_config(v)
-        for agent in self.agents.get('network', []):
-            node = self.G.nodes[agent.unique_id]
-            node['agent'] = agent
 
-    @property
-    def network_agents(self):
-        for i in self.G.nodes():
-            node = self.G.nodes[i]
-            if 'agent' in node:
-                yield node['agent']
+    # @property
+    # def network_agents(self):
+    #     for i in self.G.nodes():
+    #         node = self.G.nodes[i]
+    #         if 'agent' in node:
+    #             yield node['agent']
 
-    def init_agent(self, agent_id, agent_definitions):
-        node = self.G.nodes[agent_id]
+    def init_agent(self, agent_id, agent_definitions, graph='default'):
+        node = self.topologies[graph].nodes[agent_id]
         init = False
         state = dict(node)
 
@@ -145,8 +147,8 @@ class Environment(Model):
             return
         return self.set_agent(agent_id, agent_type, state)
 
-    def set_agent(self, agent_id, agent_type, state=None):
-        node = self.G.nodes[agent_id]
+    def set_agent(self, agent_id, agent_type, state=None, graph='default'):
+        node = self.topologies[graph].nodes[agent_id]
         defstate = deepcopy(self.default_state) or {}
         defstate.update(self.states.get(agent_id, {}))
         defstate.update(node.get('state', {}))
@@ -166,20 +168,20 @@ class Environment(Model):
         self.schedule.add(a)
         return a
 
-    def add_node(self, agent_type, state=None):
-        agent_id = int(len(self.G.nodes()))
-        self.G.add_node(agent_id)
-        a = self.set_agent(agent_id, agent_type, state)
+    def add_node(self, agent_type, state=None, graph='default'):
+        agent_id = int(len(self.topologies[graph].nodes()))
+        self.topologies[graph].add_node(agent_id)
+        a = self.set_agent(agent_id, agent_type, state, graph=graph)
         a['visible'] = True
         return a
 
-    def add_edge(self, agent1, agent2, start=None, **attrs):
+    def add_edge(self, agent1, agent2, start=None, graph='default', **attrs):
         if hasattr(agent1, 'id'):
             agent1 = agent1.id
         if hasattr(agent2, 'id'):
             agent2 = agent2.id
         start = start or self.now
-        return self.G.add_edge(agent1, agent2, **attrs)
+        return self.topologies[graph].add_edge(agent1, agent2, **attrs)
 
     def log(self, message, *args, level=logging.INFO, **kwargs):
         if not self.logger.isEnabledFor(level):
@@ -190,7 +192,7 @@ class Environment(Model):
             message += " {k}={v} ".format(k, v)
         extra = {}
         extra['now'] = self.now
-        extra['unique_id'] = self.name
+        extra['unique_id'] = self.id
         return self.logger.log(level, message, extra=extra)
 
     def step(self):
@@ -207,30 +209,6 @@ class Environment(Model):
             self.step()
             utils.logger.debug(f'Simulation step {self.schedule.time}/{until}. Next: {self.schedule.next_time}')
         self.schedule.time = until
-        self._history.flush_cache()
-
-    def _save_state(self, now=None):
-        serialization.logger.debug('Saving state @{}'.format(self.now))
-        self._history.save_records(self.state_to_tuples(now=now))
-
-    def __getitem__(self, key):
-        if isinstance(key, tuple):
-            self._history.flush_cache()
-            return self._history[key]
-
-        return self.environment_params[key]
-
-    def __setitem__(self, key, value):
-        if isinstance(key, tuple):
-            k = Key(*key)
-            self._history.save_record(*k,
-                                      value=value)
-            return
-        self.environment_params[key] = value
-        self._history.save_record(dict_id='env',
-                                  t_step=self.now,
-                                  key=key,
-                                  value=value)
 
     def __contains__(self, key):
         return key in self.env_params
@@ -248,14 +226,6 @@ class Environment(Model):
     def __setitem__(self, key, value):
         return self.env_params.__setitem__(key, value)
 
-    def get_agent(self, agent_id):
-        return self.G.nodes[agent_id]['agent']
-
-    def get_agents(self, nodes=None):
-        if nodes is None:
-            return self.agents
-        return (self.G.nodes[i]['agent'] for i in nodes)
-
     def _agent_to_tuples(self, agent, now=None):
         if now is None:
             now = self.now
@@ -270,7 +240,7 @@ class Environment(Model):
             now = self.now
 
         if agent_id:
-            agent = self.get_agent(agent_id)
+            agent = self.agents[agent_id]
             yield from self._agent_to_tuples(agent, now)
             return
 
@@ -281,6 +251,7 @@ class Environment(Model):
                          value=v)
         for agent in self.agents:
             yield from self._agent_to_tuples(agent, now)
+
 
 
 SoilEnvironment = Environment

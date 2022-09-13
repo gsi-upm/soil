@@ -7,9 +7,15 @@ class CounterModel(NetworkAgent):
     in each step and adds it to its state.
     """
 
+    defaults = {
+        'times': 0,
+        'neighbors': 0,
+        'total': 0
+    }
+
     def step(self):
         # Outside effects
-        total = len(list(self.get_agents()))
+        total = len(list(self.env.agents))
         neighbors = len(list(self.get_neighboring_agents()))
         self['times'] = self.get('times', 0) + 1
         self['neighbors'] = neighbors
@@ -33,6 +39,6 @@ class AggregatedCounter(NetworkAgent):
         self['times'] += 1
         neighbors = len(list(self.get_neighboring_agents()))
         self['neighbors'] += neighbors
-        total = len(list(self.get_agents()))
+        total = len(list(self.env.agents))
         self['total'] += total
         self.debug('Running for step: {}. Total: {}'.format(self.now, total))
