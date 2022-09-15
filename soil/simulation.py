@@ -42,7 +42,6 @@ class Simulation:
             config = Config(**cfg)
         if not config:
             raise ValueError("You need to specify a simulation configuration")
-
         self.config = config
 
 
@@ -151,6 +150,7 @@ class Simulation:
         #     'environment_agents': self.environment_agents,
         # })
         # opts.update(kwargs)
+        print(self.config)
         env = Environment.from_config(self.config, trial_id=trial_id, **kwargs)
         return env
 

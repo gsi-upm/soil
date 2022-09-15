@@ -1,0 +1,49 @@
+---
+version: '2'
+general:
+  id: simple
+  group: tests
+  dir_path: "/tmp/"
+  num_trials: 3
+  max_time: 100
+  interval: 1
+  seed: "CompleteSeed!"
+topologies:
+  default:
+    params:
+      generator: complete_graph
+      n: 10
+agents:
+  default:
+    agent_class: CounterModel
+    state:
+      times: 1
+  network:
+    topology: 'default'
+    distribution:
+      - agent_class: CounterModel
+        weight: 0.4
+        state:
+          state_id: 0
+      - agent_class: AggregatedCounter
+        weight: 0.6
+    override:
+      - filter:
+          id: 0
+        state:
+          name: 'The first node'
+      - filter:
+          id: 1
+        state:
+          name: 'The second node'
+
+  environment:
+    fixed:
+      - name: 'Environment Agent 1'
+        agent_class: CounterModel
+        state:
+          times: 10
+environment:
+  environment_class: Environment
+  params:
+    am_i_complete: true

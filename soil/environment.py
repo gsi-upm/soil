@@ -79,7 +79,7 @@ class Environment(Model):
 
     @property
     def network_agents(self):
-        yield from self.agents(agent_type=agents.NetworkAgent, iterator=True)
+        yield from self.agents(agent_type=agents.NetworkAgent, iterator=False)
 
 
     @staticmethod

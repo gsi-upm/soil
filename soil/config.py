@@ -76,8 +76,9 @@ class EnvConfig(BaseModel):
 
 class SingleAgentConfig(BaseModel):
     agent_class: Optional[Union[Type, str]] = None
-    agent_id: Optional[Union[str, int]] = None
-    topology: Optional[str] = None
+    agent_id: Optional[int] = None
+    topology: Optional[str] = 'default'
+    name: Optional[str] = None
     state: Optional[Dict[str, Any]] = {}
 
 class FixedAgentConfig(SingleAgentConfig):
@@ -85,9 +86,14 @@ class FixedAgentConfig(SingleAgentConfig):
 
     @root_validator
     def validate_all(cls,  values):
-        if 'agent_id' in values and values.get('n', 1) > 1:
-            raise ValueError("An agent_id can only be provided when there is only one agent")
+        if values.get('agent_id', None) is not None and values.get('n', 1) > 1:
+            print(values)
+            raise ValueError(f"An agent_id can only be provided when there is only one agent ({values.get('n')} given)")
         return values
+
+
+class OverrideAgentConfig(FixedAgentConfig):
+    filter: Optional[Dict[str, Any]] = None
 
 
 class AgentDistro(SingleAgentConfig):
@@ -99,6 +105,7 @@ class AgentConfig(SingleAgentConfig):
     topology: Optional[str] = None
     distribution: Optional[List[AgentDistro]] = None
     fixed: Optional[List[FixedAgentConfig]] = None
+    override: Optional[List[OverrideAgentConfig]] = None
 
     @staticmethod
     def default():
@@ -118,7 +125,6 @@ class Config(BaseModel, extra=Extra.forbid):
     environment: EnvConfig = EnvConfig.default()
     agents: Optional[Dict[str, AgentConfig]] = {}
 
-
 def convert_old(old, strict=True):
     '''
     Try to convert old style configs into the new format.
@@ -126,10 +132,6 @@ def convert_old(old, strict=True):
     This is still a work in progress and might not work in many cases.
     '''
 
-    # TODO: translate states
-
-    if strict and old.get('states', {}):
-        raise ValueError('Custom (i.e., manual) agent states cannot be translated to v2 configuration files. Please, convert your configuration file to the new format.')
 
     new = {}
 
@@ -181,13 +183,16 @@ def convert_old(old, strict=True):
 
     for agent in old.get('environment_agents', []):
         agents['environment'] = {'distribution': [], 'fixed': []}
-        if 'agent_id' not in agent:
-            agents['environment']['distribution'].append(updated_agent(agent))
-        else:
+        if 'agent_id' in agent:
+            agent['name'] = agent['agent_id']
+            del agent['agent_id']
             agents['environment']['fixed'].append(updated_agent(agent))
+        else:
+            agents['environment']['distribution'].append(updated_agent(agent))
 
     by_weight = []
     fixed = []
+    override = []
 
     if 'network_agents' in old:
         agents['network']['topology'] = 'default'
@@ -203,6 +208,20 @@ def convert_old(old, strict=True):
         agents['network']['topology'] = 'default'
         by_weight = [{'agent_type': old['agent_type']}]
 
+    
+    # TODO: translate states
+    if 'states' in old:
+        states = old['states']
+        if isinstance(states, dict):
+            states = states.items()
+        else:
+            states = enumerate(states)
+        for (k, v) in states:
+            override.append({'filter': {'id': k},
+                             'state': v
+            })
+
+    agents['network']['override'] = override
     agents['network']['fixed'] = fixed
     agents['network']['distribution'] = by_weight
 

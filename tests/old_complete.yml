@@ -11,11 +11,11 @@ network_params:
   n: 10
 network_agents:
   - agent_type: CounterModel
-    weight: 1
+    weight: 0.4
     state:
       state_id: 0
   - agent_type: AggregatedCounter
-    weight: 0.2
+    weight: 0.6
 environment_agents:
   - agent_id: 'Environment Agent 1'
     agent_type: CounterModel

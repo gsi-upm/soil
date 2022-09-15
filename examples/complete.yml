@@ -22,7 +22,7 @@ environment:
   params:
     am_i_complete: true
 agents:
-# Agents are split into groups, each with its own definition
+# Agents are split several groups, each with its own definition
   default: # This is a special group. Its values will be used as default values for the rest of the groups
     agent_class: CounterModel
     topology: default
@@ -31,7 +31,7 @@ agents:
   environment:
     # In this group we are not specifying any topology
     fixed:
-      - agent_id: 'Environment Agent 1'
+      - name: 'Environment Agent 1'
         agent_class: CounterModel
         state:
           times: 10
@@ -41,10 +41,16 @@ agents:
       - agent_class: CounterModel
         weight: 1
         state:
-          id: 0
           times: 3
       - agent_class: AggregatedCounter
         weight: 0.2
+    override:
+      - filter:
+          agent_class: AggregatedCounter
+        n: 2
+        state:
+          times: 5
+
   other_counters:
     topology: another_graph
     fixed:
