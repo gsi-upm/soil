@@ -10,7 +10,7 @@ class Genders(Enum):
     female = 'female'
 
 
-class RabbitModel(FSM):
+class RabbitModel(FSM, NetworkAgent):
 
     defaults = {
         'age': 0,
@@ -110,12 +110,12 @@ class Female(RabbitModel):
             self.info('A mother has died carrying a baby!!')
 
 
-class RandomAccident(NetworkAgent):
+class RandomAccident(BaseAgent):
 
     level = logging.DEBUG
 
     def step(self):
-        rabbits_total = self.topology.number_of_nodes()
+        rabbits_total = self.env.topology.number_of_nodes()
         if 'rabbits_alive' not in self.env:
             self.env['rabbits_alive'] = 0
         rabbits_alive = self.env.get('rabbits_alive', rabbits_total)
@@ -131,5 +131,5 @@ class RandomAccident(NetworkAgent):
                 self.log('Rabbits alive: {}'.format(self.env['rabbits_alive']))
                 i.set_state(i.dead)
         self.log('Rabbits alive: {}/{}'.format(rabbits_alive, rabbits_total))
-        if self.count_agents(state_id=RabbitModel.dead.id) == self.topology.number_of_nodes():
+        if self.env.count_agents(state_id=RabbitModel.dead.id) == self.env.topology.number_of_nodes():
             self.die()

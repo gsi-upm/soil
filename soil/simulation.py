@@ -16,7 +16,6 @@ from . import serialization, utils, basestring, agents
 from .environment import Environment
 from .utils import logger
 from .exporters import default
-from .stats import defaultStats
 
 from .config import Config, convert_old
 
@@ -71,8 +70,8 @@ class Simulation:
                                      **kwargs)
 
     def run_gen(self, parallel=False, dry_run=False,
-                exporters=[default, ], stats=[], outdir=None, exporter_params={},
-                stats_params={}, log_level=None,
+                exporters=[default, ], outdir=None, exporter_params={},
+                log_level=None,
                 **kwargs):
         '''Run the simulation and yield the resulting environments.'''
         if log_level:
@@ -85,15 +84,8 @@ class Simulation:
                                                   dry_run=dry_run,
                                                   outdir=outdir,
                                                   **exporter_params)
-        stats = serialization.deserialize_all(simulation=self,
-                                             names=stats,
-                                             known_modules=['soil.stats',],
-                                             **stats_params)
 
         with utils.timer('simulation {}'.format(self.config.general.id)):
-            for stat in stats:
-                stat.sim_start()
-
             for exporter in exporters:
                 exporter.sim_start()
 
@@ -104,32 +96,13 @@ class Simulation:
                 for exporter in exporters:
                     exporter.trial_start(env)
 
-                collected = list(stat.trial_end(env) for stat in stats)
-
-                saved = self._update_stats(collected, t_step=env.now, trial_id=env.id)
-
                 for exporter in exporters:
-                    exporter.trial_end(env, saved)
+                    exporter.trial_end(env)
 
                 yield env
 
-            collected = list(stat.end() for stat in stats)
-            saved = self._update_stats(collected)
-
-            for stat in stats:
-                stat.sim_end()
-
             for exporter in exporters:
-                exporter.sim_end(saved)
-
-    def _update_stats(self, collection, **kwargs):
-        stats = dict(kwargs)
-        for stat in collection:
-            stats.update(stat)
-        return stats
-
-    def log_stats(self, stats):
-        logger.info('Stats: \n{}'.format(yaml.dump(stats, default_flow_style=False)))
+                exporter.sim_end()
 
     def get_env(self, trial_id=0, **kwargs):
         '''Create an environment for a trial of the simulation'''

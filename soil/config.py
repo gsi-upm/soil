@@ -7,6 +7,7 @@ import sys
 
 from typing import Any, Callable, Dict, List, Optional, Union, Type
 from pydantic import BaseModel, Extra
+import networkx as nx
 
 class General(BaseModel):
     id: str = 'Unnamed Simulation'
@@ -50,8 +51,11 @@ class NetParams(BaseModel, extra=Extra.allow):
 class NetConfig(BaseModel):
     group: str = 'network'
     params: Optional[NetParams]
-    topology: Optional[Topology]
+    topology: Optional[Union[Topology, nx.Graph]]
     path: Optional[str]
+
+    class Config:
+        arbitrary_types_allowed = True
 
     @staticmethod
     def default():
@@ -77,7 +81,8 @@ class EnvConfig(BaseModel):
 class SingleAgentConfig(BaseModel):
     agent_class: Optional[Union[Type, str]] = None
     agent_id: Optional[int] = None
-    topology: Optional[str] = 'default'
+    topology: Optional[str] = None
+    node_id: Optional[Union[int, str]] = None
     name: Optional[str] = None
     state: Optional[Dict[str, Any]] = {}
 
@@ -186,9 +191,7 @@ def convert_old(old, strict=True):
         if 'agent_id' in agent:
             agent['name'] = agent['agent_id']
             del agent['agent_id']
-            agents['environment']['fixed'].append(updated_agent(agent))
-        else:
-            agents['environment']['distribution'].append(updated_agent(agent))
+        agents['environment']['fixed'].append(updated_agent(agent))
 
     by_weight = []
     fixed = []
@@ -206,10 +209,10 @@ def convert_old(old, strict=True):
 
     if 'agent_type' in old and (not fixed and not by_weight):
         agents['network']['topology'] = 'default'
-        by_weight = [{'agent_type': old['agent_type']}]
+        by_weight = [{'agent_class': old['agent_type']}]
 
     
-    # TODO: translate states
+    # TODO: translate states properly
     if 'states' in old:
         states = old['states']
         if isinstance(states, dict):
@@ -217,7 +220,7 @@ def convert_old(old, strict=True):
         else:
             states = enumerate(states)
         for (k, v) in states:
-            override.append({'filter': {'id': k},
+            override.append({'filter': {'node_id': k},
                              'state': v
             })
 

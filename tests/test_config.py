@@ -71,11 +71,11 @@ class TestConfig(TestCase):
         s = simulation.from_config(cfg)
         env = s.get_env()
         assert len(env.topologies['default'].nodes) == 10
-        assert len(env.agents('network')) == 10
-        assert len(env.agents('environment')) == 1
+        assert len(env.agents(group='network')) == 10
+        assert len(env.agents(group='environment')) == 1
         
-        assert sum(1 for a in env.agents('network') if isinstance(a, agents.CounterModel)) == 4
-        assert sum(1 for a in env.agents('network') if isinstance(a, agents.AggregatedCounter)) == 6
+        assert sum(1 for a in env.agents(group='network', agent_type=agents.CounterModel)) == 4
+        assert sum(1 for a in env.agents(group='network', agent_type=agents.AggregatedCounter)) == 6
 
 def make_example_test(path, cfg):
     def wrapped(self):

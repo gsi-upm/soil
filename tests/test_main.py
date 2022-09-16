@@ -10,7 +10,7 @@ from functools import partial
 
 from os.path import join
 from soil import (simulation, Environment, agents, network, serialization,
-                  utils)
+                  utils, config)
 from soil.time import Delta
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
@@ -200,7 +200,6 @@ class TestMain(TestCase):
             recovered = yaml.load(serial, Loader=yaml.SafeLoader)
         for (k, v) in config.items():
             assert recovered[k] == v
-        # assert config == recovered
 
     def test_configuration_changes(self):
         """
@@ -294,11 +293,13 @@ class TestMain(TestCase):
         G.add_node(3)
         G.add_edge(1, 2)
         distro = agents.calculate_distribution(agent_type=agents.NetworkAgent)
-        env = Environment(name='Test', topology=G, network_agents=distro)
+        distro[0]['topology'] = 'default'
+        aconfig = config.AgentConfig(distribution=distro, topology='default')
+        env = Environment(name='Test', topologies={'default': G}, agents={'network': aconfig})
         lst = list(env.network_agents)
 
-        a2 = env.get_agent(2)
-        a3 = env.get_agent(3)
+        a2 = env.find_one(node_id=2)
+        a3 = env.find_one(node_id=3)
         assert len(a2.subgraph(limit_neighbors=True)) == 2
         assert len(a3.subgraph(limit_neighbors=True)) == 1
         assert len(a3.subgraph(limit_neighbors=True, center=False)) == 0

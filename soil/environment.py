@@ -15,6 +15,7 @@ from networkx.readwrite import json_graph
 import networkx as nx
 
 from mesa import Model
+from mesa.datacollection import DataCollector
 
 from . import serialization, agents, analysis, utils, time, config, network
 
@@ -41,6 +42,9 @@ class Environment(Model):
                  interval=1,
                  agents: Dict[str, config.AgentConfig] = {},
                  topologies: Dict[str, config.NetConfig] = {},
+                 agent_reporters: Optional[Any] = None,
+                 model_reporters: Optional[Any] = None,
+                 tables: Optional[Any] = None,
                  **env_params):
 
         super().__init__()
@@ -61,6 +65,7 @@ class Environment(Model):
 
 
         self.topologies = {}
+        self._node_ids = {}
         for (name, cfg) in topologies.items():
             self.set_topology(cfg=cfg,
                               graph=name)
@@ -72,6 +77,7 @@ class Environment(Model):
         self['SEED'] = seed
 
         self.logger = utils.logger.getChild(self.id)
+        self.datacollector = DataCollector(model_reporters, agent_reporters, tables)
 
     @property
     def topology(self):
@@ -79,8 +85,7 @@ class Environment(Model):
 
     @property
     def network_agents(self):
-        yield from self.agents(agent_type=agents.NetworkAgent, iterator=False)
-
+        yield from self.agents(agent_class=agents.NetworkAgent)
 
     @staticmethod
     def from_config(conf: config.Config, trial_id, **kwargs) -> Environment:
@@ -91,9 +96,10 @@ class Environment(Model):
         seed = '{}_{}'.format(conf.general.seed, trial_id)
         id = '{}_trial_{}'.format(conf.general.id, trial_id).replace('.', '-')
         opts = conf.environment.params.copy()
+        dir_path = conf.general.dir_path
         opts.update(conf)
         opts.update(kwargs)
-        env = serialization.deserialize(conf.environment.environment_class)(env_id=id, seed=seed, **opts)
+        env = serialization.deserialize(conf.environment.environment_class)(env_id=id, seed=seed, dir_path=dir_path, **opts)
         return env
 
     @property
@@ -103,12 +109,31 @@ class Environment(Model):
         raise Exception('The environment has not been scheduled, so it has no sense of time')
 
 
+    def topology_for(self, agent_id):
+        return self.topologies[self._node_ids[agent_id][0]]
+
+    def node_id_for(self, agent_id):
+        return self._node_ids[agent_id][1]
+
     def set_topology(self, cfg=None, dir_path=None, graph='default'):
-        self.topologies[graph] = network.from_config(cfg, dir_path=dir_path)
+        topology = cfg
+        if not isinstance(cfg, nx.Graph):
+            topology = network.from_config(cfg, dir_path=dir_path or self.dir_path)
+
+        self.topologies[graph] = topology
 
     @property
     def agents(self):
         return agents.AgentView(self._agents)
+    
+    def count_agents(self, *args, **kwargs):
+        return sum(1 for i in self.find_all(*args, **kwargs))
+
+    def find_all(self, *args, **kwargs):
+        return agents.AgentView(self._agents).filter(*args, **kwargs)
+
+    def find_one(self, *args, **kwargs):
+        return agents.AgentView(self._agents).one(*args, **kwargs)
 
     @agents.setter
     def agents(self, agents_def: Dict[str, config.AgentConfig]):
@@ -117,37 +142,47 @@ class Environment(Model):
             for a in d.values():
                 self.schedule.add(a)
 
-
-    # @property
-    # def network_agents(self):
-    #     for i in self.G.nodes():
-    #         node = self.G.nodes[i]
-    #         if 'agent' in node:
-    #             yield node['agent']
-
     def init_agent(self, agent_id, agent_definitions, graph='default'):
         node = self.topologies[graph].nodes[agent_id]
         init = False
         state = dict(node)
 
-        agent_type = None
-        if 'agent_type' in self.states.get(agent_id, {}):
-            agent_type = self.states[agent_id]['agent_type']
-        elif 'agent_type' in node:
-            agent_type = node['agent_type']
-        elif 'agent_type' in self.default_state:
-            agent_type = self.default_state['agent_type']
+        agent_class = None
+        if 'agent_class' in self.states.get(agent_id, {}):
+            agent_class = self.states[agent_id]['agent_class']
+        elif 'agent_class' in node:
+            agent_class = node['agent_class']
+        elif 'agent_class' in self.default_state:
+            agent_class = self.default_state['agent_class']
 
-        if agent_type:
-            agent_type = agents.deserialize_type(agent_type)
+        if agent_class:
+            agent_class = agents.deserialize_type(agent_class)
         elif agent_definitions:
-            agent_type, state = agents._agent_from_definition(agent_definitions, unique_id=agent_id)
+            agent_class, state = agents._agent_from_definition(agent_definitions, unique_id=agent_id)
         else:
             serialization.logger.debug('Skipping node {}'.format(agent_id))
             return
-        return self.set_agent(agent_id, agent_type, state)
+        return self.set_agent(agent_id, agent_class, state)
 
-    def set_agent(self, agent_id, agent_type, state=None, graph='default'):
+    def agent_to_node(self, agent_id, graph_name='default', node_id=None, shuffle=False):
+        #TODO: test
+        if node_id is None:
+            G = self.topologies[graph_name]
+            candidates = list(G.nodes(data=True))
+            if shuffle:
+                random.shuffle(candidates)
+            for next_id, data in candidates:
+                if data.get('agent_id', None) is None:
+                    node_id = next_id
+                    data['agent_id'] = agent_id
+                    break
+                    
+
+        self._node_ids[agent_id] = (graph_name, node_id)
+        print(self._node_ids)
+
+
+    def set_agent(self, agent_id, agent_class, state=None, graph='default'):
         node = self.topologies[graph].nodes[agent_id]
         defstate = deepcopy(self.default_state) or {}
         defstate.update(self.states.get(agent_id, {}))
@@ -155,9 +190,9 @@ class Environment(Model):
         if state:
             defstate.update(state)
         a = None
-        if agent_type:
+        if agent_class:
             state = defstate
-            a = agent_type(model=self,
+            a = agent_class(model=self,
                            unique_id=agent_id
             )
 
@@ -168,10 +203,10 @@ class Environment(Model):
         self.schedule.add(a)
         return a
 
-    def add_node(self, agent_type, state=None, graph='default'):
+    def add_node(self, agent_class, state=None, graph='default'):
         agent_id = int(len(self.topologies[graph].nodes()))
         self.topologies[graph].add_node(agent_id)
-        a = self.set_agent(agent_id, agent_type, state, graph=graph)
+        a = self.set_agent(agent_id, agent_class, state, graph=graph)
         a['visible'] = True
         return a
 
@@ -201,6 +236,7 @@ class Environment(Model):
         '''
         super().step()
         self.schedule.step()
+        self.datacollector.collect(self)
 
     def run(self, until, *args, **kwargs):
         until = until or float('inf')

@@ -1,8 +1,8 @@
-from soil.agents import FSM, state, default_state, prob
+from soil.agents import FSM, NetworkAgent, state, default_state, prob
 import logging
 
 
-class DumbViewer(FSM):
+class DumbViewer(FSM, NetworkAgent):
     '''
     A viewer that gets infected via TV (if it has one) and tries to infect
     its neighbors once it's infected.

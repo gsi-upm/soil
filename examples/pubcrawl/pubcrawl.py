@@ -1,4 +1,4 @@
-from soil.agents import FSM, state, default_state
+from soil.agents import FSM, NetworkAgent, state, default_state
 from soil import Environment
 from random import random, shuffle
 from itertools import islice
@@ -53,7 +53,7 @@ class CityPubs(Environment):
                 pub['occupancy'] -= 1
 
 
-class Patron(FSM):
+class Patron(FSM, NetworkAgent):
     '''Agent that looks for friends to drink with. It will do three things:
         1) Look for other patrons to drink with
         2) Look for a bar where the agent and other agents in the same group can get in.
@@ -151,7 +151,7 @@ class Patron(FSM):
         return befriended
 
 
-class Police(FSM):
+class Police(FSM, NetworkAgent):
     '''Simple agent to take drunk people out of pubs.'''
     level = logging.INFO
 

@@ -55,6 +55,7 @@ class BaseAgent(MesaAgent, MutableMapping):
             raise Exception()
         assert isinstance(unique_id, int)
         super().__init__(unique_id=unique_id, model=model)
+
         self.name = str(name) if name else'{}[{}]'.format(type(self).__name__, self.unique_id)
 
 
@@ -77,6 +78,9 @@ class BaseAgent(MesaAgent, MutableMapping):
         for (k, v) in getattr(self, 'defaults', {}).items():
             if not hasattr(self, k) or getattr(self, k) is None:
                 setattr(self, k, v)
+
+    def __hash__(self):
+        return hash(self.unique_id)
 
     # TODO: refactor to clean up mesa compatibility
     @property
@@ -185,16 +189,14 @@ class BaseAgent(MesaAgent, MutableMapping):
 # Agent = BaseAgent
 
 class NetworkAgent(BaseAgent):
-    def __init__(self,
-                 *args,
-                 graph_name: str,
-                 node_id: int = None,
-                 **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
-        self.graph_name = graph_name
-        self.topology = self.env.topologies[self.graph_name]
-        self.node_id = node_id
+
+    @property
+    def topology(self):
+        return self.env.topology_for(self.unique_id)
+
+    @property
+    def node_id(self):
+        return self.env.node_id_for(self.unique_id)
 
     @property
     def G(self):
@@ -215,15 +217,19 @@ class NetworkAgent(BaseAgent):
             it = islice(it, limit)
         return list(it)
 
-    def iter_agents(self, agents=None, limit_neighbors=False, **kwargs):
+    def iter_agents(self, unique_id=None, limit_neighbors=False, **kwargs):
         if limit_neighbors:
-            agents = self.topology.neighbors(self.unique_id)
+            unique_id = [self.topology.nodes[node]['agent_id'] for node in self.topology.neighbors(self.node_id)]
+            if not unique_id:
+                return
 
-        return self.model.agents(ids=agents, **kwargs)
+        yield from self.model.agents(unique_id=unique_id, **kwargs)
+
 
     def subgraph(self, center=True, **kwargs):
         include = [self] if center else []
-        return self.topology.subgraph(n.unique_id for n in list(self.get_agents(**kwargs))+include)
+        G = self.topology.subgraph(n.node_id for n in list(self.get_agents(**kwargs)+include))
+        return G
 
     def remove_node(self, unique_id):
         self.topology.remove_node(unique_id)
@@ -366,7 +372,7 @@ def prob(prob=1):
 
 
 def calculate_distribution(network_agents=None,
-                           agent_type=None):
+                           agent_class=None):
     '''
     Calculate the threshold values (thresholds for a uniform distribution)
     of an agent distribution given the weights of each agent type.
@@ -374,13 +380,13 @@ def calculate_distribution(network_agents=None,
     The input has this form: ::
 
             [
-            {'agent_type': 'agent_type_1',
+            {'agent_class': 'agent_class_1',
                 'weight': 0.2,
                 'state': {
                     'id': 0
                 }
             },
-            {'agent_type': 'agent_type_2',
+            {'agent_class': 'agent_class_2',
                 'weight': 0.8,
                 'state': {
                     'id': 1
@@ -389,12 +395,12 @@ def calculate_distribution(network_agents=None,
             ]
 
     In this example, 20% of the nodes will be marked as type
-    'agent_type_1'.
+    'agent_class_1'.
     '''
     if network_agents:
         network_agents = [deepcopy(agent) for agent in network_agents if not hasattr(agent, 'id')]
-    elif agent_type:
-        network_agents = [{'agent_type': agent_type}]
+    elif agent_class:
+        network_agents = [{'agent_class': agent_class}]
     else:
         raise ValueError('Specify a distribution or a default agent type')
 
@@ -414,11 +420,11 @@ def calculate_distribution(network_agents=None,
     return network_agents
 
 
-def serialize_type(agent_type, known_modules=[], **kwargs):
-    if isinstance(agent_type, str):
-        return agent_type
+def serialize_type(agent_class, known_modules=[], **kwargs):
+    if isinstance(agent_class, str):
+        return agent_class
     known_modules += ['soil.agents']
-    return serialization.serialize(agent_type, known_modules=known_modules, **kwargs)[1] # Get the name of the class
+    return serialization.serialize(agent_class, known_modules=known_modules, **kwargs)[1] # Get the name of the class
 
 
 def serialize_definition(network_agents, known_modules=[]):
@@ -430,23 +436,23 @@ def serialize_definition(network_agents, known_modules=[]):
     for v in d:
         if 'threshold' in v:
             del v['threshold']
-        v['agent_type'] = serialize_type(v['agent_type'],
+        v['agent_class'] = serialize_type(v['agent_class'],
                                          known_modules=known_modules)
     return d
 
 
-def deserialize_type(agent_type, known_modules=[]):
-    if not isinstance(agent_type, str):
-        return agent_type
+def deserialize_type(agent_class, known_modules=[]):
+    if not isinstance(agent_class, str):
+        return agent_class
     known = known_modules + ['soil.agents', 'soil.agents.custom' ]
-    agent_type = serialization.deserializer(agent_type, known_modules=known)
-    return agent_type
+    agent_class = serialization.deserializer(agent_class, known_modules=known)
+    return agent_class
 
 
 def deserialize_definition(ind, **kwargs):
     d = deepcopy(ind)
     for v in d:
-        v['agent_type'] = deserialize_type(v['agent_type'], **kwargs)
+        v['agent_class'] = deserialize_type(v['agent_class'], **kwargs)
     return d
 
 
@@ -461,7 +467,7 @@ def _validate_states(states, topology):
     return states
 
 
-def _convert_agent_types(ind, to_string=False, **kwargs):
+def _convert_agent_classs(ind, to_string=False, **kwargs):
     '''Convenience method to allow specifying agents by class or class name.'''
     if to_string:
         return serialize_definition(ind, **kwargs)
@@ -480,7 +486,7 @@ def _agent_from_definition(definition, value=-1, unique_id=None):
             state = {}
             if 'state' in d:
                 state = deepcopy(d['state'])
-            return d['agent_type'], state
+            return d['agent_class'], state
 
     raise Exception('Definition for value {} not found in: {}'.format(value, definition))
 
@@ -576,8 +582,11 @@ class AgentView(Mapping, Set):
                 return group[agent_id]
         raise ValueError(f"Agent {agent_id} not found")
 
-    def filter(self, *group_ids, **kwargs):
-        yield from filter_groups(self._agents, group_ids=group_ids, **kwargs)
+    def filter(self, *args, **kwargs):
+        yield from filter_groups(self._agents, *args, **kwargs)
+
+    def one(self, *args, **kwargs):
+        return next(filter_groups(self._agents, *args, **kwargs))
 
     def __call__(self, *args, **kwargs):
         return list(self.filter(*args, **kwargs))
@@ -586,41 +595,57 @@ class AgentView(Mapping, Set):
         return any(agent_id in g for g in self._agents)
 
     def __str__(self):
-        return str(list(a.id for a in self))
+        return str(list(a.unique_id for a in self))
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self})"
 
 
-def filter_groups(groups, group_ids=None, **kwargs):
+def filter_groups(groups, *, group=None, **kwargs):
     assert isinstance(groups, dict)
-    if group_ids:
-        groups = list(groups[g] for g in group_ids if g in groups)
+
+    if group is not None and not isinstance(group, list):
+        group = [group]
+
+    if group:
+        groups = list(groups[g] for g in group if g in groups)
     else:
         groups = list(groups.values())
-    
+
     agents = chain.from_iterable(filter_group(g, **kwargs) for g in groups)
 
     yield from agents
 
 
-def filter_group(group, ids=None, state_id=None, agent_type=None, ignore=None, state=None, **kwargs):
+def filter_group(group, *id_args, unique_id=None, state_id=None, agent_class=None, ignore=None, state=None, **kwargs):
     '''
     Filter agents given as a dict, by the criteria given as arguments (e.g., certain type or state id).
     '''
     assert isinstance(group, dict)
 
+    ids = []
+
+    if unique_id is not None:
+        if isinstance(unique_id, list):
+            ids += unique_id
+        else:
+            ids.append(unique_id)
+
+    if id_args:
+        ids += id_args
+
     if state_id is not None and not isinstance(state_id, (tuple, list)):
         state_id = tuple([state_id])
 
-    if agent_type is not None:
+    if agent_class is not None:
+        agent_class = deserialize_type(agent_class)
         try:
-            agent_type = tuple(agent_type)
+            agent_class = tuple(agent_class)
         except TypeError:
-            agent_type = tuple([agent_type])
+            agent_class = tuple([agent_class])
 
     if ids:
-        agents = (v[aid] for aid in ids if aid in group)
+        agents = (group[aid] for aid in ids if aid in group)
     else:
         agents = (a for a in group.values())
 
@@ -631,8 +656,8 @@ def filter_group(group, ids=None, state_id=None, agent_type=None, ignore=None, s
     if state_id is not None:
         f = filter(lambda agent: agent.get('state_id', None) in state_id, f)
 
-    if agent_type is not None:
-        f = filter(lambda agent: isinstance(agent, agent_type), f)
+    if agent_class is not None:
+        f = filter(lambda agent: isinstance(agent, agent_class), f)
 
     state = state or dict()
     state.update(kwargs)
@@ -660,7 +685,7 @@ def _group_from_config(cfg: config.AgentConfig, default: config.SingleAgentConfi
     if cfg.fixed is not None:
         agents = _from_fixed(cfg.fixed, topology=cfg.topology, default=default, env=env)
     if cfg.distribution:
-        n = cfg.n or len(env.topologies[cfg.topology])
+        n = cfg.n or len(env.topologies[cfg.topology or default.topology])
         target = n - len(agents)
         agents.update(_from_distro(cfg.distribution, target,
                                    topology=cfg.topology or default.topology,
@@ -674,6 +699,8 @@ def _group_from_config(cfg: config.AgentConfig, default: config.SingleAgentConfi
             else:
                 filtered = list(agents)
 
+            if attrs.n > len(filtered):
+                raise ValueError(f'Not enough agents to sample. Got {len(filtered)}, expected >= {attrs.n}')
             for agent in random.sample(filtered, attrs.n):
                 agent.state.update(attrs.state)
 
@@ -684,18 +711,20 @@ def _from_fixed(lst: List[config.FixedAgentConfig], topology: str, default: conf
     agents = {}
 
     for fixed in lst:
-      agent_id = fixed.agent_id
-      if agent_id is None:
-          agent_id = env.next_id()
+        agent_id = fixed.agent_id
+        if agent_id is None:
+            agent_id = env.next_id()
 
-      cls = serialization.deserialize(fixed.agent_class or default.agent_class)
-      state = fixed.state.copy()
-      state.update(default.state)
-      agent = cls(unique_id=agent_id,
-                  model=env,
-                  graph_name=fixed.topology or topology or default.topology,
-                  **state)
-      agents[agent.unique_id] = agent
+        cls = serialization.deserialize(fixed.agent_class or default.agent_class)
+        state = fixed.state.copy()
+        state.update(default.state)
+        agent = cls(unique_id=agent_id,
+                    model=env,
+                    **state)
+        topology = fixed.topology if (fixed.topology is not None) else (topology or default.topology)
+        if topology:
+            env.agent_to_node(agent_id, topology, fixed.node_id)
+        agents[agent.unique_id] = agent
 
     return agents
 
@@ -741,8 +770,12 @@ def _from_distro(distro: List[config.AgentDistro],
         cls = classes[idx]
         agent_id = env.next_id()
         state = d.state.copy()
-        state.update(default.state)
-        agent = cls(unique_id=agent_id, model=env, graph_name=d.topology or topology or default.topology, **state)
+        if default:
+            state.update(default.state)
+        agent = cls(unique_id=agent_id, model=env, **state)
+        topology = d.topology if (d.topology is not None) else topology or default.topology
+        if topology:
+            env.agent_to_node(agent.unique_id, topology)
         assert agent.name is not None
         assert agent.name != 'None'
         assert agent.name

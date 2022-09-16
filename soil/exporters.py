@@ -1,5 +1,4 @@
 import os
-import csv as csvlib
 from time import time as current_time
 from io import BytesIO
 from sqlalchemy import create_engine
@@ -59,7 +58,7 @@ class Exporter:
         '''Method to call when the simulation starts'''
         pass
 
-    def sim_end(self, stats):
+    def sim_end(self):
         '''Method to call when the simulation ends'''
         pass
 
@@ -67,7 +66,7 @@ class Exporter:
         '''Method to call when a trial start'''
         pass
 
-    def trial_end(self, env, stats):
+    def trial_end(self, env):
         '''Method to call when a trial ends'''
         pass
 
@@ -115,31 +114,35 @@ class default(Exporter):
     #               self.simulation.dump_sqlite(f)
 
 
+def get_dc_dfs(dc):
+    dfs = {'env': dc.get_model_vars_dataframe(),
+        'agents': dc.get_agent_vars_dataframe }
+    for table_name in dc.tables:
+        dfs[table_name] = dc.get_table_dataframe(table_name)
+    yield from dfs.items() 
+
 
 class csv(Exporter):
 
     '''Export the state of each environment (and its agents) in a separate CSV file'''
-    def trial_end(self, env, stats):
+    def trial_end(self, env):
         with timer('[CSV] Dumping simulation {} trial {} @ dir {}'.format(self.simulation.name,
-                                                                          env.name,
+                                                                          env.id,
                                                                           self.outdir)):
-
-            with self.output('{}.stats.{}.csv'.format(env.name, stats.name)) as f:
-                statwriter = csvlib.writer(f, delimiter='\t', quotechar='"', quoting=csvlib.QUOTE_ALL)
-
-                for stat in stats:
-                    statwriter.writerow(stat)
+            for (df_name, df) in get_dc_dfs(env.datacollector):
+                with self.output('{}.stats.{}.csv'.format(env.id, df_name)) as f:
+                    df.to_csv(f)
 
 
 class gexf(Exporter):
-    def trial_end(self, env, stats):
+    def trial_end(self, env):
         if self.dry_run:
             logger.info('Not dumping GEXF in dry_run mode')
             return
 
         with timer('[GEXF] Dumping simulation {} trial {}'.format(self.simulation.name,
-                                                                  env.name)):
-            with self.output('{}.gexf'.format(env.name), mode='wb') as f:
+                                                                  env.id)):
+            with self.output('{}.gexf'.format(env.id), mode='wb') as f:
                 self.dump_gexf(env, f)
 
     def dump_gexf(self, env, f):
@@ -159,25 +162,25 @@ class dummy(Exporter):
         with self.output('dummy', 'w') as f:
             f.write('simulation started @ {}\n'.format(current_time()))
 
-    def trial_end(self, env, stats):
+    def trial_start(self, env):
         with self.output('dummy', 'w') as f:
-            for i in stats:
-                f.write(','.join(map(str, i)))
-                f.write('\n')
+            f.write('trial started@ {}\n'.format(current_time()))
 
-    def sim_end(self, stats):
+    def trial_end(self, env):
+        with self.output('dummy', 'w') as f:
+            f.write('trial ended@ {}\n'.format(current_time()))
+
+    def sim_end(self):
         with self.output('dummy', 'a') as f:
             f.write('simulation ended @ {}\n'.format(current_time()))
 
-
-
 class graphdrawing(Exporter):
 
-    def trial_end(self, env, stats):
+    def trial_end(self, env):
         # Outside effects
         f = plt.figure()
         nx.draw(env.G, node_size=10, width=0.2, pos=nx.spring_layout(env.G, scale=100), ax=f.add_subplot(111))
-        with open('graph-{}.png'.format(env.name)) as f:
+        with open('graph-{}.png'.format(env.id)) as f:
             f.savefig(f)
 
 '''

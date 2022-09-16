@@ -71,10 +71,9 @@ class SocialMoneyAgent(NetworkAgent, MoneyAgent):
 
 class MoneyEnv(Environment):
     """A model with some number of agents."""
-    def __init__(self, N, width, height, *args, network_params, **kwargs):
+    def __init__(self, width, height, *args, topologies, **kwargs):
 
-        network_params['n'] = N
-        super().__init__(*args, network_params=network_params, **kwargs)
+        super().__init__(*args, topologies=topologies, **kwargs)
         self.grid = MultiGrid(width, height, False)
 
         # Create agents

@@ -14,7 +14,6 @@ network_agents:
     weight: 1
 environment_class: social_wealth.MoneyEnv
 environment_params:
-  num_mesa_agents: 5
   mesa_agent_type: social_wealth.MoneyAgent
   N: 10
   width: 50

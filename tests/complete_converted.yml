@@ -29,11 +29,11 @@ agents:
         weight: 0.6
     override:
       - filter:
-          id: 0
+          node_id: 0
         state:
           name: 'The first node'
       - filter:
-          id: 1
+          node_id: 1
         state:
           name: 'The second node'
 

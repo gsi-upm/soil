@@ -7,8 +7,6 @@ from unittest import TestCase
 from soil import exporters
 from soil import simulation
 
-from soil.stats import distribution
-
 class Dummy(exporters.Exporter):
     started = False
     trials = 0
@@ -22,13 +20,13 @@ class Dummy(exporters.Exporter):
         self.__class__.called_start += 1
         self.__class__.started = True
 
-    def trial_end(self, env, stats):
+    def trial_end(self, env):
         assert env
         self.__class__.trials += 1
         self.__class__.total_time += env.now
         self.__class__.called_trial += 1
 
-    def sim_end(self, stats):
+    def sim_end(self):
         self.__class__.ended = True
         self.__class__.called_end += 1
 
@@ -78,7 +76,6 @@ class Exporters(TestCase):
                                     exporters.csv,
                                     exporters.gexf,
                                 ],
-                                stats=[distribution,],
                                 dry_run=False,
                                 outdir=tmpdir,
                                 exporter_params={'copy_to': output})
