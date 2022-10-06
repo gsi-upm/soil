@@ -1,4 +1,3 @@
-import random
 from . import BaseAgent
 
 
@@ -23,7 +22,7 @@ class IndependentCascadeModel(BaseAgent):
     def behaviour(self):
         aware_neighbors_1_time_step = []
         # Outside effects
-        if random.random() < self.innovation_prob:
+        if self.prob(self.innovation_prob):
             if self.state['id'] == 0:
                 self.state['id'] = 1
                 self.state['sentimentCorrelation'] = 1
@@ -40,7 +39,7 @@ class IndependentCascadeModel(BaseAgent):
                 if x.state['time_awareness'] == (self.env.now-1):
                     aware_neighbors_1_time_step.append(x)
             num_neighbors_aware = len(aware_neighbors_1_time_step)
-            if random.random() < (self.imitation_prob*num_neighbors_aware):
+            if self.prob(self.imitation_prob*num_neighbors_aware):
                 self.state['id'] = 1
                 self.state['sentimentCorrelation'] = 1
             else:

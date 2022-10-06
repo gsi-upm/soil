@@ -46,7 +46,7 @@ class TestAnalysis(TestCase):
                 'generator': 'complete_graph',
                 'n': 2
             },
-            'agent_type': Ping,
+            'agent_class': Ping,
             'states': [{'interval': 1}, {'interval': 2}],
             'max_time': 30,
             'num_trials': 1,

@@ -10,11 +10,11 @@ network_params:
   generator: social_wealth.graph_generator
   n: 5
 network_agents:
-  - agent_type: social_wealth.SocialMoneyAgent
+  - agent_class: social_wealth.SocialMoneyAgent
     weight: 1
 environment_class: social_wealth.MoneyEnv
 environment_params:
-  mesa_agent_type: social_wealth.MoneyAgent
+  mesa_agent_class: social_wealth.MoneyAgent
   N: 10
   width: 50
   height: 50

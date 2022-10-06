@@ -10,7 +10,7 @@ network_params:
   n: 10
   n_edges: 5  
 network_agents:
-  - agent_type: CounterModel
+  - agent_class: CounterModel
     weight: 1
     state:
       state_id: 0

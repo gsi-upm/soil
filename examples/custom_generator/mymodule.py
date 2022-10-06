@@ -1,6 +1,5 @@
 from networkx import Graph
 import networkx as nx
-from random import choice
 
 def mygenerator(n=5, n_edges=5):
     '''
@@ -14,9 +13,9 @@ def mygenerator(n=5, n_edges=5):
     
     for i in range(n_edges):
         nodes = list(G.nodes)
-        n_in = choice(nodes)
+        n_in = self.random.choice(nodes)
         nodes.remove(n_in)  # Avoid loops
-        n_out = choice(nodes)
+        n_out = self.random.choice(nodes)
         G.add_edge(n_in, n_out)
     return G
     

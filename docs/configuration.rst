@@ -13,7 +13,7 @@ Here's an example (``example.yml``).
 
 
 This example configuration will run three trials (``num_trials``) of a simulation containing a randomly generated network (``network_params``).
-The 100 nodes in the network will be SISaModel agents (``network_agents.agent_type``), which is an agent behavior that is included in Soil.
+The 100 nodes in the network will be SISaModel agents (``network_agents.agent_class``), which is an agent behavior that is included in Soil.
 10% of the agents (``weight=1``) will start in the content state, 10% in the discontent state, and the remaining 80% (``weight=8``) in the neutral state.
 All agents will have access to the environment (``environment_params``), which only contains one variable, ``prob_infected``.
 The state of the agents will be updated every 2 seconds (``interval``).
@@ -116,7 +116,7 @@ Agents
 ======
 
 Agents are a way of modelling behavior.
-Agents can be characterized with two variables: agent type (``agent_type``) and state.
+Agents can be characterized with two variables: agent type (``agent_class``) and state.
 The agent type is a ``soil.Agent`` class, which contains the code that encapsulates the behavior of the agent.
 The state is a set of variables, which may change during the simulation, and that the code may use to control the behavior.
 All agents provide a ``step`` method either explicitly or implicitly (by inheriting it from a superclass), which controls how the agent will behave in each step of the simulation.
@@ -142,7 +142,7 @@ Hence, every node in the network will be associated to an agent of that type.
 
 .. code:: yaml
 
-   agent_type: SISaModel
+   agent_class: SISaModel
 
 It is also possible to add more than one type of agent to the simulation.
 
@@ -152,9 +152,9 @@ For instance, with following configuration, it is five times more likely for a n
 .. code:: yaml
 
     network_agents:
-          - agent_type: SISaModel
+          - agent_class: SISaModel
             weight: 1
-          - agent_type: CounterModel
+          - agent_class: CounterModel
             weight: 5
 
 The third option is to specify the type of agent on the node itself, e.g.:
@@ -165,10 +165,10 @@ The third option is to specify the type of agent on the node itself, e.g.:
    topology:
        nodes:
            - id: first
-   agent_type: BaseAgent
+   agent_class: BaseAgent
    states:
        first:
-         agent_type: SISaModel
+         agent_class: SISaModel
           
 
 This would also work with a randomly generated network:
@@ -179,9 +179,9 @@ This would also work with a randomly generated network:
    network:
        generator: complete
        n: 5
-   agent_type: BaseAgent
+   agent_class: BaseAgent
    states:
-       - agent_type: SISaModel
+       - agent_class: SISaModel
 
               
 
@@ -192,11 +192,11 @@ e.g., to populate the network with SISaModel, roughly 10% of them with a discont
 .. code:: yaml
 
     network_agents:
-        - agent_type: SISaModel
+        - agent_class: SISaModel
             weight: 9
             state:
             id: neutral
-        - agent_type: SISaModel
+        - agent_class: SISaModel
             weight: 1
             state:
             id: discontent
@@ -206,7 +206,7 @@ For instance, to add a state for the two nodes in this configuration:
 
 .. code:: yaml
 
-   agent_type: SISaModel
+   agent_class: SISaModel
    network:
       generator: complete_graph
       n: 2
@@ -231,10 +231,10 @@ These agents are programmed in much the same way as network agents, the only dif
 .. code::
 
    environment_agents:
-       - agent_type: MyAgent
+       - agent_class: MyAgent
          state:
            mood: happy
-       - agent_type: DummyAgent
+       - agent_class: DummyAgent
 
 
 You may use environment agents to model events that a normal agent cannot control, such as natural disasters or chance.

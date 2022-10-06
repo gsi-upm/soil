@@ -41,7 +41,7 @@ class TestHistory(TestCase):
                 'path': join(ROOT, 'test.gexf')
             },
             'network_agents': [{
-                'agent_type': 'AggregatedCounter',
+                'agent_class': 'AggregatedCounter',
                 'weight': 1,
                 'state': {'state_id': 0}
 

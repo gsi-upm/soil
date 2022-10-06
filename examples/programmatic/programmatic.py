@@ -27,7 +27,7 @@ s = Simulation(name='Programmatic',
                network_params={'generator': mygenerator},
                num_trials=1,
                max_time=100,
-               agent_type=MyAgent,
+               agent_class=MyAgent,
                dry_run=True)
 
 

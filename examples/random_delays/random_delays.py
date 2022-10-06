@@ -4,7 +4,6 @@ Example of a fully programmatic simulation, without definition files.
 '''
 from soil import Simulation, agents
 from soil.time import Delta
-from random import expovariate
 import logging
 
 
@@ -20,7 +19,7 @@ class MyAgent(agents.FSM):
     @agents.state
     def ping(self):
         self.info('Ping')
-        return self.pong, Delta(expovariate(1/16))
+        return self.pong, Delta(self.random.expovariate(1/16))
 
     @agents.state
     def pong(self):
@@ -29,15 +28,15 @@ class MyAgent(agents.FSM):
         self.info(str(self.pong_counts))
         if self.pong_counts < 1:
             return self.die()
-        return None, Delta(expovariate(1/16))
+        return None, Delta(self.random.expovariate(1/16))
 
 
 s = Simulation(name='Programmatic',
-               network_agents=[{'agent_type': MyAgent, 'id': 0}],
+               network_agents=[{'agent_class': MyAgent, 'id': 0}],
                topology={'nodes': [{'id': 0}], 'links': []},
                num_trials=1,
                max_time=100,
-               agent_type=MyAgent,
+               agent_class=MyAgent,
                dry_run=True)
 
 

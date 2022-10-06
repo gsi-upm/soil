@@ -8,18 +8,18 @@ network_params:
   generator: empty_graph
   n: 30
 network_agents:
-  - agent_type: pubcrawl.Patron
+  - agent_class: pubcrawl.Patron
     description: Extroverted patron
     state:
       openness: 1.0
     weight: 9
-  - agent_type: pubcrawl.Patron
+  - agent_class: pubcrawl.Patron
     description: Introverted patron
     state:
       openness: 0.1
     weight: 1
 environment_agents:
-  - agent_type: pubcrawl.Police
+  - agent_class: pubcrawl.Police
 environment_class: pubcrawl.CityPubs
 environment_params:
   altercations: 0

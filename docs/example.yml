@@ -8,15 +8,15 @@ network_params:
     n: 100
     m: 2
 network_agents:
-    - agent_type: SISaModel
+    - agent_class: SISaModel
       weight: 1
       state:
         id: content
-    - agent_type: SISaModel
+    - agent_class: SISaModel
       weight: 1
       state:
         id: discontent
-    - agent_type: SISaModel
+    - agent_class: SISaModel
       weight: 8
       state:
         id: neutral

@@ -10,21 +10,21 @@ network_params:
   generator: complete_graph
   n: 10
 network_agents:
-  - agent_type: CounterModel
+  - agent_class: CounterModel
     weight: 0.4
     state:
       state_id: 0
-  - agent_type: AggregatedCounter
+  - agent_class: AggregatedCounter
     weight: 0.6
 environment_agents:
   - agent_id: 'Environment Agent 1'
-    agent_type: CounterModel
+    agent_class: CounterModel
     state:
       times: 10
 environment_class: Environment
 environment_params:
   am_i_complete: true
-agent_type: CounterModel
+agent_class: CounterModel
 default_state:
   times: 1
 states:

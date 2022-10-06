@@ -99,7 +99,7 @@ if __name__ == '__main__':
     G = graph_generator()
     fixed_params = {"topology": G,
                     "width": 10,
-                    "network_agents": [{"agent_type": SocialMoneyAgent,
+                    "network_agents": [{"agent_class": SocialMoneyAgent,
                                        'weight': 1}],
                     "height": 10}
 

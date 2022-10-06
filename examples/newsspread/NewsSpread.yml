@@ -8,11 +8,11 @@ interval: 1
 max_time: 300
 name: Sim_all_dumb
 network_agents:
-- agent_type: newsspread.DumbViewer
+- agent_class: newsspread.DumbViewer
   state:
     has_tv: false
   weight: 1
-- agent_type: newsspread.DumbViewer
+- agent_class: newsspread.DumbViewer
   state:
     has_tv: true
   weight: 1
@@ -31,19 +31,19 @@ interval: 1
 max_time: 300
 name: Sim_half_herd
 network_agents:
-- agent_type: newsspread.DumbViewer
+- agent_class: newsspread.DumbViewer
   state:
     has_tv: false
   weight: 1
-- agent_type: newsspread.DumbViewer
+- agent_class: newsspread.DumbViewer
   state:
     has_tv: true
   weight: 1
-- agent_type: newsspread.HerdViewer
+- agent_class: newsspread.HerdViewer
   state:
     has_tv: false
   weight: 1
-- agent_type: newsspread.HerdViewer
+- agent_class: newsspread.HerdViewer
   state:
     has_tv: true
   weight: 1
@@ -62,12 +62,12 @@ interval: 1
 max_time: 300
 name: Sim_all_herd
 network_agents:
-- agent_type: newsspread.HerdViewer
+- agent_class: newsspread.HerdViewer
   state:
     has_tv: true
     state_id: neutral
   weight: 1
-- agent_type: newsspread.HerdViewer
+- agent_class: newsspread.HerdViewer
   state:
     has_tv: true
     state_id: neutral
@@ -88,12 +88,12 @@ interval: 1
 max_time: 300
 name: Sim_wise_herd
 network_agents:
-- agent_type: newsspread.HerdViewer
+- agent_class: newsspread.HerdViewer
   state:
     has_tv: true
     state_id: neutral
   weight: 1
-- agent_type: newsspread.WiseViewer
+- agent_class: newsspread.WiseViewer
   state:
     has_tv: true
   weight: 1
@@ -113,12 +113,12 @@ interval: 1
 max_time: 300
 name: Sim_all_wise
 network_agents:
-- agent_type: newsspread.WiseViewer
+- agent_class: newsspread.WiseViewer
   state:
     has_tv: true
     state_id: neutral
   weight: 1
-- agent_type: newsspread.WiseViewer
+- agent_class: newsspread.WiseViewer
   state:
     has_tv: true
   weight: 1

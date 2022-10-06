@@ -1,6 +1,5 @@
 from soil.agents import FSM, state, default_state, BaseAgent, NetworkAgent
 from enum import Enum
-from random import random, choice
 import logging
 import math
 
@@ -57,10 +56,10 @@ class Male(RabbitModel):
 
         # Males try to mate
         for f in self.get_agents(state_id=Female.fertile.id,
-                                 agent_type=Female,
+                                 agent_class=Female,
                                  limit_neighbors=False,
                                  limit=self.max_females):
-            r = random()
+            r = self.random.random()
             if r < self['mating_prob']:
                 self.impregnate(f)
                 break # Take a break
@@ -85,11 +84,11 @@ class Female(RabbitModel):
         self['pregnancy'] += 1
         self.debug('Pregnancy: {}'.format(self['pregnancy']))
         if self['pregnancy'] >= self.gestation:
-            number_of_babies = int(8+4*random())
+            number_of_babies = int(8+4*self.random.random())
             self.info('Having {} babies'.format(number_of_babies))
             for i in range(number_of_babies):
                 state = {}
-                state['gender'] = choice(list(Genders)).value
+                state['gender'] = self.random.choice(list(Genders)).value
                 child = self.env.add_node(self.__class__, state)
                 self.env.add_edge(self.id, child.id)
                 self.env.add_edge(self['mate'], child.id)
@@ -124,8 +123,7 @@ class RandomAccident(BaseAgent):
         for i in self.env.network_agents:
             if i.state['id'] == i.dead.id:
                 continue
-            r = random()
-            if r < prob_death:
+            if self.prob(prob_death):
                 self.debug('I killed a rabbit: {}'.format(i.id))
                 rabbits_alive = self.env['rabbits_alive'] = rabbits_alive -1
                 self.log('Rabbits alive: {}'.format(self.env['rabbits_alive']))

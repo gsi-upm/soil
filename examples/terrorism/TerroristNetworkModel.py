@@ -1,4 +1,3 @@
-import random
 import networkx as nx
 from soil.agents import Geo, NetworkAgent, FSM, state, default_state
 from soil import Environment
@@ -26,26 +25,26 @@ class TerroristSpreadModel(FSM, Geo):
         self.prob_interaction = model.environment_params['prob_interaction']
 
         if self['id'] == self.civilian.id:       # Civilian
-            self.mean_belief = random.uniform(0.00, 0.5)
+            self.mean_belief = self.random.uniform(0.00, 0.5)
         elif self['id'] == self.terrorist.id:     # Terrorist
-            self.mean_belief = random.uniform(0.8, 1.00)
+            self.mean_belief = self.random.uniform(0.8, 1.00)
         elif self['id'] == self.leader.id:     # Leader
             self.mean_belief = 1.00
         else:
             raise Exception('Invalid state id: {}'.format(self['id']))
 
         if 'min_vulnerability' in model.environment_params:
-            self.vulnerability = random.uniform( model.environment_params['min_vulnerability'], model.environment_params['max_vulnerability'] )
+            self.vulnerability = self.random.uniform( model.environment_params['min_vulnerability'], model.environment_params['max_vulnerability'] )
         else :
-            self.vulnerability = random.uniform( 0, model.environment_params['max_vulnerability'] )
+            self.vulnerability = self.random.uniform( 0, model.environment_params['max_vulnerability'] )
 
 
     @state
     def civilian(self):
-        neighbours = list(self.get_neighboring_agents(agent_type=TerroristSpreadModel))
+        neighbours = list(self.get_neighboring_agents(agent_class=TerroristSpreadModel))
         if len(neighbours) > 0:
             # Only interact with some of the neighbors
-            interactions = list(n for n in neighbours if random.random() <= self.prob_interaction)
+            interactions = list(n for n in neighbours if self.random.random() <= self.prob_interaction)
             influence = sum( self.degree(i) for i in interactions )
             mean_belief = sum( i.mean_belief * self.degree(i) / influence for i in interactions )
             mean_belief = mean_belief * self.information_spread_intensity + self.mean_belief * ( 1 - self.information_spread_intensity )
@@ -64,7 +63,7 @@ class TerroristSpreadModel(FSM, Geo):
     @state
     def terrorist(self):
         neighbours = self.get_agents(state_id=[self.terrorist.id, self.leader.id],
-                                     agent_type=TerroristSpreadModel,
+                                     agent_class=TerroristSpreadModel,
                                      limit_neighbors=True)
         if len(neighbours) > 0:
             influence = sum( self.degree(n) for n in neighbours )
@@ -103,7 +102,7 @@ class TrainingAreaModel(FSM, Geo):
     @default_state
     @state
     def terrorist(self):
-        for neighbour in self.get_neighboring_agents(agent_type=TerroristSpreadModel):
+        for neighbour in self.get_neighboring_agents(agent_class=TerroristSpreadModel):
             if neighbour.vulnerability > self.min_vulnerability:
                 neighbour.vulnerability = neighbour.vulnerability ** ( 1 - self.training_influence )        
 
@@ -129,7 +128,7 @@ class HavenModel(FSM, Geo):
         self.max_vulnerability = model.environment_params['max_vulnerability']
 
     def get_occupants(self, **kwargs):
-        return self.get_neighboring_agents(agent_type=TerroristSpreadModel, **kwargs)
+        return self.get_neighboring_agents(agent_class=TerroristSpreadModel, **kwargs)
 
     @state
     def civilian(self):
@@ -182,15 +181,15 @@ class TerroristNetworkModel(TerroristSpreadModel):
 
     def update_relationships(self):
         if self.count_neighboring_agents(state_id=self.civilian.id) == 0:
-            close_ups = set(self.geo_search(radius=self.vision_range, agent_type=TerroristNetworkModel))
-            step_neighbours = set(self.ego_search(self.sphere_influence, agent_type=TerroristNetworkModel, center=False))
-            neighbours = set(agent.id for agent in self.get_neighboring_agents(agent_type=TerroristNetworkModel))
+            close_ups = set(self.geo_search(radius=self.vision_range, agent_class=TerroristNetworkModel))
+            step_neighbours = set(self.ego_search(self.sphere_influence, agent_class=TerroristNetworkModel, center=False))
+            neighbours = set(agent.id for agent in self.get_neighboring_agents(agent_class=TerroristNetworkModel))
             search = (close_ups | step_neighbours) - neighbours
             for agent in self.get_agents(search):
                 social_distance = 1 / self.shortest_path_length(agent.id)
                 spatial_proximity = ( 1 - self.get_distance(agent.id) )
                 prob_new_interaction = self.weight_social_distance * social_distance + self.weight_link_distance * spatial_proximity
-                if agent['id'] == agent.civilian.id and random.random() < prob_new_interaction:
+                if agent['id'] == agent.civilian.id and self.random.random() < prob_new_interaction:
                     self.add_edge(agent)
                     break
 

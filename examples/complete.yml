@@ -30,6 +30,7 @@ agents:
       times: 1
   environment:
     # In this group we are not specifying any topology
+    topology: False
     fixed:
       - name: 'Environment Agent 1'
         agent_class: CounterModel

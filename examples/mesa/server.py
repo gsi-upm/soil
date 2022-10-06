@@ -70,7 +70,7 @@ model_params = {
         1,
         description="Choose how many agents to include in the model",
     ),
-    "network_agents": [{"agent_type": SocialMoneyAgent}],
+    "network_agents": [{"agent_class": SocialMoneyAgent}],
     "height": UserSettableParameter(
         "slider",
         "height",

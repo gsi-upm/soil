@@ -211,11 +211,11 @@ nodes in that network. Notice how node 0 is the only one with a TV.
     sim = soil.Simulation(topology=G,
                                          num_trials=1,
                                          max_time=MAX_TIME,
-                                         environment_agents=[{'agent_type': NewsEnvironmentAgent,
+                                         environment_agents=[{'agent_class': NewsEnvironmentAgent,
                                                              'state': {
                                                                  'event_time': EVENT_TIME
                                                              }}],
-                                         network_agents=[{'agent_type': NewsSpread,
+                                         network_agents=[{'agent_class': NewsSpread,
                                                           'weight': 1}],
                                          states={0: {'has_tv': True}},
                                          default_state={'has_tv': False},
@@ -285,14 +285,14 @@ For this demo, we will use a python dictionary:
         },
         'network_agents': [
             {
-                'agent_type': NewsSpread,
+                'agent_class': NewsSpread,
                 'weight': 1,
                 'state': {
                     'has_tv': False
                 }
             },
             {
-                'agent_type': NewsSpread,
+                'agent_class': NewsSpread,
                 'weight': 2,
                 'state': {
                     'has_tv': True
@@ -300,7 +300,7 @@ For this demo, we will use a python dictionary:
             }
         ],
         'environment_agents':[
-            {'agent_type': NewsEnvironmentAgent,
+            {'agent_class': NewsEnvironmentAgent,
              'state': {
                  'event_time': 10
              }

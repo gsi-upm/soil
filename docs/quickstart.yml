@@ -3,11 +3,11 @@ name: quickstart
 num_trials: 1
 max_time: 1000
 network_agents:
-  - agent_type: SISaModel
+  - agent_class: SISaModel
     state:
       id: neutral
     weight: 1
-  - agent_type: SISaModel
+  - agent_class: SISaModel
     state:
       id: content
     weight: 2

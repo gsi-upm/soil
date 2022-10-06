@@ -12330,11 +12330,11 @@ Notice how node 0 is the only one with a TV.</p>
 <span class="n">sim</span> <span class="o">=</span> <span class="n">soil</span><span class="o">.</span><span class="n">Simulation</span><span class="p">(</span><span class="n">topology</span><span class="o">=</span><span class="n">G</span><span class="p">,</span>
                                      <span class="n">num_trials</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
                                      <span class="n">max_time</span><span class="o">=</span><span class="n">MAX_TIME</span><span class="p">,</span>
-                                     <span class="n">environment_agents</span><span class="o">=</span><span class="p">[{</span><span class="s1">&#39;agent_type&#39;</span><span class="p">:</span> <span class="n">NewsEnvironmentAgent</span><span class="p">,</span>
+                                     <span class="n">environment_agents</span><span class="o">=</span><span class="p">[{</span><span class="s1">&#39;agent_class&#39;</span><span class="p">:</span> <span class="n">NewsEnvironmentAgent</span><span class="p">,</span>
                                                          <span class="s1">&#39;state&#39;</span><span class="p">:</span> <span class="p">{</span>
                                                              <span class="s1">&#39;event_time&#39;</span><span class="p">:</span> <span class="n">EVENT_TIME</span>
                                                          <span class="p">}}],</span>
-                                     <span class="n">network_agents</span><span class="o">=</span><span class="p">[{</span><span class="s1">&#39;agent_type&#39;</span><span class="p">:</span> <span class="n">NewsSpread</span><span class="p">,</span>
+                                     <span class="n">network_agents</span><span class="o">=</span><span class="p">[{</span><span class="s1">&#39;agent_class&#39;</span><span class="p">:</span> <span class="n">NewsSpread</span><span class="p">,</span>
                                                       <span class="s1">&#39;weight&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}],</span>
                                      <span class="n">states</span><span class="o">=</span><span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;has_tv&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">}},</span>
                                      <span class="n">default_state</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;has_tv&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span>
@@ -12468,14 +12468,14 @@ For this demo, we will use a python dictionary:</p>
     <span class="p">},</span>
     <span class="s1">&#39;network_agents&#39;</span><span class="p">:</span> <span class="p">[</span>
         <span class="p">{</span>
-            <span class="s1">&#39;agent_type&#39;</span><span class="p">:</span> <span class="n">NewsSpread</span><span class="p">,</span>
+            <span class="s1">&#39;agent_class&#39;</span><span class="p">:</span> <span class="n">NewsSpread</span><span class="p">,</span>
             <span class="s1">&#39;weight&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
             <span class="s1">&#39;state&#39;</span><span class="p">:</span> <span class="p">{</span>
                 <span class="s1">&#39;has_tv&#39;</span><span class="p">:</span> <span class="kc">False</span>
             <span class="p">}</span>
         <span class="p">},</span>
         <span class="p">{</span>
-            <span class="s1">&#39;agent_type&#39;</span><span class="p">:</span> <span class="n">NewsSpread</span><span class="p">,</span>
+            <span class="s1">&#39;agent_class&#39;</span><span class="p">:</span> <span class="n">NewsSpread</span><span class="p">,</span>
             <span class="s1">&#39;weight&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
             <span class="s1">&#39;state&#39;</span><span class="p">:</span> <span class="p">{</span>
                 <span class="s1">&#39;has_tv&#39;</span><span class="p">:</span> <span class="kc">True</span>
@@ -12483,7 +12483,7 @@ For this demo, we will use a python dictionary:</p>
         <span class="p">}</span>
     <span class="p">],</span>
     <span class="s1">&#39;environment_agents&#39;</span><span class="p">:[</span>
-        <span class="p">{</span><span class="s1">&#39;agent_type&#39;</span><span class="p">:</span> <span class="n">NewsEnvironmentAgent</span><span class="p">,</span>
+        <span class="p">{</span><span class="s1">&#39;agent_class&#39;</span><span class="p">:</span> <span class="n">NewsEnvironmentAgent</span><span class="p">,</span>
          <span class="s1">&#39;state&#39;</span><span class="p">:</span> <span class="p">{</span>
              <span class="s1">&#39;event_time&#39;</span><span class="p">:</span> <span class="mi">10</span>
          <span class="p">}</span>

@@ -27,8 +27,8 @@ if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.INFO)
     from soil import Simulation
-    s = Simulation(network_agents=[{'ids': [0], 'agent_type': Fibonacci},
-                                   {'ids': [1], 'agent_type': Odds}],
+    s = Simulation(network_agents=[{'ids': [0], 'agent_class': Fibonacci},
+                                   {'ids': [1], 'agent_class': Odds}],
                    network_params={"generator": "complete_graph", "n": 2},
                    max_time=100,
                    )

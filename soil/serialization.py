@@ -122,8 +122,6 @@ def load_files(*patterns, **kwargs):
         for i in glob(pattern, **kwargs):
             for config in load_file(i):
                 path = os.path.abspath(i)
-                if 'general' in config and 'dir_path' not in config['general']:
-                    config['general']['dir_path'] = os.path.dirname(path)
                 yield config, path
 
 

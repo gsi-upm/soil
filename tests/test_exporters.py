@@ -36,7 +36,7 @@ class Exporters(TestCase):
         config = {
             'name': 'exporter_sim',
             'network_params': {},
-            'agent_type': 'CounterModel',
+            'agent_class': 'CounterModel',
             'max_time': 2,
             'num_trials': 5,
             'environment_params': {}
@@ -62,7 +62,7 @@ class Exporters(TestCase):
                 'generator': 'complete_graph',
                 'n': 4
             },
-            'agent_type': 'CounterModel',
+            'agent_class': 'CounterModel',
             'max_time': 2,
             'num_trials': n_trials,
             'dry_run': False,

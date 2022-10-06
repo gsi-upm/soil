@@ -1,6 +1,5 @@
 from soil.agents import FSM, NetworkAgent, state, default_state
 from soil import Environment
-from random import random, shuffle
 from itertools import islice
 import logging
 
@@ -128,7 +127,7 @@ class Patron(FSM, NetworkAgent):
         Try to become friends with another agent. The chances of
         success depend on both agents' openness.
         '''
-        if force or self['openness'] > random():
+        if force or self['openness'] > self.random.random():
             self.env.add_edge(self, other_agent)
             self.info('Made some friend {}'.format(other_agent))
             return True
@@ -138,7 +137,7 @@ class Patron(FSM, NetworkAgent):
         ''' Look for random agents around me and try to befriend them'''
         befriended = False
         k = int(10*self['openness'])
-        shuffle(others)
+        self.random.shuffle(others)
         for friend in islice(others, k):  # random.choice >= 3.7
             if friend == self:
                 continue

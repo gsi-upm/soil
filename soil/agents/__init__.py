@@ -2,7 +2,7 @@ import logging
 from collections import OrderedDict, defaultdict
 from collections.abc import MutableMapping, Mapping, Set
 from abc import ABCMeta
-from copy import deepcopy
+from copy import deepcopy, copy
 from functools import partial, wraps
 from itertools import islice, chain
 import json
@@ -10,8 +10,6 @@ import networkx as nx
 
 from mesa import Agent as MesaAgent
 from typing import Dict, List
-
-from random import shuffle
 
 from .. import serialization, utils, time, config
 
@@ -27,6 +25,7 @@ IGNORED_FIELDS = ('model', 'logger')
 
 class DeadAgent(Exception):
     pass
+
 
 class BaseAgent(MesaAgent, MutableMapping):
     """
@@ -81,6 +80,9 @@ class BaseAgent(MesaAgent, MutableMapping):
 
     def __hash__(self):
         return hash(self.unique_id)
+
+    def prob(self, probability):
+        return prob(probability, self.model.random)
 
     # TODO: refactor to clean up mesa compatibility
     @property
@@ -356,7 +358,7 @@ class FSM(BaseAgent, metaclass=MetaFSM):
         return state
 
 
-def prob(prob=1):
+def prob(prob, random):
     '''
     A true/False uniform distribution with a given probability.
     To be used like this:
@@ -474,7 +476,7 @@ def _convert_agent_classs(ind, to_string=False, **kwargs):
     return deserialize_definition(ind, **kwargs)
 
 
-def _agent_from_definition(definition, value=-1, unique_id=None):
+def _agent_from_definition(definition, random, value=-1, unique_id=None):
     """Used in the initialization of agents given an agent distribution."""
     if value < 0:
         value = random.random()
@@ -491,7 +493,7 @@ def _agent_from_definition(definition, value=-1, unique_id=None):
     raise Exception('Definition for value {} not found in: {}'.format(value, definition))
 
 
-def _definition_to_dict(definition, size=None, default_state=None):
+def _definition_to_dict(definition, random, size=None, default_state=None):
     state = default_state or {}
     agents = {}
     remaining = {}
@@ -668,7 +670,7 @@ def filter_group(group, *id_args, unique_id=None, state_id=None, agent_class=Non
     yield from f
 
 
-def from_config(cfg: Dict[str, config.AgentConfig], env):
+def from_config(cfg: Dict[str, config.AgentConfig], env, random):
     '''
     Agents are specified in groups.
     Each group can be specified in two ways, either through a fixed list in which each item has
@@ -677,10 +679,15 @@ def from_config(cfg: Dict[str, config.AgentConfig], env):
     of each agent type.
     '''
     default = cfg.get('default', None)
-    return {k: _group_from_config(c, default=default, env=env) for (k, c)  in cfg.items() if k is not 'default'}
+    return {k: _group_from_config(c, default=default, env=env, random=random) for (k, c)  in cfg.items() if k is not 'default'}
 
 
-def _group_from_config(cfg: config.AgentConfig, default: config.SingleAgentConfig, env):
+def _group_from_config(cfg: config.AgentConfig, default: config.SingleAgentConfig, env, random):
+    if cfg and not isinstance(cfg, config.AgentConfig):
+        cfg = config.AgentConfig(**cfg)
+    if default and not isinstance(default, config.SingleAgentConfig):
+        default = config.SingleAgentConfig(**default)
+
     agents = {}
     if cfg.fixed is not None:
         agents = _from_fixed(cfg.fixed, topology=cfg.topology, default=default, env=env)
@@ -690,7 +697,7 @@ def _group_from_config(cfg: config.AgentConfig, default: config.SingleAgentConfi
         agents.update(_from_distro(cfg.distribution, target,
                                    topology=cfg.topology or default.topology,
                                    default=default,
-                                   env=env))
+                                   env=env, random=random))
         assert len(agents) == n
     if cfg.override:
         for attrs in cfg.override:
@@ -733,7 +740,8 @@ def _from_distro(distro: List[config.AgentDistro],
                  n: int,
                  topology: str,
                  default: config.SingleAgentConfig,
-                 env):
+                 env,
+                 random):
 
     agents = {}
 

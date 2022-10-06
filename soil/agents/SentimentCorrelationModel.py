@@ -1,4 +1,3 @@
-import random
 from . import BaseAgent
 
 
@@ -68,10 +67,10 @@ class SentimentCorrelationModel(BaseAgent):
         disgust_prob = self.disgust_prob+(len(disgusted_neighbors_1_time_step)*self.disgust_prob)
         outside_effects_prob = self.outside_effects_prob
 
-        num = random.random()
+        num = self.random.random()
 
         if num<outside_effects_prob:
-            self.state['id'] = random.randint(1, 4)
+            self.state['id'] = self.random.randint(1, 4)
 
             self.state['sentimentCorrelation'] = self.state['id'] # It is stored when it has been infected for the dynamic network
             self.state['time_awareness'][self.state['id']-1] = self.env.now

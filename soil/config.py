@@ -9,19 +9,6 @@ from typing import Any, Callable, Dict, List, Optional, Union, Type
 from pydantic import BaseModel, Extra
 import networkx as nx
 
-class General(BaseModel):
-    id: str = 'Unnamed Simulation'
-    group: str = None
-    dir_path: Optional[str] = None
-    num_trials: int = 1
-    max_time: float = 100
-    interval: float = 1
-    seed: str = ""
-
-    @staticmethod
-    def default():
-        return General()
-
 
 # Could use TypeAlias in python >= 3.10
 nodeId = int
@@ -125,10 +112,18 @@ class AgentConfig(SingleAgentConfig):
 
 class Config(BaseModel, extra=Extra.forbid):
     version: Optional[str] = '1'
-    general: General = General.default()
-    topologies: Optional[Dict[str, NetConfig]] = {}
-    environment: EnvConfig = EnvConfig.default()
-    agents: Optional[Dict[str, AgentConfig]] = {}
+
+    id: str = 'Unnamed Simulation'
+    group: str = None
+    dir_path: Optional[str] = None
+    num_trials: int = 1
+    max_time: float = 100
+    interval: float = 1
+    seed: str = ""
+
+    model_class: Union[Type, str]
+    model_parameters: Optiona[Dict[str, Any]] = {}
+
 
 def convert_old(old, strict=True):
     '''
@@ -137,9 +132,13 @@ def convert_old(old, strict=True):
     This is still a work in progress and might not work in many cases.
     '''
 
+    #TODO: implement actual conversion
+    print('The old configuration format is no longer supported. \
+    Update your config files or run Soil==0.20')
+    raise NotImplementedError()
+
 
     new = {}
-
 
     general = {}
     for k in ['id', 
@@ -173,8 +172,8 @@ def convert_old(old, strict=True):
         'default': {},
     }
 
-    if 'agent_type' in old:
-        agents['default']['agent_class'] = old['agent_type']
+    if 'agent_class' in old:
+        agents['default']['agent_class'] = old['agent_class']
 
     if 'default_state' in old:
         agents['default']['state'] = old['default_state']
@@ -182,8 +181,8 @@ def convert_old(old, strict=True):
 
     def updated_agent(agent):
         newagent = dict(agent)
-        newagent['agent_class'] = newagent['agent_type']
-        del newagent['agent_type']
+        newagent['agent_class'] = newagent['agent_class']
+        del newagent['agent_class']
         return newagent
 
     for agent in old.get('environment_agents', []):
@@ -207,9 +206,9 @@ def convert_old(old, strict=True):
             else:
                 by_weight.append(agent)
 
-    if 'agent_type' in old and (not fixed and not by_weight):
+    if 'agent_class' in old and (not fixed and not by_weight):
         agents['network']['topology'] = 'default'
-        by_weight = [{'agent_class': old['agent_type']}]
+        by_weight = [{'agent_class': old['agent_class']}]
 
     
     # TODO: translate states properly

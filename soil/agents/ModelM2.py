@@ -1,4 +1,3 @@
-import random
 import numpy as np
 from . import BaseAgent
 
@@ -24,23 +23,26 @@ class SpreadModelM2(BaseAgent):
     def __init__(self, model=None, unique_id=0, state=()):
         super().__init__(model=environment, unique_id=unique_id, state=state)
 
-        self.prob_neutral_making_denier = np.random.normal(environment.environment_params['prob_neutral_making_denier'],
-                                                           environment.environment_params['standard_variance'])
 
-        self.prob_infect = np.random.normal(environment.environment_params['prob_infect'],
-                                            environment.environment_params['standard_variance'])
+        # Use a single generator with the same seed as `self.random`
+        random = np.random.default_rng(seed=self._seed)
+        self.prob_neutral_making_denier = random.normal(environment.environment_params['prob_neutral_making_denier'],
+                                                        environment.environment_params['standard_variance'])
 
-        self.prob_cured_healing_infected = np.random.normal(environment.environment_params['prob_cured_healing_infected'],
-                                                            environment.environment_params['standard_variance'])
-        self.prob_cured_vaccinate_neutral = np.random.normal(environment.environment_params['prob_cured_vaccinate_neutral'],
-                                                             environment.environment_params['standard_variance'])
+        self.prob_infect = random.normal(environment.environment_params['prob_infect'],
+                                         environment.environment_params['standard_variance'])
 
-        self.prob_vaccinated_healing_infected = np.random.normal(environment.environment_params['prob_vaccinated_healing_infected'],
-                                                                 environment.environment_params['standard_variance'])
-        self.prob_vaccinated_vaccinate_neutral = np.random.normal(environment.environment_params['prob_vaccinated_vaccinate_neutral'],
-                                                                  environment.environment_params['standard_variance'])
-        self.prob_generate_anti_rumor = np.random.normal(environment.environment_params['prob_generate_anti_rumor'],
+        self.prob_cured_healing_infected = random.normal(environment.environment_params['prob_cured_healing_infected'],
                                                          environment.environment_params['standard_variance'])
+        self.prob_cured_vaccinate_neutral = random.normal(environment.environment_params['prob_cured_vaccinate_neutral'],
+                                                          environment.environment_params['standard_variance'])
+
+        self.prob_vaccinated_healing_infected = random.normal(environment.environment_params['prob_vaccinated_healing_infected'],
+                                                              environment.environment_params['standard_variance'])
+        self.prob_vaccinated_vaccinate_neutral = random.normal(environment.environment_params['prob_vaccinated_vaccinate_neutral'],
+                                                               environment.environment_params['standard_variance'])
+        self.prob_generate_anti_rumor = random.normal(environment.environment_params['prob_generate_anti_rumor'],
+                                                      environment.environment_params['standard_variance'])
 
     def step(self):
 
@@ -58,7 +60,7 @@ class SpreadModelM2(BaseAgent):
         # Infected
         infected_neighbors = self.get_neighboring_agents(state_id=1)
         if len(infected_neighbors) > 0:
-            if random.random() < self.prob_neutral_making_denier:
+            if self.prob(self.prob_neutral_making_denier):
                 self.state['id'] = 3   # Vaccinated making denier
 
     def infected_behaviour(self):
@@ -66,7 +68,7 @@ class SpreadModelM2(BaseAgent):
         # Neutral
         neutral_neighbors = self.get_neighboring_agents(state_id=0)
         for neighbor in neutral_neighbors:
-            if random.random() < self.prob_infect:
+            if self.prob(self.prob_infect):
                 neighbor.state['id'] = 1  # Infected
 
     def cured_behaviour(self):
@@ -74,13 +76,13 @@ class SpreadModelM2(BaseAgent):
         # Vaccinate
         neutral_neighbors = self.get_neighboring_agents(state_id=0)
         for neighbor in neutral_neighbors:
-            if random.random() < self.prob_cured_vaccinate_neutral:
+            if self.prob(self.prob_cured_vaccinate_neutral):
                 neighbor.state['id'] = 3  # Vaccinated
 
         # Cure
         infected_neighbors = self.get_neighboring_agents(state_id=1)
         for neighbor in infected_neighbors:
-            if random.random() < self.prob_cured_healing_infected:
+            if self.prob(self.prob_cured_healing_infected):
                 neighbor.state['id'] = 2  # Cured
 
     def vaccinated_behaviour(self):
@@ -88,19 +90,19 @@ class SpreadModelM2(BaseAgent):
         # Cure
         infected_neighbors = self.get_neighboring_agents(state_id=1)
         for neighbor in infected_neighbors:
-            if random.random() < self.prob_cured_healing_infected:
+            if self.prob(self.prob_cured_healing_infected):
                 neighbor.state['id'] = 2  # Cured
 
         # Vaccinate
         neutral_neighbors = self.get_neighboring_agents(state_id=0)
         for neighbor in neutral_neighbors:
-            if random.random() < self.prob_cured_vaccinate_neutral:
+            if self.prob(self.prob_cured_vaccinate_neutral):
                 neighbor.state['id'] = 3  # Vaccinated
 
         # Generate anti-rumor
         infected_neighbors_2 = self.get_neighboring_agents(state_id=1)
         for neighbor in infected_neighbors_2:
-            if random.random() < self.prob_generate_anti_rumor:
+            if self.prob(self.prob_generate_anti_rumor):
                 neighbor.state['id'] = 2  # Cured
 
 
@@ -165,7 +167,7 @@ class ControlModelM2(BaseAgent):
         # Infected
         infected_neighbors = self.get_neighboring_agents(state_id=1)
         if len(infected_neighbors) > 0:
-            if random.random() < self.prob_neutral_making_denier:
+            if self.random(self.prob_neutral_making_denier):
                 self.state['id'] = 3   # Vaccinated making denier
 
     def infected_behaviour(self):
@@ -173,7 +175,7 @@ class ControlModelM2(BaseAgent):
         # Neutral
         neutral_neighbors = self.get_neighboring_agents(state_id=0)
         for neighbor in neutral_neighbors:
-            if random.random() < self.prob_infect:
+            if self.prob(self.prob_infect):
                 neighbor.state['id'] = 1  # Infected
         self.state['visible'] = False
 
@@ -183,13 +185,13 @@ class ControlModelM2(BaseAgent):
         # Vaccinate
         neutral_neighbors = self.get_neighboring_agents(state_id=0)
         for neighbor in neutral_neighbors:
-            if random.random() < self.prob_cured_vaccinate_neutral:
+            if self.prob(self.prob_cured_vaccinate_neutral):
                 neighbor.state['id'] = 3  # Vaccinated
 
         # Cure
         infected_neighbors = self.get_neighboring_agents(state_id=1)
         for neighbor in infected_neighbors:
-            if random.random() < self.prob_cured_healing_infected:
+            if self.prob(self.prob_cured_healing_infected):
                 neighbor.state['id'] = 2  # Cured
 
     def vaccinated_behaviour(self):
@@ -198,19 +200,19 @@ class ControlModelM2(BaseAgent):
         # Cure
         infected_neighbors = self.get_neighboring_agents(state_id=1)
         for neighbor in infected_neighbors:
-            if random.random() < self.prob_cured_healing_infected:
+            if self.prob(self.prob_cured_healing_infected):
                 neighbor.state['id'] = 2  # Cured
 
         # Vaccinate
         neutral_neighbors = self.get_neighboring_agents(state_id=0)
         for neighbor in neutral_neighbors:
-            if random.random() < self.prob_cured_vaccinate_neutral:
+            if self.prob(self.prob_cured_vaccinate_neutral):
                 neighbor.state['id'] = 3  # Vaccinated
 
         # Generate anti-rumor
         infected_neighbors_2 = self.get_neighboring_agents(state_id=1)
         for neighbor in infected_neighbors_2:
-            if random.random() < self.prob_generate_anti_rumor:
+            if self.prob(self.prob_generate_anti_rumor):
                 neighbor.state['id'] = 2  # Cured
 
     def beacon_off_behaviour(self):
@@ -224,19 +226,19 @@ class ControlModelM2(BaseAgent):
         # Cure (M2 feature added)
         infected_neighbors = self.get_neighboring_agents(state_id=1)
         for neighbor in infected_neighbors:
-            if random.random() < self.prob_generate_anti_rumor:
+            if self.prob(self.prob_generate_anti_rumor):
                 neighbor.state['id'] = 2  # Cured
             neutral_neighbors_infected = neighbor.get_neighboring_agents(state_id=0)
             for neighbor in neutral_neighbors_infected:
-                if random.random() < self.prob_generate_anti_rumor:
+                if self.prob(self.prob_generate_anti_rumor):
                     neighbor.state['id'] = 3  # Vaccinated
             infected_neighbors_infected = neighbor.get_neighboring_agents(state_id=1)
             for neighbor in infected_neighbors_infected:
-                if random.random() < self.prob_generate_anti_rumor:
+                if self.prob(self.prob_generate_anti_rumor):
                     neighbor.state['id'] = 2  # Cured
 
         # Vaccinate
         neutral_neighbors = self.get_neighboring_agents(state_id=0)
         for neighbor in neutral_neighbors:
-            if random.random() < self.prob_cured_vaccinate_neutral:
+            if self.prob(self.prob_cured_vaccinate_neutral):
                 neighbor.state['id'] = 3  # Vaccinated

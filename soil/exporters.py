@@ -49,8 +49,8 @@ class Exporter:
         self.simulation = simulation
         outdir = outdir or os.path.join(os.getcwd(), 'soil_output')
         self.outdir = os.path.join(outdir,
-                                   simulation.config.general.group or '',
-                                   simulation.config.general.id)
+                                   simulation.group or '',
+                                   simulation.name)
         self.dry_run = dry_run
         self.copy_to = copy_to
 

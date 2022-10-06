@@ -1,4 +1,3 @@
-import random
 from . import FSM, state, default_state
 
 
@@ -39,10 +38,10 @@ class BigMarketModel(FSM):
     @state
     def enterprise(self):
 
-        if random.random() < self.tweet_probability:  # Tweets
+        if self.random.random() < self.tweet_probability:  # Tweets
             aware_neighbors = self.get_neighboring_agents(state_id=self.number_of_enterprises)  # Nodes neighbour users
             for x in aware_neighbors:
-                if random.uniform(0,10) < 5:
+                if self.random.uniform(0,10) < 5:
                     x.sentiment_about[self.id] += 0.1  # Increments for enterprise
                 else:
                     x.sentiment_about[self.id] -= 0.1  # Decrements for enterprise
@@ -57,11 +56,11 @@ class BigMarketModel(FSM):
 
     @state
     def user(self):
-        if random.random() < self.tweet_probability:  # Tweets
-            if random.random() < self.tweet_relevant_probability:  # Tweets something relevant
+        if self.random.random() < self.tweet_probability:  # Tweets
+            if self.random.random() < self.tweet_relevant_probability:  # Tweets something relevant
                 # Tweet probability per enterprise
                 for i in range(len(self.enterprises)):
-                    random_num = random.random()
+                    random_num = self.random.random()
                     if random_num < self.tweet_probability_about[i]:
                         # The condition is fulfilled, sentiments are evaluated towards that enterprise
                         if self.sentiment_about[i] < 0:

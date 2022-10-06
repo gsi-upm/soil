@@ -37,9 +37,10 @@ class TimedActivation(BaseScheduler):
     """
 
     def __init__(self, *args, **kwargs):
-        super().__init__(self)
+        super().__init__(*args, **kwargs)
         self._queue = []
         self.next_time = 0
+        self.logger = logger.getChild(f'time_{ self.model }')
 
     def add(self, agent: MesaAgent):
         if agent.unique_id not in self._agents:
@@ -52,7 +53,8 @@ class TimedActivation(BaseScheduler):
         an agent will signal when it wants to be scheduled next.
         """
 
-        if self.next_time == INFINITY:
+        self.logger.debug(f'Simulation step {self.next_time}')
+        if not self.model.running:
             return
 
         self.time = self.next_time
@@ -60,7 +62,7 @@ class TimedActivation(BaseScheduler):
 
         while self._queue and self._queue[0][0] == self.time:
             (when, agent_id) = heappop(self._queue)
-            logger.debug(f'Stepping agent {agent_id}')
+            self.logger.debug(f'Stepping agent {agent_id}')
 
             returned = self._agents[agent_id].step()
             when = (returned or Delta(1)).abs(self.time)
@@ -74,7 +76,8 @@ class TimedActivation(BaseScheduler):
         if not self._queue:
             self.time = INFINITY
             self.next_time = INFINITY
+            self.model.running = False
             return
 
         self.next_time = self._queue[0][0]
-
+        self.logger.debug(f'Next step: {self.next_time}')

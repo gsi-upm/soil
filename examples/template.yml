@@ -13,11 +13,11 @@ template:
     generator: complete_graph
     n: 10
   network_agents:
-    - agent_type: CounterModel
+    - agent_class: CounterModel
       weight: "{{ x1 }}"
       state:
         state_id: 0
-    - agent_type: AggregatedCounter
+    - agent_class: AggregatedCounter
       weight: "{{ 1 - x1 }}"
   environment_params:
     name: "{{ x3 }}"

@@ -1,6 +1,7 @@
 import logging
 from time import time as current_time, strftime, gmtime, localtime
 import os
+import traceback
 
 from shutil import copyfile
 
@@ -89,3 +90,17 @@ def unflatten_dict(d):
             target = target[token]
         target[tokens[-1]] = v
     return out
+
+
+def run_and_return_exceptions(self, func, *args, **kwargs):
+    '''
+    A wrapper for run_trial that catches exceptions and returns them.
+    It is meant for async simulations.
+    '''
+    try:
+        return func(*args, **kwargs)
+    except Exception as ex:
+        if ex.__cause__ is not None:
+            ex = ex.__cause__
+        ex.message = ''.join(traceback.format_exception(type(ex), ex, ex.__traceback__)[:])
+        return ex
