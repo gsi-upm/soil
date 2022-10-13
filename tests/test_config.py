@@ -29,7 +29,7 @@ class TestConfig(TestCase):
         expected = serialization.load_file(join(ROOT, "complete_converted.yml"))[0]
         old = serialization.load_file(join(ROOT, "old_complete.yml"))[0]
         converted_defaults = config.convert_old(old, strict=False)
-        converted = converted_defaults.dict(skip_defaults=True)
+        converted = converted_defaults.dict(exclude_unset=True)
 
         isequal(converted, expected)
 
@@ -40,10 +40,10 @@ class TestConfig(TestCase):
         """
         config = serialization.load_file(join(EXAMPLES, 'complete.yml'))[0]
         s = simulation.from_config(config)
-        init_config = copy.copy(s.config)
+        init_config = copy.copy(s.to_dict())
 
         s.run_simulation(dry_run=True)
-        nconfig = s.config
+        nconfig = s.to_dict()
         # del nconfig['to
         isequal(init_config, nconfig)
 
@@ -61,7 +61,7 @@ class TestConfig(TestCase):
         Simple configuration that tests that the graph is loaded, and that
         network agents are initialized properly.
         """
-        config = {
+        cfg = {
             'name': 'CounterAgent',
             'network_params': {
                 'path': join(ROOT, 'test.gexf')
@@ -74,12 +74,14 @@ class TestConfig(TestCase):
             'environment_params': {
             }
         }
-        s = simulation.from_old_config(config)
+        conf = config.convert_old(cfg)
+        s = simulation.from_config(conf)
+
         env = s.get_env()
         assert len(env.topologies['default'].nodes) == 2
         assert len(env.topologies['default'].edges) == 1
         assert len(env.agents) == 2
-        assert env.agents[0].topology == env.topologies['default']
+        assert env.agents[0].G == env.topologies['default']
 
     def test_agents_from_config(self):
         '''We test that the known complete configuration produces
@@ -87,12 +89,9 @@ class TestConfig(TestCase):
         cfg = serialization.load_file(join(ROOT, "complete_converted.yml"))[0]
         s = simulation.from_config(cfg)
         env = s.get_env()
-        assert len(env.topologies['default'].nodes) == 10
-        assert len(env.agents(group='network')) == 10
+        assert len(env.topologies['default'].nodes) == 4
+        assert len(env.agents(group='network')) == 4
         assert len(env.agents(group='environment')) == 1
-        
-        assert sum(1 for a in env.agents(group='network', agent_class=agents.CounterModel)) == 4
-        assert sum(1 for a in env.agents(group='network', agent_class=agents.AggregatedCounter)) == 6
 
     def test_yaml(self):
         """

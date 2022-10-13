@@ -81,6 +81,26 @@ class TerroristSpreadModel(FSM, Geo):
                     return
             return self.leader
 
+    def ego_search(self, steps=1, center=False, node=None, **kwargs):
+        '''Get a list of nodes in the ego network of *node* of radius *steps*'''
+        node = as_node(node if node is not None else self)
+        G = self.subgraph(**kwargs)
+        return nx.ego_graph(G, node, center=center, radius=steps).nodes()
+
+    def degree(self, node, force=False):
+        node = as_node(node)
+        if force or (not hasattr(self.model, '_degree')) or getattr(self.model, '_last_step', 0) < self.now:
+            self.model._degree = nx.degree_centrality(self.G)
+            self.model._last_step = self.now
+        return self.model._degree[node]
+
+    def betweenness(self, node, force=False):
+        node = as_node(node)
+        if force or (not hasattr(self.model, '_betweenness')) or getattr(self.model, '_last_step', 0) < self.now:
+            self.model._betweenness = nx.betweenness_centrality(self.G)
+            self.model._last_step = self.now
+        return self.model._betweenness[node]
+
 
 class TrainingAreaModel(FSM, Geo):
     """
@@ -194,14 +214,14 @@ class TerroristNetworkModel(TerroristSpreadModel):
                     break
 
     def get_distance(self, target):
-        source_x, source_y = nx.get_node_attributes(self.topology, 'pos')[self.id]
-        target_x, target_y = nx.get_node_attributes(self.topology, 'pos')[target]
+        source_x, source_y = nx.get_node_attributes(self.G, 'pos')[self.id]
+        target_x, target_y = nx.get_node_attributes(self.G, 'pos')[target]
         dx = abs( source_x - target_x )
         dy = abs( source_y - target_y )
         return ( dx ** 2 + dy ** 2 ) ** ( 1 / 2 )
 
     def shortest_path_length(self, target):
         try:
-            return nx.shortest_path_length(self.topology, self.id, target)
+            return nx.shortest_path_length(self.G, self.id, target)
         except nx.NetworkXNoPath:
             return float('inf')

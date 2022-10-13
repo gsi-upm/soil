@@ -16,13 +16,13 @@ class DumbViewer(FSM, NetworkAgent):
     @state
     def neutral(self):
         if self['has_tv']:
-            if prob(self.env['prob_tv_spread']):
+            if self.prob(self.model['prob_tv_spread']):
                 return self.infected
 
     @state
     def infected(self):
         for neighbor in self.get_neighboring_agents(state_id=self.neutral.id):
-            if prob(self.env['prob_neighbor_spread']):
+            if self.prob(self.model['prob_neighbor_spread']):
                 neighbor.infect()
 
     def infect(self):
@@ -44,9 +44,9 @@ class HerdViewer(DumbViewer):
         '''Notice again that this is NOT a state. See DumbViewer.infect for reference'''
         infected = self.count_neighboring_agents(state_id=self.infected.id)
         total = self.count_neighboring_agents()
-        prob_infect = self.env['prob_neighbor_spread'] * infected/total
+        prob_infect = self.model['prob_neighbor_spread'] * infected/total
         self.debug('prob_infect', prob_infect)
-        if prob(prob_infect):
+        if self.prob(prob_infect):
             self.set_state(self.infected)
 
 
@@ -63,9 +63,9 @@ class WiseViewer(HerdViewer):
 
     @state
     def cured(self):
-        prob_cure = self.env['prob_neighbor_cure']
+        prob_cure = self.model['prob_neighbor_cure']
         for neighbor in self.get_neighboring_agents(state_id=self.infected.id):
-            if prob(prob_cure):
+            if self.prob(prob_cure):
                 try:
                     neighbor.cure()
                 except AttributeError:
@@ -80,7 +80,7 @@ class WiseViewer(HerdViewer):
                     1.0)
         infected = max(self.count_neighboring_agents(self.infected.id),
                        1.0)
-        prob_cure = self.env['prob_neighbor_cure'] * (cured/infected)
-        if prob(prob_cure):
+        prob_cure = self.model['prob_neighbor_cure'] * (cured/infected)
+        if self.prob(prob_cure):
             return self.cured
         return self.set_state(super().infected)

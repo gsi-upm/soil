@@ -3,13 +3,27 @@ from time import time as current_time, strftime, gmtime, localtime
 import os
 import traceback
 
+from functools import partial
 from shutil import copyfile
+from multiprocessing import Pool
 
 from contextlib import contextmanager
 
 logger = logging.getLogger('soil')
-# logging.basicConfig()
-# logger.setLevel(logging.INFO)
+logger.setLevel(logging.INFO)
+
+timeformat = "%H:%M:%S"
+
+if os.environ.get('SOIL_VERBOSE', ''):
+    logformat = "[%(levelname)-5.5s][%(asctime)s][%(name)s]:  %(message)s"
+else:
+    logformat = "[%(levelname)-5.5s][%(asctime)s] %(message)s"
+
+logFormatter = logging.Formatter(logformat, timeformat)
+
+consoleHandler = logging.StreamHandler()
+consoleHandler.setFormatter(logFormatter)
+logger.addHandler(consoleHandler)
 
 
 @contextmanager
@@ -27,8 +41,6 @@ def timer(name='task', pre="", function=logger.info, to_object=None):
         to_object.end = end
 
 
-
-
 def safe_open(path, mode='r', backup=True, **kwargs):
     outdir = os.path.dirname(path)
     if outdir and not os.path.exists(outdir):
@@ -41,7 +53,7 @@ def safe_open(path, mode='r', backup=True, **kwargs):
         if not os.path.exists(backup_dir):
             os.makedirs(backup_dir)
         newpath = os.path.join(backup_dir, '{}@{}'.format(os.path.basename(path),
-                                                               stamp))
+                                                          stamp))
         copyfile(path, newpath)
     return open(path, mode=mode, **kwargs)
 
@@ -92,7 +104,7 @@ def unflatten_dict(d):
     return out
 
 
-def run_and_return_exceptions(self, func, *args, **kwargs):
+def run_and_return_exceptions(func, *args, **kwargs):
     '''
     A wrapper for run_trial that catches exceptions and returns them.
     It is meant for async simulations.
@@ -104,3 +116,18 @@ def run_and_return_exceptions(self, func, *args, **kwargs):
             ex = ex.__cause__
         ex.message = ''.join(traceback.format_exception(type(ex), ex, ex.__traceback__)[:])
         return ex
+
+
+def run_parallel(func, iterable, parallel=False, **kwargs):
+    if parallel and not os.environ.get('SOIL_DEBUG', None):
+        p = Pool()
+        wrapped_func = partial(run_and_return_exceptions,
+                               func, **kwargs)
+        for i in p.imap_unordered(wrapped_func, iterable):
+            if isinstance(i, Exception):
+                logger.error('Trial failed:\n\t%s', i.message)
+                continue
+            yield i
+    else:
+        for i in iterable:
+            yield func(i, **kwargs)

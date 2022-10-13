@@ -8,7 +8,7 @@ class Dead(agents.FSM):
     @agents.default_state
     @agents.state
     def only(self):
-        self.die()
+        return self.die()
 
 class TestMain(TestCase):
     def test_die_raises_exception(self):
@@ -19,4 +19,6 @@ class TestMain(TestCase):
 
     def test_die_returns_infinity(self):
         d = Dead(unique_id=0, model=environment.Environment())
-        assert d.step().abs(0) == stime.INFINITY
+        ret = d.step().abs(0)
+        print(ret, 'next')
+        assert ret == stime.INFINITY

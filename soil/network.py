@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Dict
 import os
 import sys
@@ -37,8 +39,10 @@ def from_config(cfg: config.NetConfig, dir_path: str = None):
                                             known_modules=['networkx.generators',])
         return method(**net_args)
 
-    if isinstance(cfg.topology, basestring) or isinstance(cfg.topology, dict):
-        return nx.json_graph.node_link_graph(cfg.topology)
+    if isinstance(cfg.topology, config.Topology):
+        cfg = cfg.topology.dict()
+    if isinstance(cfg, str) or isinstance(cfg, dict):
+        return nx.json_graph.node_link_graph(cfg)
 
     return nx.Graph()
 
@@ -57,9 +61,18 @@ def agent_to_node(G, agent_id, node_id=None, shuffle=False, random=random):
         for next_id, data in candidates:
             if data.get('agent_id', None) is None:
                 node_id = next_id
-                data['agent_id'] = agent_id
                 break
 
     if node_id is None:
         raise ValueError(f"Not enough nodes in topology to assign one to agent {agent_id}")
+    G.nodes[node_id]['agent_id'] = agent_id
     return node_id
+
+
+def dump_gexf(G, f):
+    for node in G.nodes():
+        if 'pos' in G.nodes[node]:
+            G.nodes[node]['viz'] = {"position": {"x": G.nodes[node]['pos'][0], "y": G.nodes[node]['pos'][1], "z": 0.0}}
+            del (G.nodes[node]['pos'])
+
+    nx.write_gexf(G, f, version="1.2draft")

@@ -7,6 +7,8 @@ import importlib
 from glob import glob
 from itertools import product, chain
 
+from .config import Config
+
 import yaml
 import networkx as nx
 
@@ -120,21 +122,24 @@ def params_for_template(config):
 def load_files(*patterns, **kwargs):
     for pattern in patterns:
         for i in glob(pattern, **kwargs):
-            for config in load_file(i):
+            for cfg in load_file(i):
                 path = os.path.abspath(i)
-                yield config, path
+                yield Config.from_raw(cfg), path
 
 
-def load_config(config):
-    if isinstance(config, dict):
-        yield config, os.getcwd()
+def load_config(cfg):
+    if isinstance(cfg, Config):
+        yield cfg, os.getcwd()
+    elif isinstance(cfg, dict):
+        yield Config.from_raw(cfg), os.getcwd()
     else:
-        yield from load_files(config)
+        yield from load_files(cfg)
 
 
 builtins = importlib.import_module('builtins')
 
 KNOWN_MODULES = ['soil', ]
+
 
 def name(value, known_modules=KNOWN_MODULES):
     '''Return a name that can be imported, to serialize/deserialize an object'''
@@ -172,7 +177,21 @@ def serialize(v, known_modules=KNOWN_MODULES):
     return func(v), tname
 
 
+def serialize_dict(d, known_modules=KNOWN_MODULES):
+    d = dict(d)
+    for (k, v) in d.items():
+        if isinstance(v, dict):
+            d[k] = serialize_dict(v, known_modules=known_modules)
+        elif isinstance(v, list):
+            for ix in range(len(v)):
+                v[ix] = serialize_dict(v[ix], known_modules=known_modules)
+        elif isinstance(v, type):
+            d[k] = serialize(v, known_modules=known_modules)[1]
+    return d
+
+
 IS_CLASS = re.compile(r"<class '(.*)'>")
+
 
 def deserializer(type_, known_modules=KNOWN_MODULES):
     if type(type_) != str:  # Already deserialized

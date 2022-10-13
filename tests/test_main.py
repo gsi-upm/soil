@@ -24,6 +24,7 @@ class CustomAgent(agents.FSM, agents.NetworkAgent):
     def unreachable(self):
         return
 
+
 class TestMain(TestCase):
 
     def test_empty_simulation(self):
@@ -79,20 +80,16 @@ class TestMain(TestCase):
                     }
                 },
                 'agents': {
-                    'default': {
-                        'agent_class': 'CounterModel',
-                    },
-                    'counters': {
-                        'topology': 'default',
-                        'fixed': [{'state': {'times': 10}}, {'state': {'times': 20}}],
-                    }
+                    'agent_class': 'CounterModel',
+                    'topology': 'default',
+                    'fixed': [{'state': {'times': 10}}, {'state': {'times': 20}}],
                 }
             }
         }
         s = simulation.from_config(config)
         env = s.get_env()
         assert isinstance(env.agents[0], agents.CounterModel)
-        assert env.agents[0].topology == env.topologies['default']
+        assert env.agents[0].G == env.topologies['default']
         assert env.agents[0]['times'] == 10
         assert env.agents[0]['times'] == 10
         env.step()
@@ -105,8 +102,8 @@ class TestMain(TestCase):
         config = {
             'max_time': 10,
             'model_params': {
-                'agents': [(CustomAgent, {'weight': 1}),
-                           (CustomAgent, {'weight': 3}),
+                'agents': [{'agent_class': CustomAgent, 'weight': 1, 'topology': 'default'},
+                           {'agent_class': CustomAgent, 'weight': 3, 'topology': 'default'},
                 ],
                 'topologies': {
                     'default': {
@@ -128,7 +125,7 @@ class TestMain(TestCase):
         """A complete example from a documentation should work."""
         config = serialization.load_file(join(EXAMPLES, 'torvalds.yml'))[0]
         config['model_params']['network_params']['path'] = join(EXAMPLES,
-                                                config['network_params']['path'])
+                                                config['model_params']['network_params']['path'])
         s = simulation.from_config(config)
         env = s.run_simulation(dry_run=True)[0]
         for a in env.network_agents:
@@ -208,24 +205,6 @@ class TestMain(TestCase):
         assert converted[1]['agent_class'] == 'test_main.CustomAgent'
         pickle.dumps(converted)
 
-    def test_subgraph(self):
-        '''An agent should be able to subgraph the global topology'''
-        G = nx.Graph()
-        G.add_node(3)
-        G.add_edge(1, 2)
-        distro = agents.calculate_distribution(agent_class=agents.NetworkAgent)
-        distro[0]['topology'] = 'default'
-        aconfig = config.AgentConfig(distribution=distro, topology='default')
-        env = Environment(name='Test', topologies={'default': G}, agents={'network': aconfig})
-        lst = list(env.network_agents)
-
-        a2 = env.find_one(node_id=2)
-        a3 = env.find_one(node_id=3)
-        assert len(a2.subgraph(limit_neighbors=True)) == 2
-        assert len(a3.subgraph(limit_neighbors=True)) == 1
-        assert len(a3.subgraph(limit_neighbors=True, center=False)) == 0
-        assert len(a3.subgraph(agent_class=agents.NetworkAgent)) == 3
-
     def test_templates(self):
         '''Loading a template should result in several configs'''
         configs = serialization.load_file(join(EXAMPLES, 'template.yml'))
@@ -236,14 +215,18 @@ class TestMain(TestCase):
             'name': 'until_sim',
             'model_params': {
                 'network_params': {},
-                'agent_class': 'CounterModel',
+                'agents': {
+                    'fixed': [{
+                        'agent_class': agents.BaseAgent,
+                    }]
+                },
             },
             'max_time': 2,
             'num_trials': 50,
         }
         s = simulation.from_config(config)
         runs = list(s.run_simulation(dry_run=True))
-        over = list(x.now for x in runs if x.now>2)
+        over = list(x.now for x in runs if x.now > 2)
         assert len(runs) == config['num_trials']
         assert len(over) == 0
 

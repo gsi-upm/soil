@@ -1,7 +1,7 @@
 ---
 name: pubcrawl
 num_trials: 3
-max_time: 10
+max_steps: 10
 dump: false
 network_params:
   # Generate 100 empty nodes. They will be assigned a network agent

@@ -2,7 +2,7 @@ from unittest import TestCase
 import os
 from os.path import join
 
-from soil import serialization, simulation
+from soil import serialization, simulation, config
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
 EXAMPLES = join(ROOT, '..', 'examples')
@@ -14,36 +14,37 @@ class TestExamples(TestCase):
     pass
 
 
-def make_example_test(path, config):
+def make_example_test(path, cfg):
     def wrapped(self):
         root = os.getcwd()
-        for s in simulation.all_from_config(path):
-            iterations = s.config.general.max_time * s.config.general.num_trials
-            if iterations > 1000:
-                s.config.general.max_time = 100
-                s.config.general.num_trials = 1
-            if config.get('skip_test', False) and not FORCE_TESTS:
+        for s in simulation.iter_from_config(cfg):
+            iterations = s.max_steps * s.num_trials
+            if iterations < 0 or iterations > 1000:
+                s.max_steps = 100
+                s.num_trials = 1
+            assert isinstance(cfg, config.Config)
+            if getattr(cfg, 'skip_test', False) and not FORCE_TESTS:
                 self.skipTest('Example ignored.')
             envs = s.run_simulation(dry_run=True)
             assert envs
             for env in envs:
                 assert env
                 try:
-                    n = config['network_params']['n']
+                    n = cfg.model_params['network_params']['n']
                     assert len(list(env.network_agents)) == n
-                    assert env.now > 0  # It has run
-                    assert env.now <= config['max_time']  # But not further than allowed
                 except KeyError:
                     pass
+                assert env.schedule.steps > 0  # It has run
+                assert env.schedule.steps <= s.max_steps  # But not further than allowed
     return wrapped
 
 
 def add_example_tests():
-    for config, path in serialization.load_files(
+    for cfg, path in serialization.load_files(
             join(EXAMPLES, '*', '*.yml'),
             join(EXAMPLES, '*.yml'),
     ):
-        p = make_example_test(path=path, config=config)
+        p = make_example_test(path=path, cfg=config.Config.from_raw(cfg))
         fname = os.path.basename(path)
         p.__name__ = 'test_example_file_%s' % fname
         p.__doc__ = '%s should be a valid configuration' % fname

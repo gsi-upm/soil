@@ -6,20 +6,20 @@ template:
   group: simple
   num_trials: 1
   interval: 1
-  max_time: 2
+  max_steps: 2
   seed: "CompleteSeed!"
   dump: false
-  network_params:
-    generator: complete_graph
-    n: 10
-  network_agents:
-    - agent_class: CounterModel
-      weight: "{{ x1 }}"
-      state:
-        state_id: 0
-    - agent_class: AggregatedCounter
-      weight: "{{ 1 - x1 }}"
-  environment_params:
+  model_params:
+    network_params:
+      generator: complete_graph
+      n: 10
+    network_agents:
+      - agent_class: CounterModel
+        weight: "{{ x1 }}"
+        state:
+          state_id: 0
+      - agent_class: AggregatedCounter
+        weight: "{{ 1 - x1 }}"
     name: "{{ x3 }}"
   skip_test: true
 vars:

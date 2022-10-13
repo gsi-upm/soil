@@ -60,12 +60,10 @@ class Patron(FSM, NetworkAgent):
     '''
     level = logging.DEBUG
 
-    defaults = {
-        'pub': None,
-        'drunk': False,
-        'pints': 0,
-        'max_pints': 3,
-    }
+    pub = None
+    drunk = False
+    pints = 0
+    max_pints = 3
 
     @default_state
     @state
@@ -89,9 +87,9 @@ class Patron(FSM, NetworkAgent):
             return self.sober_in_pub
         self.debug('I am looking for a pub')
         group = list(self.get_neighboring_agents())
-        for pub in self.env.available_pubs():
+        for pub in self.model.available_pubs():
             self.debug('We\'re trying to get into {}: total: {}'.format(pub, len(group)))
-            if self.env.enter(pub, self, *group):
+            if self.model.enter(pub, self, *group):
                 self.info('We\'re all {} getting in {}!'.format(len(group), pub))
                 return self.sober_in_pub
 
@@ -128,7 +126,7 @@ class Patron(FSM, NetworkAgent):
         success depend on both agents' openness.
         '''
         if force or self['openness'] > self.random.random():
-            self.env.add_edge(self, other_agent)
+            self.model.add_edge(self, other_agent)
             self.info('Made some friend {}'.format(other_agent))
             return True
         return False
@@ -150,7 +148,7 @@ class Patron(FSM, NetworkAgent):
         return befriended
 
 
-class Police(FSM, NetworkAgent):
+class Police(FSM):
     '''Simple agent to take drunk people out of pubs.'''
     level = logging.INFO
 

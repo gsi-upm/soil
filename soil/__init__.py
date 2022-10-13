@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import importlib
 import sys
 import os
-import pdb
 import logging
+import traceback
 
 from .version import __version__
 
@@ -16,11 +18,10 @@ from . import agents
 from .simulation import *
 from .environment import Environment
 from . import serialization
-from . import analysis
 from .utils import logger
 from .time import *
 
-def main():
+def main(cfg='simulation.yml', **kwargs):
     import argparse
     from . import simulation
 
@@ -29,7 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description='Run a SOIL simulation')
     parser.add_argument('file', type=str,
                         nargs="?",
-                        default='simulation.yml',
+                        default=cfg,
                         help='Configuration file for the simulation (e.g., YAML or JSON)')
     parser.add_argument('--version', action='store_true',
                         help='Show version info and exit')
@@ -39,6 +40,8 @@ def main():
                         help='Do not store the results of the simulation to disk, show in terminal instead.')
     parser.add_argument('--pdb', action='store_true',
                         help='Use a pdb console in case of exception.')
+    parser.add_argument('--debug', action='store_true',
+                        help='Run a customized version of a pdb console to debug a simulation.')
     parser.add_argument('--graph', '-g', action='store_true',
                         help='Dump each trial\'s network topology as a GEXF graph. Defaults to false.')
     parser.add_argument('--csv', action='store_true',
@@ -51,9 +54,22 @@ def main():
                         help='Run trials serially and synchronously instead of in parallel. Defaults to false.')
     parser.add_argument('-e', '--exporter', action='append',
                         help='Export environment and/or simulations using this exporter')
+    parser.add_argument('--only-convert', '--convert', action='store_true',
+                        help='Do not run the simulation, only convert the configuration file(s) and output them.')
+
+
+    parser.add_argument("--set",
+                        metavar="KEY=VALUE",
+                        action='append',
+                        help="Set a number of parameters that will be passed to the simulation."
+                        "(do not put spaces before or after the = sign). "
+                        "If a value contains spaces, you should define "
+                        "it with double quotes: "
+                        'foo="this is a sentence". Note that '
+                        "values are always treated as strings.")
 
     args = parser.parse_args()
-    logging.basicConfig(level=getattr(logging, (args.level or 'INFO').upper()))
+    logger.setLevel(getattr(logging, (args.level or 'INFO').upper()))
 
     if args.version:
         return
@@ -65,9 +81,10 @@ def main():
 
     logger.info('Loading config file: {}'.format(args.file))
 
-    if args.pdb:
+    if args.pdb or args.debug:
         args.synchronous = True
-
+    if args.debug:
+        os.environ['SOIL_DEBUG'] = 'true'
 
     try:
         exporters = list(args.exporter or ['default', ])
@@ -82,18 +99,48 @@ def main():
         if not os.path.exists(args.file):
             logger.error('Please, input a valid file')
             return
-        simulation.run_from_config(args.file,
-                                   dry_run=args.dry_run,
-                                   exporters=exporters,
-                                   parallel=(not args.synchronous),
-                                   outdir=args.output,
-                                   exporter_params=exp_params)
-    except Exception:
+        for sim in simulation.iter_from_config(args.file):
+            if args.set:
+                for s in args.set:
+                    k, v = s.split('=', 1)[:2]
+                    v = eval(v)
+                    tail, *head = k.rsplit('.', 1)[::-1]
+                    target = sim
+                    if head:
+                        for part in head[0].split('.'):
+                            try:
+                                target = getattr(target, part)
+                            except AttributeError:
+                                target = target[part]
+                    try:
+                        setattr(target, tail, v)
+                    except AttributeError:
+                        target[tail] = v
+
+                if args.only_convert:
+                    print(sim.to_yaml())
+                    continue
+
+            sim.run_simulation(dry_run=args.dry_run,
+                               exporters=exporters,
+                               parallel=(not args.synchronous),
+                               outdir=args.output,
+                               exporter_params=exp_params,
+                               **kwargs)
+
+    except Exception as ex:
         if args.pdb:
-            pdb.post_mortem()
+            from .debugging import post_mortem
+            print(traceback.format_exc())
+            post_mortem()
         else:
             raise
 
-
+def easy(cfg, debug=False):
+    sim = simulation.from_config(cfg)
+    if debug or os.environ.get('SOIL_DEBUG'):
+        from .debugging import setup
+        setup(sys._getframe().f_back)
+    return sim
 if __name__ == '__main__':
     main()

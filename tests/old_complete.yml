@@ -8,17 +8,20 @@ interval: 1
 seed: "CompleteSeed!"
 network_params:
   generator: complete_graph
-  n: 10
+  n: 4
 network_agents:
   - agent_class: CounterModel
-    weight: 0.4
+    weight: 0.25
     state:
       state_id: 0
+      times: 1
   - agent_class: AggregatedCounter
-    weight: 0.6
+    weight: 0.5
+    state:
+      times: 2
 environment_agents:
   - agent_id: 'Environment Agent 1'
-    agent_class: CounterModel
+    agent_class: BaseAgent
     state:
       times: 10
 environment_class: Environment
@@ -28,5 +31,7 @@ agent_class: CounterModel
 default_state:
   times: 1
 states:
-  - name: 'The first node'
-  - name: 'The second node'
+  1:
+    name: 'Node 1'
+  2:
+    name: 'Node 2'

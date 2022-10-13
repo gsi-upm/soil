@@ -12,7 +12,7 @@ from .serialization import deserialize
 from .utils import open_or_reuse, logger, timer
 
 
-from . import utils
+from . import utils, network
 
 
 class DryRunner(BytesIO):
@@ -85,38 +85,28 @@ class Exporter:
 class default(Exporter):
     '''Default exporter. Writes sqlite results, as well as the simulation YAML'''
 
-    # def sim_start(self):
-    #     if not self.dry_run:
-    #         logger.info('Dumping results to %s', self.outdir)
-    #         self.simulation.dump_yaml(outdir=self.outdir)
-    #     else:
-    #         logger.info('NOT dumping results')
+    def sim_start(self):
+        if not self.dry_run:
+            logger.info('Dumping results to %s', self.outdir)
+            with self.output(self.simulation.name + '.dumped.yml') as f:
+                f.write(self.simulation.to_yaml())
+        else:
+            logger.info('NOT dumping results')
 
-    # def trial_start(self, env, stats):
-    #     if not self.dry_run:
-    #         with timer('Dumping simulation {} trial {}'.format(self.simulation.name,
-    #                                                            env.name)):
-    #             engine = create_engine('sqlite:///{}.sqlite'.format(env.name), echo=False)
+    def trial_end(self, env):
+        if not self.dry_run:
+            with timer('Dumping simulation {} trial {}'.format(self.simulation.name,
+                                                               env.id)):
+                engine = create_engine('sqlite:///{}.sqlite'.format(env.id), echo=False)
 
-    #             dc = env.datacollector
-    #             tables = {'env': dc.get_model_vars_dataframe(),
-    #                       'agents': dc.get_agent_vars_dataframe(),
-    #                       'agents': dc.get_agent_vars_dataframe()}
-    #             for table in dc.tables:
-    #                 tables[table] = dc.get_table_dataframe(table)
-    #             for (t, df) in tables.items():
-    #                 df.to_sql(t, con=engine)
-
-    # def sim_end(self, stats):
-    #       with timer('Dumping simulation {}\'s stats'.format(self.simulation.name)):
-    #           engine = create_engine('sqlite:///{}.sqlite'.format(self.simulation.name), echo=False)
-    #           with self.output('{}.sqlite'.format(self.simulation.name), mode='wb') as f:
-    #               self.simulation.dump_sqlite(f)
+                dc = env.datacollector
+                for (t, df) in get_dc_dfs(dc):
+                    df.to_sql(t, con=engine, if_exists='append')
 
 
 def get_dc_dfs(dc):
     dfs = {'env': dc.get_model_vars_dataframe(),
-        'agents': dc.get_agent_vars_dataframe }
+           'agents': dc.get_agent_vars_dataframe() }
     for table_name in dc.tables:
         dfs[table_name] = dc.get_table_dataframe(table_name)
     yield from dfs.items() 
@@ -130,10 +120,11 @@ class csv(Exporter):
                                                                           env.id,
                                                                           self.outdir)):
             for (df_name, df) in get_dc_dfs(env.datacollector):
-                with self.output('{}.stats.{}.csv'.format(env.id, df_name)) as f:
+                with self.output('{}.{}.csv'.format(env.id, df_name)) as f:
                     df.to_csv(f)
 
 
+#TODO: reimplement GEXF exporting without history
 class gexf(Exporter):
     def trial_end(self, env):
         if self.dry_run:
@@ -143,18 +134,9 @@ class gexf(Exporter):
         with timer('[GEXF] Dumping simulation {} trial {}'.format(self.simulation.name,
                                                                   env.id)):
             with self.output('{}.gexf'.format(env.id), mode='wb') as f:
+                network.dump_gexf(env.history_to_graph(), f)
                 self.dump_gexf(env, f)
 
-    def dump_gexf(self, env, f):
-        G = env.history_to_graph()
-        # Workaround for geometric models
-        # See soil/soil#4
-        for node in G.nodes():
-            if 'pos' in G.nodes[node]:
-                G.nodes[node]['viz'] = {"position": {"x": G.nodes[node]['pos'][0], "y": G.nodes[node]['pos'][1], "z": 0.0}}
-                del (G.nodes[node]['pos'])
-
-        nx.write_gexf(G, f, version="1.2draft")
 
 class dummy(Exporter):
 

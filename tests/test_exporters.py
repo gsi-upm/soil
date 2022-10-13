@@ -6,6 +6,8 @@ import shutil
 from unittest import TestCase
 from soil import exporters
 from soil import simulation
+from soil import agents
+
 
 class Dummy(exporters.Exporter):
     started = False
@@ -33,28 +35,36 @@ class Dummy(exporters.Exporter):
 
 class Exporters(TestCase):
     def test_basic(self):
+        # We need to add at least one agent to make sure the scheduler
+        # ticks every step
+        num_trials = 5
+        max_time = 2
         config = {
             'name': 'exporter_sim',
-            'network_params': {},
-            'agent_class': 'CounterModel',
-            'max_time': 2,
-            'num_trials': 5,
-            'environment_params': {}
+            'model_params': {
+                'agents': [{
+                    'agent_class': agents.BaseAgent
+                }]
+            },
+            'max_time': max_time,
+            'num_trials': num_trials,
         }
         s = simulation.from_config(config)
+
         for env in s.run_simulation(exporters=[Dummy], dry_run=True):
-            assert env.now <= 2
+            assert len(env.agents) == 1
+            assert env.now == max_time
 
         assert Dummy.started
         assert Dummy.ended
         assert Dummy.called_start == 1
         assert Dummy.called_end == 1
-        assert Dummy.called_trial == 5
-        assert Dummy.trials == 5
-        assert Dummy.total_time == 2*5
+        assert Dummy.called_trial == num_trials
+        assert Dummy.trials == num_trials
+        assert Dummy.total_time == max_time * num_trials
 
     def test_writing(self):
-        '''Try to write CSV, GEXF, sqlite and YAML (without dry_run)'''
+        '''Try to write CSV, sqlite and YAML (without dry_run)'''
         n_trials = 5
         config = {
             'name': 'exporter_sim',
@@ -74,7 +84,6 @@ class Exporters(TestCase):
         envs = s.run_simulation(exporters=[
                                     exporters.default,
                                     exporters.csv,
-                                    exporters.gexf,
                                 ],
                                 dry_run=False,
                                 outdir=tmpdir,
@@ -88,11 +97,7 @@ class Exporters(TestCase):
 
         try:
             for e in envs:
-                with open(os.path.join(simdir, '{}.gexf'.format(e.name))) as f:
-                    result = f.read()
-                    assert result
-
-                with open(os.path.join(simdir, '{}.csv'.format(e.name))) as f:
+                with open(os.path.join(simdir, '{}.env.csv'.format(e.id))) as f:
                     result = f.read()
                     assert result
         finally:

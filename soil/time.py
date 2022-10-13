@@ -1,6 +1,6 @@
 from mesa.time import BaseScheduler
 from queue import Empty
-from heapq import heappush, heappop
+from heapq import heappush, heappop, heapify
 import math
 from .utils import logger
 from mesa import Agent as MesaAgent
@@ -16,6 +16,7 @@ class When:
 
     def abs(self, time):
         return self._time
+
 
 NEVER = When(INFINITY)
 
@@ -38,14 +39,22 @@ class TimedActivation(BaseScheduler):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._next = {}
         self._queue = []
         self.next_time = 0
         self.logger = logger.getChild(f'time_{ self.model }')
 
-    def add(self, agent: MesaAgent):
-        if agent.unique_id not in self._agents:
-            heappush(self._queue, (self.time, agent.unique_id))
-            super().add(agent)
+    def add(self, agent: MesaAgent, when=None):
+        if when is None:
+            when = self.time
+        if agent.unique_id in self._agents:
+            self._queue.remove((self._next[agent.unique_id], agent.unique_id))
+            del self._agents[agent.unique_id]
+            heapify(self._queue)
+        
+        heappush(self._queue, (when, agent.unique_id))
+        self._next[agent.unique_id] = when
+        super().add(agent)
 
     def step(self) -> None:
         """
@@ -64,11 +73,18 @@ class TimedActivation(BaseScheduler):
             (when, agent_id) = heappop(self._queue)
             self.logger.debug(f'Stepping agent {agent_id}')
 
-            returned = self._agents[agent_id].step()
+            agent = self._agents[agent_id]
+            returned = agent.step()
+
+            if not agent.alive:
+                self.remove(agent)
+                continue
+
             when = (returned or Delta(1)).abs(self.time)
             if when < self.time:
                 raise Exception("Cannot schedule an agent for a time in the past ({} < {})".format(when, self.time))
 
+            self._next[agent_id] = when
             heappush(self._queue, (when, agent_id))
 
         self.steps += 1
@@ -77,7 +93,7 @@ class TimedActivation(BaseScheduler):
             self.time = INFINITY
             self.next_time = INFINITY
             self.model.running = False
-            return
+            return self.time
 
         self.next_time = self._queue[0][0]
         self.logger.debug(f'Next step: {self.next_time}')

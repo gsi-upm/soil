@@ -4,15 +4,17 @@ import importlib
 import sys
 import yaml
 import traceback
+import inspect
 import logging
 import networkx as nx
 
+from textwrap import dedent
+
 from dataclasses import dataclass, field, asdict
-from typing import Union
+from typing import Any, Dict, Union, Optional
 
 
 from networkx.readwrite import json_graph
-from multiprocessing import Pool
 from functools import partial
 import pickle
 
@@ -21,7 +23,6 @@ from .environment import Environment
 from .utils import logger, run_and_return_exceptions
 from .exporters import default
 from .time import INFINITY
-
 from .config import Config, convert_old
 
 
@@ -36,7 +37,9 @@ class Simulation:
 
     kwargs: parameters to use to initialize a new configuration, if one has not been provided.
     """
+    version: str = '2'
     name: str = 'Unnamed simulation'
+    description: Optional[str] = ''
     group: str = None
     model_class: Union[str, type] = 'soil.Environment'
     model_params: dict = field(default_factory=dict)
@@ -44,29 +47,36 @@ class Simulation:
     dir_path: str = field(default_factory=lambda: os.getcwd())
     max_time: float = float('inf')
     max_steps: int = -1
+    interval: int = 1
     num_trials: int = 3
     dry_run: bool = False
+    extra: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, env):      
+
+        ignored = {k: v for k, v in env.items() 
+                   if k not in inspect.signature(cls).parameters}
+
+        kwargs = {k:v for k, v in env.items() if k not in ignored}
+        if ignored:
+            kwargs.setdefault('extra', {}).update(ignored)
+        if ignored:
+            print(f'Warning: Ignoring these parameters (added to "extra"): { ignored }')
+
+        return cls(**kwargs)
 
     def run_simulation(self, *args, **kwargs):
         return self.run(*args, **kwargs)
 
     def run(self, *args, **kwargs):
         '''Run the simulation and return the list of resulting environments'''
+        logger.info(dedent('''
+        Simulation:
+        ---
+        ''') +
+        self.to_yaml())
         return list(self.run_gen(*args, **kwargs))
-
-    def _run_sync_or_async(self, parallel=False, **kwargs):
-        if parallel and not os.environ.get('SENPY_DEBUG', None):
-            p = Pool()
-            func = partial(run_and_return_exceptions, self.run_trial, **kwargs)
-            for i in p.imap_unordered(func, self.num_trials):
-                if isinstance(i, Exception):
-                    logger.error('Trial failed:\n\t%s', i.message)
-                    continue
-                yield i
-        else:
-            for i in range(self.num_trials):
-                yield self.run_trial(trial_id=i,
-                                     **kwargs)
 
     def run_gen(self, parallel=False, dry_run=False,
                 exporters=[default, ], outdir=None, exporter_params={},
@@ -88,9 +98,11 @@ class Simulation:
             for exporter in exporters:
                 exporter.sim_start()
 
-            for env in self._run_sync_or_async(parallel=parallel,
-                                               log_level=log_level,
-                                               **kwargs):
+            for env in utils.run_parallel(func=self.run_trial,
+                                          iterable=range(int(self.num_trials)),
+                                          parallel=parallel,
+                                          log_level=log_level,
+                                          **kwargs):
 
                 for exporter in exporters:
                     exporter.trial_start(env)
@@ -102,14 +114,6 @@ class Simulation:
 
             for exporter in exporters:
                 exporter.sim_end()
-
-    def run_model(self, until=None, *args, **kwargs):
-        until = until or float('inf')
-
-        while self.schedule.next_time < until:
-            self.step()
-            utils.logger.debug(f'Simulation step {self.schedule.time}/{until}. Next: {self.schedule.next_time}')
-        self.schedule.time = until
 
     def get_env(self, trial_id=0, **kwargs):
         '''Create an environment for a trial of the simulation'''
@@ -132,56 +136,76 @@ class Simulation:
                    model_reporters=model_reporters,
                    **model_params)
 
-    def run_trial(self, trial_id=None, until=None, log_level=logging.INFO, **opts):
+    def run_trial(self, trial_id=None, until=None, log_file=False, log_level=logging.INFO, **opts):
         """
         Run a single trial of the simulation
 
         """
-        model = self.get_env(trial_id, **opts)
-        return self.run_model(model, trial_id=trial_id, until=until, log_level=log_level)
-
-    def run_model(self, model, trial_id=None, until=None, log_level=logging.INFO, **opts):
-        trial_id = trial_id if trial_id is not None else current_time()
         if log_level:
             logger.setLevel(log_level)
+        model = self.get_env(trial_id, **opts)
+        trial_id = trial_id if trial_id is not None else current_time()
+        with utils.timer('Simulation {} trial {}'.format(self.name, trial_id)):
+            return self.run_model(model=model, trial_id=trial_id, until=until, log_level=log_level)
+
+    def run_model(self, model, until=None, **opts):
         # Set-up trial environment and graph
-        until = until or self.max_time
+        until = float(until or self.max_time or 'inf')
 
         # Set up agents on nodes
-        is_done = lambda: False
-        if self.max_time and hasattr(self.schedule, 'time'):
-            is_done = lambda x: is_done() or self.schedule.time >= self.max_time
-        if self.max_steps and hasattr(self.schedule, 'time'):
-            is_done = lambda: is_done() or self.schedule.steps >= self.max_steps
+        def is_done():
+            return False
 
-        with utils.timer('Simulation {} trial {}'.format(self.name, trial_id)):
-            while not is_done():
-                utils.logger.debug(f'Simulation time {model.schedule.time}/{until}. Next: {getattr(model.schedule, "next_time", model.schedule.time + self.interval)}')
-                model.step()
+        if until and hasattr(model.schedule, 'time'):
+            prev = is_done
+
+            def is_done():
+                return prev() or model.schedule.time >= until
+
+        if self.max_steps and self.max_steps > 0 and hasattr(model.schedule, 'steps'):
+            prev_steps = is_done
+
+            def is_done():
+                return prev_steps() or model.schedule.steps >= self.max_steps
+
+        newline = '\n'
+        logger.info(dedent(f'''
+Model stats:
+  Agents (total: { model.schedule.get_agent_count() }):
+      - { (newline + '      - ').join(str(a) for a in model.schedule.agents) }'''
+f'''
+
+  Topologies (size):
+      -  { dict( (k, len(v)) for (k, v) in model.topologies.items())  }
+''' if getattr(model, "topologies", None) else ''
+))
+
+        while not is_done():
+            utils.logger.debug(f'Simulation time {model.schedule.time}/{until}. Next: {getattr(model.schedule, "next_time", model.schedule.time + self.interval)}')
+            model.step()
         return model
 
     def to_dict(self):
         d = asdict(self)
-        d['model_class'] = serialization.serialize(d['model_class'])[0]
-        d['model_params'] = serialization.serialize(d['model_params'])[0]
+        if not isinstance(d['model_class'], str):
+            d['model_class'] = serialization.name(d['model_class'])
+        d['model_params'] = serialization.serialize_dict(d['model_params'])
         d['dir_path'] = str(d['dir_path'])
-
+        d['version'] = '2'
         return d
 
     def to_yaml(self):
-        return yaml.dump(self.asdict())
+        return yaml.dump(self.to_dict())
 
 
-def iter_from_config(config):
-    configs = list(serialization.load_config(config))
-    for config, path in configs:
-        d = dict(config)
-        if 'dir_path' not in d:
-            d['dir_path'] = os.path.dirname(path)
-        if d.get('version', '2') == '1' or 'agents' in d or 'network_agents' in d or 'environment_agents' in d:
-            d = convert_old(d)
-        d.pop('version', None)
-        yield Simulation(**d)
+def iter_from_config(*cfgs):
+    for config in cfgs:
+        configs = list(serialization.load_config(config))
+        for config, path in configs:
+            d = dict(config)
+            if 'dir_path' not in d:
+                d['dir_path'] = os.path.dirname(path)
+            yield Simulation.from_dict(d)
 
 
 def from_config(conf_or_path):
@@ -192,6 +216,6 @@ def from_config(conf_or_path):
 
 
 def run_from_config(*configs, **kwargs):
-    for sim in iter_from_config(configs):
-        logger.info(f"Using config(s): {sim.id}")
+    for sim in iter_from_config(*configs):
+        logger.info(f"Using config(s): {sim.name}")
         sim.run_simulation(**kwargs)

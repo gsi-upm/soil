@@ -3,17 +3,21 @@ name: mesa_sim
 group: tests
 dir_path: "/tmp"
 num_trials: 3
-max_time: 100
+max_steps: 100
 interval: 1
 seed: '1'
-network_params:
-  generator: social_wealth.graph_generator
-  n: 5
-network_agents:
-  - agent_class: social_wealth.SocialMoneyAgent
-    weight: 1
-environment_class: social_wealth.MoneyEnv
-environment_params:
+model_class: social_wealth.MoneyEnv
+model_params:
+  topologies:
+    default: 
+      params:
+        generator: social_wealth.graph_generator
+        n: 5
+  agents:
+    distribution:
+      - agent_class: social_wealth.SocialMoneyAgent
+        topology: default
+        weight: 1
   mesa_agent_class: social_wealth.MoneyAgent
   N: 10
   width: 50
