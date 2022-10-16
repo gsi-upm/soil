@@ -151,7 +151,7 @@ class Simulation:
         def deserialize_reporters(reporters):
             for (k, v) in reporters.items():
                 if isinstance(v, str) and v.startswith("py:"):
-                    reporters[k] = serialization.deserialize(value.lsplit(":", 1)[1])
+                    reporters[k] = serialization.deserialize(v.split(":", 1)[1])
             return reporters
 
         params = self.model_params.copy()

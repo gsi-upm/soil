@@ -10,7 +10,7 @@ import networkx as nx
 
 
 from .serialization import deserialize
-from .utils import open_or_reuse, logger, timer
+from .utils import try_backup, open_or_reuse, logger, timer
 
 
 from . import utils, network
@@ -91,12 +91,14 @@ class default(Exporter):
     """Default exporter. Writes sqlite results, as well as the simulation YAML"""
 
     def sim_start(self):
-        if not self.dry_run:
-            logger.info("Dumping results to %s", self.outdir)
-            with self.output(self.simulation.name + ".dumped.yml") as f:
-                f.write(self.simulation.to_yaml())
-        else:
+        if self.dry_run:
             logger.info("NOT dumping results")
+            return
+        logger.info("Dumping results to %s", self.outdir)
+        with self.output(self.simulation.name + ".dumped.yml") as f:
+            f.write(self.simulation.to_yaml())
+        self.dbpath = os.path.join(self.outdir, f"{self.simulation.name}.sqlite")
+        try_backup(self.dbpath, move=True)
 
     def trial_end(self, env):
         if self.dry_run:
@@ -107,21 +109,23 @@ class default(Exporter):
             "Dumping simulation {} trial {}".format(self.simulation.name, env.id)
         ):
 
-            fpath = os.path.join(self.outdir, f"{env.id}.sqlite")
-            engine = create_engine(f"sqlite:///{fpath}", echo=False)
+            engine = create_engine(f"sqlite:///{self.dbpath}", echo=False)
 
             dc = env.datacollector
-            for (t, df) in get_dc_dfs(dc):
+            for (t, df) in get_dc_dfs(dc, trial_id=env.id):
                 df.to_sql(t, con=engine, if_exists="append")
 
 
-def get_dc_dfs(dc):
+def get_dc_dfs(dc, trial_id=None):
     dfs = {
         "env": dc.get_model_vars_dataframe(),
         "agents": dc.get_agent_vars_dataframe(),
     }
     for table_name in dc.tables:
         dfs[table_name] = dc.get_table_dataframe(table_name)
+    if trial_id:
+        for (name, df) in dfs.items():
+            df['trial_id'] = trial_id
     yield from dfs.items()
 
 
@@ -135,7 +139,7 @@ class csv(Exporter):
                 self.simulation.name, env.id, self.outdir
             )
         ):
-            for (df_name, df) in get_dc_dfs(env.datacollector):
+            for (df_name, df) in get_dc_dfs(env.datacollector, trial_id=env.id):
                 with self.output("{}.{}.csv".format(env.id, df_name)) as f:
                     df.to_csv(f)
 

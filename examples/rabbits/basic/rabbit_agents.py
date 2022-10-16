@@ -1,4 +1,4 @@
-from soil.agents import FSM, state, default_state, BaseAgent, NetworkAgent
+from soil import FSM, state, default_state, BaseAgent, NetworkAgent, Environment
 from soil.time import Delta
 from enum import Enum
 from collections import Counter
@@ -6,7 +6,23 @@ import logging
 import math
 
 
-class RabbitModel(FSM, NetworkAgent):
+class RabbitEnv(Environment):
+
+    @property
+    def num_rabbits(self):
+        return self.count_agents(agent_class=Rabbit)
+
+    @property
+    def num_males(self):
+        return self.count_agents(agent_class=Male)
+
+    @property
+    def num_females(self):
+        return self.count_agents(agent_class=Female)
+
+
+
+class Rabbit(FSM, NetworkAgent):
 
     sexual_maturity = 30
     life_expectancy = 300
@@ -35,7 +51,7 @@ class RabbitModel(FSM, NetworkAgent):
         self.die()
 
 
-class Male(RabbitModel):
+class Male(Rabbit):
     max_females = 5
     mating_prob = 0.001
 
@@ -56,7 +72,7 @@ class Male(RabbitModel):
                 break  # Take a break
 
 
-class Female(RabbitModel):
+class Female(Rabbit):
     gestation = 30
 
     @state
@@ -119,7 +135,7 @@ class RandomAccident(BaseAgent):
 
         prob_death = self.model.get('prob_death', 1e-100)*math.floor(math.log10(max(1, rabbits_alive)))
         self.debug('Killing some rabbits with prob={}!'.format(prob_death))
-        for i in self.iter_agents(agent_class=RabbitModel):
+        for i in self.iter_agents(agent_class=Rabbit):
             if i.state_id == i.dead.id:
                 continue
             if self.prob(prob_death):

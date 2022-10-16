@@ -99,7 +99,7 @@ class Exporters(TestCase):
 
         try:
             for e in envs:
-                db = sqlite3.connect(os.path.join(simdir, f"{e.id}.sqlite"))
+                db = sqlite3.connect(os.path.join(simdir, f"{s.name}.sqlite"))
                 cur = db.cursor()
                 agent_entries = cur.execute("SELECT * from agents").fetchall()
                 env_entries = cur.execute("SELECT * from env").fetchall()

@@ -197,7 +197,7 @@ def deserializer(type_, known_modules=KNOWN_MODULES):
             return getattr(cls, "deserialize", cls)
         except (ImportError, AttributeError) as ex:
             errors.append((modname, tname, ex))
-    raise Exception('Could not find type "{}". Tried: {}'.format(type_, errors))
+    raise ValueError('Could not find type "{}". Tried: {}'.format(type_, errors))
 
 
 def deserialize(type_, value=None, globs=None, **kwargs):
@@ -207,7 +207,13 @@ def deserialize(type_, value=None, globs=None, **kwargs):
     if globs and type_ in globs:
         des = globs[type_]
     else:
-        des = deserializer(type_, **kwargs)
+        try:
+            des = deserializer(type_, **kwargs)
+        except ValueError as ex:
+            try:
+                des = eval(type_)
+            except Exception:
+                raise ex
     if value is None:
         return des
     return des(value)

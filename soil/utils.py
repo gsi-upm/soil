@@ -4,7 +4,7 @@ import os
 import traceback
 
 from functools import partial
-from shutil import copyfile
+from shutil import copyfile, move
 from multiprocessing import Pool
 
 from contextlib import contextmanager
@@ -47,21 +47,34 @@ def timer(name="task", pre="", function=logger.info, to_object=None):
         to_object.end = end
 
 
+def try_backup(path, move=False):
+    if not os.path.exists(path):
+        return None
+    outdir = os.path.dirname(path)
+    if outdir and not os.path.exists(outdir):
+        os.makedirs(outdir)
+    creation = os.path.getctime(path)
+    stamp = strftime("%Y-%m-%d_%H.%M.%S", localtime(creation))
+
+    backup_dir = os.path.join(outdir, "backup")
+    if not os.path.exists(backup_dir):
+        os.makedirs(backup_dir)
+    newpath = os.path.join(
+        backup_dir, "{}@{}".format(os.path.basename(path), stamp)
+    )
+    if move:
+        move(path, newpath)
+    else:
+        copyfile(path, newpath)
+    return newpath
+
+
 def safe_open(path, mode="r", backup=True, **kwargs):
     outdir = os.path.dirname(path)
     if outdir and not os.path.exists(outdir):
         os.makedirs(outdir)
-    if backup and "w" in mode and os.path.exists(path):
-        creation = os.path.getctime(path)
-        stamp = strftime("%Y-%m-%d_%H.%M.%S", localtime(creation))
-
-        backup_dir = os.path.join(outdir, "backup")
-        if not os.path.exists(backup_dir):
-            os.makedirs(backup_dir)
-        newpath = os.path.join(
-            backup_dir, "{}@{}".format(os.path.basename(path), stamp)
-        )
-        copyfile(path, newpath)
+    if backup and "w" in mode:
+        try_backup(path)
     return open(path, mode=mode, **kwargs)
 
 
@@ -70,7 +83,7 @@ def open_or_reuse(f, *args, **kwargs):
     try:
         with safe_open(f, *args, **kwargs) as f:
             yield f
-    except (AttributeError, TypeError):
+    except (AttributeError, TypeError) as ex:
         yield f
 
 
