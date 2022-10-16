@@ -10,18 +10,16 @@ max_time: 100
 model_class: soil.environment.Environment
 model_params:
   agents:
-    topology: default
+    topology: true
     agent_class: rabbit_agents.RabbitModel
     distribution:
     - agent_class: rabbit_agents.Male
-      topology: default
       weight: 1
     - agent_class: rabbit_agents.Female
-      topology: default
       weight: 1
     fixed:
     - agent_class: rabbit_agents.RandomAccident
-      topology: null
+      topology: false
       hidden: true
       state:
         group: environment
@@ -29,13 +27,12 @@ model_params:
       group: network
       mating_prob: 0.1
   prob_death: 0.001
-  topologies:
-    default:
-      topology:
-        directed: true
-        links: []
-        nodes:
-        - id: 1
-        - id: 0
+  topology:
+    fixed:
+      directed: true
+      links: []
+      nodes:
+      - id: 1
+      - id: 0
 extra:
   visualization_params: {}

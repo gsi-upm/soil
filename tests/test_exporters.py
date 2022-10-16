@@ -2,6 +2,7 @@ import os
 import io
 import tempfile
 import shutil
+import sqlite3
 
 from unittest import TestCase
 from soil import exporters
@@ -40,14 +41,10 @@ class Exporters(TestCase):
         num_trials = 5
         max_time = 2
         config = {
-            'name': 'exporter_sim',
-            'model_params': {
-                'agents': [{
-                    'agent_class': agents.BaseAgent
-                }]
-            },
-            'max_time': max_time,
-            'num_trials': num_trials,
+            "name": "exporter_sim",
+            "model_params": {"agents": [{"agent_class": agents.BaseAgent}]},
+            "max_time": max_time,
+            "num_trials": num_trials,
         }
         s = simulation.from_config(config)
 
@@ -64,40 +61,52 @@ class Exporters(TestCase):
         assert Dummy.total_time == max_time * num_trials
 
     def test_writing(self):
-        '''Try to write CSV, sqlite and YAML (without dry_run)'''
+        """Try to write CSV, sqlite and YAML (without dry_run)"""
         n_trials = 5
         config = {
-            'name': 'exporter_sim',
-            'network_params': {
-                'generator': 'complete_graph',
-                'n': 4
-            },
-            'agent_class': 'CounterModel',
-            'max_time': 2,
-            'num_trials': n_trials,
-            'dry_run': False,
-            'environment_params': {}
+            "name": "exporter_sim",
+            "network_params": {"generator": "complete_graph", "n": 4},
+            "agent_class": "CounterModel",
+            "max_time": 2,
+            "num_trials": n_trials,
+            "dry_run": False,
+            "environment_params": {},
         }
         output = io.StringIO()
         s = simulation.from_config(config)
         tmpdir = tempfile.mkdtemp()
-        envs = s.run_simulation(exporters=[
-                                    exporters.default,
-                                    exporters.csv,
-                                ],
-                                dry_run=False,
-                                outdir=tmpdir,
-                                exporter_params={'copy_to': output})
+        envs = s.run_simulation(
+            exporters=[
+                exporters.default,
+                exporters.csv,
+            ],
+            model_params={
+                "agent_reporters": {"times": "times"},
+                "model_reporters": {
+                    "constant": lambda x: 1,
+                },
+            },
+            dry_run=False,
+            outdir=tmpdir,
+            exporter_params={"copy_to": output},
+        )
         result = output.getvalue()
 
-        simdir = os.path.join(tmpdir, s.group or '', s.name)
-        with open(os.path.join(simdir, '{}.dumped.yml'.format(s.name))) as f:
+        simdir = os.path.join(tmpdir, s.group or "", s.name)
+        with open(os.path.join(simdir, "{}.dumped.yml".format(s.name))) as f:
             result = f.read()
             assert result
 
         try:
             for e in envs:
-                with open(os.path.join(simdir, '{}.env.csv'.format(e.id))) as f:
+                db = sqlite3.connect(os.path.join(simdir, f"{e.id}.sqlite"))
+                cur = db.cursor()
+                agent_entries = cur.execute("SELECT * from agents").fetchall()
+                env_entries = cur.execute("SELECT * from env").fetchall()
+                assert len(agent_entries) > 0
+                assert len(env_entries) > 0
+
+                with open(os.path.join(simdir, "{}.env.csv".format(e.id))) as f:
                     result = f.read()
                     assert result
         finally:

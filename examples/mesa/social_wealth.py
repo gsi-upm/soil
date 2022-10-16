@@ -10,7 +10,7 @@ from mesa.batchrunner import BatchRunner
 
 import networkx as nx
 
-from soil import NetworkAgent, Environment
+from soil import NetworkAgent, Environment, serialization
 
 def compute_gini(model):
     agent_wealths = [agent.wealth for agent in model.agents]
@@ -19,15 +19,16 @@ def compute_gini(model):
     B = sum( xi * (N-i) for i,xi in enumerate(x) ) / (N*sum(x))
     return (1 + (1/N) - 2*B)
 
+
 class MoneyAgent(MesaAgent):
     """
     A MESA agent with fixed initial wealth.
     It will only share wealth with neighbors based on grid proximity
     """
 
-    def __init__(self, unique_id, model):
+    def __init__(self, unique_id, model, wealth=1):
         super().__init__(unique_id=unique_id, model=model)
-        self.wealth = 1
+        self.wealth = wealth
 
     def move(self):
         possible_steps = self.model.grid.get_neighborhood(
@@ -45,7 +46,7 @@ class MoneyAgent(MesaAgent):
             self.wealth -= 1
 
     def step(self):
-        self.info("Crying wolf", self.pos)
+        print("Crying wolf", self.pos)
         self.move()
         if self.wealth > 0:
             self.give_money()
@@ -58,8 +59,8 @@ class SocialMoneyAgent(NetworkAgent, MoneyAgent):
         cellmates = set(self.model.grid.get_cell_list_contents([self.pos]))
         friends = set(self.get_neighboring_agents())
         self.info("Trying to give money")
-        self.debug("Cellmates: ", cellmates)
-        self.debug("Friends: ", friends)
+        self.info("Cellmates: ", cellmates)
+        self.info("Friends: ", friends)
 
         nearby_friends = list(cellmates & friends)
 
@@ -68,13 +69,28 @@ class SocialMoneyAgent(NetworkAgent, MoneyAgent):
             other.wealth += 1
             self.wealth -= 1
 
+def graph_generator(n=5):
+    G = nx.Graph()
+    for ix in range(n):
+        G.add_edge(0, ix)
+    return G
+
 
 class MoneyEnv(Environment):
     """A model with some number of agents."""
-    def __init__(self, width, height, *args, topologies, **kwargs):
+    def __init__(self, width, height, N, generator=graph_generator,
+                 agent_class=SocialMoneyAgent,
+                 topology=None, **kwargs):
 
-        super().__init__(*args, topologies=topologies, **kwargs)
+        generator = serialization.deserialize(generator)
+        agent_class = serialization.deserialize(agent_class, globs=globals())
+        topology = generator(n=N)
+        super().__init__(topology=topology,
+                         N=N,
+                         **kwargs)
         self.grid = MultiGrid(width, height, False)
+
+        self.populate_network(agent_class=agent_class)
 
         # Create agents
         for agent in self.agents:
@@ -87,17 +103,9 @@ class MoneyEnv(Environment):
             agent_reporters={"Wealth": "wealth"})
 
 
-def graph_generator(n=5):
-    G = nx.Graph()
-    for ix in range(n):
-        G.add_edge(0, ix)
-    return G
-
 if __name__ == '__main__':
 
-
-    G = graph_generator()
-    fixed_params = {"topology": G,
+    fixed_params = {"generator": nx.complete_graph,
                     "width": 10,
                     "network_agents": [{"agent_class": SocialMoneyAgent,
                                        'weight': 1}],
@@ -116,4 +124,3 @@ if __name__ == '__main__':
     run_data = batch_run.get_model_vars_dataframe()
     run_data.head()
     print(run_data.Gini)
-

@@ -126,7 +126,7 @@ class Patron(FSM, NetworkAgent):
         success depend on both agents' openness.
         '''
         if force or self['openness'] > self.random.random():
-            self.model.add_edge(self, other_agent)
+            self.add_edge(self, other_agent)
             self.info('Made some friend {}'.format(other_agent))
             return True
         return False

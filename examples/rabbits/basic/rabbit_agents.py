@@ -57,7 +57,7 @@ class Male(RabbitModel):
 
 
 class Female(RabbitModel):
-    gestation = 100
+    gestation = 30
 
     @state
     def fertile(self):
@@ -72,10 +72,10 @@ class Female(RabbitModel):
         self.pregnancy = -1
         self.set_state(self.pregnant, when=self.now)
         self.number_of_babies = int(8+4*self.random.random())
-        self.debug('I am pregnant')
 
     @state
     def pregnant(self):
+        self.debug('I am pregnant')
         self.age += 1
         self.pregnancy += 1
 
@@ -88,7 +88,6 @@ class Female(RabbitModel):
                 state = {}
                 agent_class = self.random.choice([Male, Female])
                 child = self.model.add_node(agent_class=agent_class,
-                                            topology=self.topology,
                                             **state)
                 child.add_edge(self)
                 try:
@@ -113,7 +112,7 @@ class RandomAccident(BaseAgent):
     level = logging.INFO
 
     def step(self):
-        rabbits_alive = self.model.topology.number_of_nodes()
+        rabbits_alive = self.model.G.number_of_nodes()
 
         if not rabbits_alive:
             return self.die()
@@ -121,10 +120,15 @@ class RandomAccident(BaseAgent):
         prob_death = self.model.get('prob_death', 1e-100)*math.floor(math.log10(max(1, rabbits_alive)))
         self.debug('Killing some rabbits with prob={}!'.format(prob_death))
         for i in self.iter_agents(agent_class=RabbitModel):
-            if i.state.id == i.dead.id:
+            if i.state_id == i.dead.id:
                 continue
             if self.prob(prob_death):
                 self.info('I killed a rabbit: {}'.format(i.id))
                 rabbits_alive -= 1
                 i.set_state(i.dead)
         self.debug('Rabbits alive: {}'.format(rabbits_alive))
+
+if __name__ == '__main__':
+    from soil import easy
+    sim = easy('rabbits.yml')
+    sim.run()

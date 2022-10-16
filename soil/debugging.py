@@ -30,7 +30,9 @@ def wrapcmd(func):
 class Debug(pdb.Pdb):
     def __init__(self, *args, skip_soil=False, **kwargs):
         skip = kwargs.get('skip', [])
+        skip.append('soil')
         if skip_soil:
+            skip.append('soil')
             skip.append('soil.*')
             skip.append('mesa.*')
         super(Debug, self).__init__(*args, skip=skip, **kwargs)
@@ -54,8 +56,14 @@ class Debug(pdb.Pdb):
 
     do_sl = do_soil_list
 
+    def do_continue_state(self, arg):
+        self.do_break_state(arg, temporary=True)
+        return self.do_continue('')
+
+    do_cs = do_continue_state
+
     @wrapcmd
-    def do_soil_self():
+    def do_soil_agent():
         if not agent:
             print('No agent available')
             return
@@ -70,23 +78,31 @@ class Debug(pdb.Pdb):
 
         print(agent.to_str(pretty=True, keys=keys))
 
-    do_ss = do_soil_self
+    do_aa = do_soil_agent
 
-    def do_break_state(self, arg: str, temporary=False):
+    def do_break_state(self, arg: str, instances=None, temporary=False):
         '''
         Break before a specified state is stepped into.
         '''
 
         klass = None
-        state = arg.strip()
+        state = arg
         if not state:
             self.error("Specify at least a state name")
             return
 
-        comma = arg.find(':')
-        if comma > 0:
-            state = arg[comma+1:].lstrip()
-            klass = arg[:comma].rstrip()
+        state, *tokens = state.lstrip().split()
+        if tokens:
+            instances = list(eval(token) for token in tokens)
+
+        colon = state.find(':')
+
+        if colon > 0:
+            klass = state[:colon].rstrip()
+            state = state[colon+1:].strip()
+
+
+            print(klass, state, tokens)
             klass = eval(klass,
                          self.curframe.f_globals,
                          self.curframe_locals)
@@ -95,14 +111,16 @@ class Debug(pdb.Pdb):
             klasses = [klass]
         else:
             klasses = [k for k in self.curframe.f_globals.values() if isinstance(k, type) and issubclass(k, FSM)]
-            print(klasses)
-            if not klasses:
-                self.error('No agent classes found')
+
+        if not klasses:
+            self.error('No agent classes found')
+        
         
         for klass in klasses:
             try:
                 func = getattr(klass, state)
             except AttributeError:
+                self.error(f'State {state} not found in class {klass}')
                 continue
             if hasattr(func, '__func__'):
                 func = func.__func__
@@ -120,6 +138,9 @@ class Debug(pdb.Pdb):
                 raise ValueError('no line found')
                 # now set the break point
             cond = None
+            if instances:
+                cond = f'self.unique_id in { repr(instances) }'
+
             existing = self.get_breaks(filename, line)
             if existing:
                 self.message("Breakpoint already exists at %s:%d" %
@@ -132,20 +153,39 @@ class Debug(pdb.Pdb):
                 bp = self.get_breaks(filename, line)[-1]
                 self.message("Breakpoint %d at %s:%d" %
                               (bp.number, bp.file, bp.line))
+
     do_bs = do_break_state
 
+    def do_break_state_self(self, arg: str, temporary=False):
+        '''
+        Break before a specified state is stepped into, for the current agent
+        '''
+        agent = self.curframe.f_locals.get('self')
+        if not agent:
+            self.error('No current agent.')
+            self.error('Try this again when the debugger is stopped inside an agent')
+            return
 
-def setup(frame=None):
-    debugger = Debug()
+        arg = f'{agent.__class__.__name__}:{ arg } {agent.unique_id}' 
+        return self.do_break_state(arg)
+
+    do_bss = do_break_state_self
+
+
+debugger = None
+
+def set_trace(frame=None, **kwargs):
+    global debugger
+    if debugger is None:
+        debugger = Debug(**kwargs)
     frame = frame or sys._getframe().f_back
     debugger.set_trace(frame)
 
-def debug_env():
-    if os.environ.get('SOIL_DEBUG'):
-        return setup(frame=sys._getframe().f_back)
 
 def post_mortem(traceback=None):
-    p = Debug()
+    global debugger
+    if debugger is None:
+        debugger = Debug(**kwargs)
     t = sys.exc_info()[2]
-    p.reset()
-    p.interaction(None, t)
+    debugger.reset()
+    debugger.interaction(None, t)

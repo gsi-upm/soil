@@ -43,7 +43,7 @@ class NetParams(BaseModel, extra=Extra.allow):
 
 class NetConfig(BaseModel):
     params: Optional[NetParams]
-    topology: Optional[Union[Topology, nx.Graph]]
+    fixed: Optional[Union[Topology, nx.Graph]]
     path: Optional[str]
 
     class Config:
@@ -70,7 +70,7 @@ class EnvConfig(BaseModel):
 class SingleAgentConfig(BaseModel):
     agent_class: Optional[Union[Type, str]] = None
     unique_id: Optional[int] = None
-    topology: Optional[str] = None
+    topology: Optional[bool] = False
     node_id: Optional[Union[int, str]] = None
     state: Optional[Dict[str, Any]] = {}
 
@@ -81,8 +81,8 @@ class FixedAgentConfig(SingleAgentConfig):
 
     @root_validator
     def validate_all(cls,  values):
-        if values.get('agent_id', None) is not None and values.get('n', 1) > 1:
-            raise ValueError(f"An agent_id can only be provided when there is only one agent ({values.get('n')} given)")
+        if values.get('unique_id', None) is not None and values.get('n', 1) > 1:
+            raise ValueError(f"An unique_id can only be provided when there is only one agent ({values.get('n')} given)")
         return values
 
 
@@ -102,7 +102,6 @@ class AgentDistro(SingleAgentConfig):
 
 class AgentConfig(SingleAgentConfig):
     n: Optional[int] = None
-    topology: Optional[str]
     distribution: Optional[List[AgentDistro]] = None
     fixed: Optional[List[FixedAgentConfig]] = None
     override: Optional[List[OverrideAgentConfig]] = None
@@ -171,9 +170,9 @@ def convert_old(old, strict=True):
             else:
                 network.setdefault('params', {})[k] = v
 
-    topologies = {}
+    topology = None
     if network:
-        topologies['default'] = network
+        topology = network
 
 
     agents = {'fixed': [], 'distribution': []}
@@ -195,7 +194,7 @@ def convert_old(old, strict=True):
                 agent['state']['name'] = agent['agent_id']
                 del agent['agent_id']
             agent['hidden'] = True
-            agent['topology'] = None
+            agent['topology'] = False
             fixed.append(updated_agent(agent))
         del new['environment_agents']
 
@@ -209,7 +208,7 @@ def convert_old(old, strict=True):
         agents['state'] = old['default_state']
 
     if 'network_agents' in old:
-        agents['topology'] = 'default'
+        agents['topology'] = True
 
         agents.setdefault('state', {})['group'] = 'network'
 
@@ -224,7 +223,7 @@ def convert_old(old, strict=True):
         del new['network_agents']
 
     if 'agent_class' in old and (not fixed and not by_weight):
-        agents['topology'] = 'default'
+        agents['topology'] = True
         by_weight = [{'agent_class': old['agent_class'], 'weight': 1}]
 
     
@@ -258,7 +257,7 @@ def convert_old(old, strict=True):
         del new['dump']
         new['dry_run'] = not old['dump']
 
-    model_params['topologies'] = topologies
+    model_params['topology'] = topology
     model_params['agents'] = agents
 
     return Config(version='2',

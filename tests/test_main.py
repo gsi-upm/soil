@@ -6,60 +6,55 @@ import networkx as nx
 from functools import partial
 
 from os.path import join
-from soil import (simulation, Environment, agents, network, serialization,
-                  utils, config)
+from soil import simulation, Environment, agents, network, serialization, utils, config
 from soil.time import Delta
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
-EXAMPLES = join(ROOT, '..', 'examples')
+EXAMPLES = join(ROOT, "..", "examples")
 
 
 class CustomAgent(agents.FSM, agents.NetworkAgent):
     @agents.default_state
     @agents.state
     def normal(self):
-        self.neighbors = self.count_agents(state_id='normal',
-                                           limit_neighbors=True)
+        self.neighbors = self.count_agents(state_id="normal", limit_neighbors=True)
+
     @agents.state
     def unreachable(self):
         return
 
 
 class TestMain(TestCase):
-
     def test_empty_simulation(self):
         """A simulation with a base behaviour should do nothing"""
         config = {
-            'model_params': {
-              'network_params': {
-                  'path': join(ROOT, 'test.gexf')
-              },
-              'agent_class': 'BaseAgent',
+            "model_params": {
+                "network_params": {"path": join(ROOT, "test.gexf")},
+                "agent_class": "BaseAgent",
             }
         }
         s = simulation.from_config(config)
         s.run_simulation(dry_run=True)
-
 
     def test_network_agent(self):
         """
         The initial states should be applied to the agent and the
         agent should be able to update its state."""
         config = {
-            'name': 'CounterAgent',
-            'num_trials': 1,
-            'max_time': 2,
-            'model_params': {
-                'network_params': {
-                    'generator': nx.complete_graph,
-                    'n': 2,
+            "name": "CounterAgent",
+            "num_trials": 1,
+            "max_time": 2,
+            "model_params": {
+                "network_params": {
+                    "generator": nx.complete_graph,
+                    "n": 2,
                 },
-                'agent_class': 'CounterModel',
-                'states': {
-                    0: {'times': 10},
-                    1: {'times': 20},
+                "agent_class": "CounterModel",
+                "states": {
+                    0: {"times": 10},
+                    1: {"times": 20},
                 },
-            }
+            },
         }
         s = simulation.from_config(config)
 
@@ -68,48 +63,41 @@ class TestMain(TestCase):
         The initial states should be applied to the agent and the
         agent should be able to update its state."""
         config = {
-            'version': '2',
-            'name': 'CounterAgent',
-            'dry_run': True,
-            'num_trials': 1,
-            'max_time': 2,
-            'model_params': {
-                'topologies': {
-                    'default': {
-                        'path': join(ROOT, 'test.gexf')
-                    }
+            "version": "2",
+            "name": "CounterAgent",
+            "dry_run": True,
+            "num_trials": 1,
+            "max_time": 2,
+            "model_params": {
+                "topology": {"path": join(ROOT, "test.gexf")},
+                "agents": {
+                    "agent_class": "CounterModel",
+                    "topology": True,
+                    "fixed": [{"state": {"times": 10}}, {"state": {"times": 20}}],
                 },
-                'agents': {
-                    'agent_class': 'CounterModel',
-                    'topology': 'default',
-                    'fixed': [{'state': {'times': 10}}, {'state': {'times': 20}}],
-                }
-            }
+            },
         }
         s = simulation.from_config(config)
         env = s.get_env()
         assert isinstance(env.agents[0], agents.CounterModel)
-        assert env.agents[0].G == env.topologies['default']
-        assert env.agents[0]['times'] == 10
-        assert env.agents[0]['times'] == 10
+        assert env.agents[0].G == env.G
+        assert env.agents[0]["times"] == 10
+        assert env.agents[0]["times"] == 10
         env.step()
-        assert env.agents[0]['times'] == 11
-        assert env.agents[1]['times'] == 21
+        assert env.agents[0]["times"] == 11
+        assert env.agents[1]["times"] == 21
 
     def test_init_and_count_agents(self):
         """Agents should be properly initialized and counting should filter them properly"""
-        #TODO: separate this test into two or more test cases
+        # TODO: separate this test into two or more test cases
         config = {
-            'max_time': 10,
-            'model_params': {
-                'agents': [{'agent_class': CustomAgent, 'weight': 1, 'topology': 'default'},
-                           {'agent_class': CustomAgent, 'weight': 3, 'topology': 'default'},
+            "max_time": 10,
+            "model_params": {
+                "agents": [
+                    {"agent_class": CustomAgent, "weight": 1, "topology": True},
+                    {"agent_class": CustomAgent, "weight": 3, "topology": True},
                 ],
-                'topologies': {
-                    'default': {
-                        'path': join(ROOT, 'test.gexf')
-                    }
-                },
+                "topology": {"path": join(ROOT, "test.gexf")},
             },
         }
         s = simulation.from_config(config)
@@ -120,40 +108,45 @@ class TestMain(TestCase):
         assert env.count_agents(weight=3) == 1
         assert env.count_agents(agent_class=CustomAgent) == 2
 
-
     def test_torvalds_example(self):
         """A complete example from a documentation should work."""
-        config = serialization.load_file(join(EXAMPLES, 'torvalds.yml'))[0]
-        config['model_params']['network_params']['path'] = join(EXAMPLES,
-                                                config['model_params']['network_params']['path'])
+        config = serialization.load_file(join(EXAMPLES, "torvalds.yml"))[0]
+        config["model_params"]["network_params"]["path"] = join(
+            EXAMPLES, config["model_params"]["network_params"]["path"]
+        )
         s = simulation.from_config(config)
         env = s.run_simulation(dry_run=True)[0]
         for a in env.network_agents:
-            skill_level = a.state['skill_level']
-            if a.id == 'Torvalds':
-                assert skill_level == 'God'
-                assert a.state['total'] == 3
-                assert a.state['neighbors'] == 2
-            elif a.id == 'balkian':
-                assert skill_level == 'developer'
-                assert a.state['total'] == 3
-                assert a.state['neighbors'] == 1
+            skill_level = a.state["skill_level"]
+            if a.id == "Torvalds":
+                assert skill_level == "God"
+                assert a.state["total"] == 3
+                assert a.state["neighbors"] == 2
+            elif a.id == "balkian":
+                assert skill_level == "developer"
+                assert a.state["total"] == 3
+                assert a.state["neighbors"] == 1
             else:
-                assert skill_level == 'beginner'
-                assert a.state['total'] == 3
-                assert a.state['neighbors'] == 1
+                assert skill_level == "beginner"
+                assert a.state["total"] == 3
+                assert a.state["neighbors"] == 1
 
     def test_serialize_class(self):
         ser, name = serialization.serialize(agents.BaseAgent, known_modules=[])
-        assert name == 'soil.agents.BaseAgent'
+        assert name == "soil.agents.BaseAgent"
         assert ser == agents.BaseAgent
 
-        ser, name = serialization.serialize(agents.BaseAgent, known_modules=['soil', ])
-        assert name == 'BaseAgent'
+        ser, name = serialization.serialize(
+            agents.BaseAgent,
+            known_modules=[
+                "soil",
+            ],
+        )
+        assert name == "BaseAgent"
         assert ser == agents.BaseAgent
 
         ser, name = serialization.serialize(CustomAgent)
-        assert name == 'test_main.CustomAgent'
+        assert name == "test_main.CustomAgent"
         assert ser == CustomAgent
         pickle.dumps(ser)
 
@@ -166,72 +159,63 @@ class TestMain(TestCase):
             assert i == des
 
     def test_serialize_agent_class(self):
-        '''A class from soil.agents should be serialized without the module part'''
+        """A class from soil.agents should be serialized without the module part"""
         ser = agents.serialize_type(CustomAgent)
-        assert ser == 'test_main.CustomAgent'
+        assert ser == "test_main.CustomAgent"
         ser = agents.serialize_type(agents.BaseAgent)
-        assert ser == 'BaseAgent'
+        assert ser == "BaseAgent"
         pickle.dumps(ser)
-    
+
     def test_deserialize_agent_distribution(self):
         agent_distro = [
-            {
-                'agent_class': 'CounterModel',
-                'weight': 1
-            },
-            {
-                'agent_class': 'test_main.CustomAgent',
-                'weight': 2
-            },
+            {"agent_class": "CounterModel", "weight": 1},
+            {"agent_class": "test_main.CustomAgent", "weight": 2},
         ]
         converted = agents.deserialize_definition(agent_distro)
-        assert converted[0]['agent_class'] == agents.CounterModel
-        assert converted[1]['agent_class'] == CustomAgent
+        assert converted[0]["agent_class"] == agents.CounterModel
+        assert converted[1]["agent_class"] == CustomAgent
         pickle.dumps(converted)
 
     def test_serialize_agent_distribution(self):
         agent_distro = [
-            {
-                'agent_class': agents.CounterModel,
-                'weight': 1
-            },
-            {
-                'agent_class': CustomAgent,
-                'weight': 2
-            },
+            {"agent_class": agents.CounterModel, "weight": 1},
+            {"agent_class": CustomAgent, "weight": 2},
         ]
         converted = agents.serialize_definition(agent_distro)
-        assert converted[0]['agent_class'] == 'CounterModel'
-        assert converted[1]['agent_class'] == 'test_main.CustomAgent'
+        assert converted[0]["agent_class"] == "CounterModel"
+        assert converted[1]["agent_class"] == "test_main.CustomAgent"
         pickle.dumps(converted)
 
     def test_templates(self):
-        '''Loading a template should result in several configs'''
-        configs = serialization.load_file(join(EXAMPLES, 'template.yml'))
+        """Loading a template should result in several configs"""
+        configs = serialization.load_file(join(EXAMPLES, "template.yml"))
         assert len(configs) > 0
 
     def test_until(self):
         config = {
-            'name': 'until_sim',
-            'model_params': {
-                'network_params': {},
-                'agents': {
-                    'fixed': [{
-                        'agent_class': agents.BaseAgent,
-                    }]
+            "name": "until_sim",
+            "model_params": {
+                "network_params": {},
+                "agents": {
+                    "fixed": [
+                        {
+                            "agent_class": agents.BaseAgent,
+                        }
+                    ]
                 },
             },
-            'max_time': 2,
-            'num_trials': 50,
+            "max_time": 2,
+            "num_trials": 50,
         }
         s = simulation.from_config(config)
         runs = list(s.run_simulation(dry_run=True))
         over = list(x.now for x in runs if x.now > 2)
-        assert len(runs) == config['num_trials']
+        assert len(runs) == config["num_trials"]
         assert len(over) == 0
 
     def test_fsm(self):
-        '''Basic state change'''
+        """Basic state change"""
+
         class ToggleAgent(agents.FSM):
             @agents.default_state
             @agents.state
@@ -250,7 +234,8 @@ class TestMain(TestCase):
         assert a.state_id == a.ping.id
 
     def test_fsm_when(self):
-        '''Basic state change'''
+        """Basic state change"""
+
         class ToggleAgent(agents.FSM):
             @agents.default_state
             @agents.state

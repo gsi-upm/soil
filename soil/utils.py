@@ -20,10 +20,11 @@ else:
     logformat = "[%(levelname)-5.5s][%(asctime)s] %(message)s"
 
 logFormatter = logging.Formatter(logformat, timeformat)
-
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
+
+logging.basicConfig(level=logging.INFO,
+                    handlers=[consoleHandler,])
 
 
 @contextmanager

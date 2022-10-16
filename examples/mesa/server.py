@@ -2,6 +2,7 @@ from mesa.visualization.ModularVisualization import ModularServer
 from soil.visualization import UserSettableParameter
 from mesa.visualization.modules import ChartModule, NetworkModule, CanvasGrid
 from social_wealth import MoneyEnv, graph_generator, SocialMoneyAgent
+import networkx as nx
 
 
 class MyNetwork(NetworkModule):
@@ -13,22 +14,22 @@ def network_portrayal(env):
     # The model ensures there is 0 or 1 agent per node
 
     portrayal = dict()
+    wealths = {node_id: data['agent'].wealth for (node_id, data) in env.G.nodes(data=True)}
     portrayal["nodes"] = [
         {
-            "id": agent_id,
-            "size": env.get_agent(agent_id).wealth,
-            # "color": "#CC0000" if not agents or agents[0].wealth == 0 else "#007959",
-            "color": "#CC0000",
-            "label": f"{agent_id}: {env.get_agent(agent_id).wealth}",
-        }
-        for (agent_id) in env.G.nodes
+            "id": node_id,
+            "size": 2*(wealth+1),
+            "color": "#CC0000" if wealth == 0 else "#007959",
+            # "color": "#CC0000",
+            "label": f"{node_id}: {wealth}",
+        } for (node_id, wealth) in wealths.items()
+
     ]
 
     portrayal["edges"] = [
         {"id": edge_id, "source": source, "target": target, "color": "#000000"}
         for edge_id, (source, target) in enumerate(env.G.edges)
     ]
-
 
     return portrayal
 
@@ -55,7 +56,7 @@ def gridPortrayal(agent):
     }
 
 
-grid = MyNetwork(network_portrayal, 500, 500, library="sigma")
+grid = MyNetwork(network_portrayal, 500, 500)
 chart = ChartModule(
     [{"Label": "Gini", "Color": "Black"}], data_collector_name="datacollector"
 )
@@ -70,7 +71,6 @@ model_params = {
         1,
         description="Choose how many agents to include in the model",
     ),
-    "network_agents": [{"agent_class": SocialMoneyAgent}],
     "height": UserSettableParameter(
         "slider",
         "height",
@@ -89,12 +89,15 @@ model_params = {
         1,
         description="Grid width",
         ),
-    "network_params": {
-        'generator': graph_generator
-    },
+    "agent_class": UserSettableParameter('choice', 'Agent class', value='MoneyAgent',
+                                         choices=['MoneyAgent', 'SocialMoneyAgent']),
+    "generator": graph_generator,
 }
 
-canvas_element = CanvasGrid(gridPortrayal, model_params["width"].value, model_params["height"].value, 500, 500)
+
+canvas_element = CanvasGrid(gridPortrayal,
+                            model_params["width"].value,
+                            model_params["height"].value, 500, 500)
 
 
 server = ModularServer(

@@ -76,7 +76,7 @@ class TimedActivation(BaseScheduler):
             agent = self._agents[agent_id]
             returned = agent.step()
 
-            if not agent.alive:
+            if not getattr(agent, 'alive', True):
                 self.remove(agent)
                 continue
 

@@ -8,17 +8,12 @@ interval: 1
 seed: '1'
 model_class: social_wealth.MoneyEnv
 model_params:
-  topologies:
-    default: 
-      params:
-        generator: social_wealth.graph_generator
-        n: 5
+  generator: social_wealth.graph_generator
   agents:
+    topology: true
     distribution:
       - agent_class: social_wealth.SocialMoneyAgent
-        topology: default
         weight: 1
-  mesa_agent_class: social_wealth.MoneyAgent
   N: 10
   width: 50
   height: 50

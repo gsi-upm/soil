@@ -21,7 +21,8 @@ from . import serialization
 from .utils import logger
 from .time import *
 
-def main(cfg='simulation.yml', **kwargs):
+
+def main(cfg='simulation.yml', exporters=None, parallel=None, output="soil_output", *, do_run=False, debug=False, **kwargs):
     import argparse
     from . import simulation
 
@@ -48,15 +49,18 @@ def main(cfg='simulation.yml', **kwargs):
                         help='Dump all data collected in CSV format. Defaults to false.')
     parser.add_argument('--level', type=str,
                         help='Logging level')
-    parser.add_argument('--output', '-o', type=str, default="soil_output",
+    parser.add_argument('--output', '-o', type=str, default=output or "soil_output",
                         help='folder to write results to. It defaults to the current directory.')
-    parser.add_argument('--synchronous', action='store_true',
-                        help='Run trials serially and synchronously instead of in parallel. Defaults to false.')
+    if parallel is None:
+        parser.add_argument('--synchronous', action='store_true',
+                            help='Run trials serially and synchronously instead of in parallel. Defaults to false.')
+
     parser.add_argument('-e', '--exporter', action='append',
+                        default=[],
                         help='Export environment and/or simulations using this exporter')
+
     parser.add_argument('--only-convert', '--convert', action='store_true',
                         help='Do not run the simulation, only convert the configuration file(s) and output them.')
-
 
     parser.add_argument("--set",
                         metavar="KEY=VALUE",
@@ -74,32 +78,49 @@ def main(cfg='simulation.yml', **kwargs):
     if args.version:
         return
 
+    if parallel is None:
+        parallel = not args.synchronous
+
+    exporters = exporters or ['default', ]
+    for exp in args.exporter:
+        if exp not in exporters:
+            exporters.append(exp)
+    if args.csv:
+        exporters.append('csv')
+    if args.graph:
+        exporters.append('gexf')
+
     if os.getcwd() not in sys.path:
         sys.path.append(os.getcwd())
     if args.module:
         importlib.import_module(args.module)
+    if output is None:
+        output = args.output
+
 
     logger.info('Loading config file: {}'.format(args.file))
 
-    if args.pdb or args.debug:
-        args.synchronous = True
-    if args.debug:
-        os.environ['SOIL_DEBUG'] = 'true'
+    debug = debug or args.debug
 
+    if args.pdb or debug:
+        args.synchronous = True
+
+
+    res = []
     try:
-        exporters = list(args.exporter or ['default', ])
-        if args.csv:
-            exporters.append('csv')
-        if args.graph:
-            exporters.append('gexf')
         exp_params = {}
-        if args.dry_run:
-            exp_params['copy_to'] = sys.stdout
 
         if not os.path.exists(args.file):
             logger.error('Please, input a valid file')
             return
-        for sim in simulation.iter_from_config(args.file):
+
+        for sim in simulation.iter_from_config(args.file,
+                                               dry_run=args.dry_run,
+                                               exporters=exporters,
+                                               parallel=parallel,
+                                               outdir=output,
+                                               exporter_params=exp_params,
+                                               **kwargs):
             if args.set:
                 for s in args.set:
                     k, v = s.split('=', 1)[:2]
@@ -117,16 +138,14 @@ def main(cfg='simulation.yml', **kwargs):
                     except AttributeError:
                         target[tail] = v
 
-                if args.only_convert:
-                    print(sim.to_yaml())
-                    continue
-
-            sim.run_simulation(dry_run=args.dry_run,
-                               exporters=exporters,
-                               parallel=(not args.synchronous),
-                               outdir=args.output,
-                               exporter_params=exp_params,
-                               **kwargs)
+            if args.only_convert:
+                print(sim.to_yaml())
+                continue
+            if do_run:
+                res.append(sim.run())
+            else:
+                print('not running')
+                res.append(sim)
 
     except Exception as ex:
         if args.pdb:
@@ -135,12 +154,16 @@ def main(cfg='simulation.yml', **kwargs):
             post_mortem()
         else:
             raise
+    if debug:
+        from .debugging import set_trace
+        os.environ['SOIL_DEBUG'] = 'true'
+        set_trace()
+    return res
 
-def easy(cfg, debug=False):
-    sim = simulation.from_config(cfg)
-    if debug or os.environ.get('SOIL_DEBUG'):
-        from .debugging import setup
-        setup(sys._getframe().f_back)
-    return sim
+
+def easy(cfg, debug=False, **kwargs):
+    return main(cfg, **kwargs)[0]
+
+
 if __name__ == '__main__':
-    main()
+    main(do_run=True)

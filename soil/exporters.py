@@ -1,4 +1,5 @@
 import os
+import sys
 from time import time as current_time
 from io import BytesIO
 from sqlalchemy import create_engine
@@ -52,6 +53,8 @@ class Exporter:
                                    simulation.group or '',
                                    simulation.name)
         self.dry_run = dry_run
+        if copy_to is None and dry_run:
+            copy_to = sys.stdout
         self.copy_to = copy_to
 
     def sim_start(self):
@@ -94,14 +97,19 @@ class default(Exporter):
             logger.info('NOT dumping results')
 
     def trial_end(self, env):
-        if not self.dry_run:
-            with timer('Dumping simulation {} trial {}'.format(self.simulation.name,
-                                                               env.id)):
-                engine = create_engine('sqlite:///{}.sqlite'.format(env.id), echo=False)
+        if self.dry_run:
+            logger.info('Running in DRY_RUN mode, the database will NOT be created')
+            return
 
-                dc = env.datacollector
-                for (t, df) in get_dc_dfs(dc):
-                    df.to_sql(t, con=engine, if_exists='append')
+        with timer('Dumping simulation {} trial {}'.format(self.simulation.name,
+                                                            env.id)):
+
+            fpath = os.path.join(self.outdir, f'{env.id}.sqlite')
+            engine = create_engine(f'sqlite:///{fpath}', echo=False)
+
+            dc = env.datacollector
+            for (t, df) in get_dc_dfs(dc):
+                df.to_sql(t, con=engine, if_exists='append')
 
 
 def get_dc_dfs(dc):

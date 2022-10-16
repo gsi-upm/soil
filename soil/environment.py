@@ -5,6 +5,7 @@ import sqlite3
 import math
 import random
 import logging
+import inspect
 
 from typing import Any, Dict, Optional, Union
 from collections import namedtuple
@@ -19,9 +20,6 @@ from mesa import Model
 from mesa.datacollection import DataCollector
 
 from . import agents as agentmod, config, serialization, utils, time, network
-
-
-Record = namedtuple('Record', 'dict_id t_step key value')
 
 
 class BaseEnvironment(Model):
@@ -51,6 +49,8 @@ class BaseEnvironment(Model):
                  **env_params):
 
         super().__init__(seed=seed)
+        self.env_params = env_params or {}
+
         self.current_id = -1
 
         self.id = id
@@ -63,11 +63,8 @@ class BaseEnvironment(Model):
 
         self.agent_class = agent_class or agentmod.BaseAgent
 
-        self.init_agents(agents)
-
-        self.env_params = env_params or {}
-
         self.interval = interval
+        self.init_agents(agents)
 
         self.logger = utils.logger.getChild(self.id)
 
@@ -77,7 +74,10 @@ class BaseEnvironment(Model):
             tables=tables,
         )
 
-    def _read_single_agent(self, agent):
+    def _agent_from_dict(self, agent):
+        '''
+        Translate an agent dictionary into an agent
+        '''
         agent = dict(**agent)
         cls = agent.pop('agent_class', None) or self.agent_class
         unique_id = agent.pop('unique_id', None)
@@ -88,6 +88,14 @@ class BaseEnvironment(Model):
                                               model=self, **agent)
 
     def init_agents(self, agents: Union[config.AgentConfig, [Dict[str, Any]]] = {}):
+        '''
+        Initialize the agents in the model from either a `soil.config.AgentConfig` or a list of
+        dictionaries that each describes an agent.
+
+        If given a list of dictionaries, an agent will be created for each dictionary. The agent
+        class can be specified through the `agent_class` key. The rest of the items will be used
+        as parameters to the agent.
+        '''
         if not agents:
             return
 
@@ -98,13 +106,11 @@ class BaseEnvironment(Model):
                 lst = config.AgentConfig(**agents)
             if lst.override:
                 override = lst.override
-            lst = agentmod.from_config(lst,
-                                       topologies=getattr(self, 'topologies', None),
-                                       random=self.random)
+            lst = self._agent_dict_from_config(lst)
 
         #TODO: check override is working again. It cannot (easily) be part of agents.from_config anymore, 
         # because it needs attribute such as unique_id, which are only present after init
-        new_agents = [self._read_single_agent(agent) for agent in lst]
+        new_agents = [self._agent_from_dict(agent) for agent in lst]
 
 
         for a in new_agents:
@@ -115,6 +121,9 @@ class BaseEnvironment(Model):
                 for attr, value in rule.state.items():
                     setattr(agent, attr, value)
 
+    def _agent_dict_from_config(self, cfg):
+            return agentmod.from_config(cfg,
+                                        random=self.random)
 
     @property
     def agents(self):
@@ -133,12 +142,15 @@ class BaseEnvironment(Model):
         raise Exception('The environment has not been scheduled, so it has no sense of time')
 
 
-    def add_agent(self, agent_id, agent_class, **kwargs):
+    def add_agent(self, agent_class, unique_id=None, **kwargs):
         a = None
-        if agent_class:
-            a = agent_class(model=self,
-                            unique_id=agent_id,
-                            **kwargs)
+        if unique_id is None:
+            unique_id = self.next_id()
+
+
+        a = agent_class(model=self,
+                        unique_id=unique_id,
+                        **args)
 
         self.schedule.add(a)
         return a
@@ -180,123 +192,109 @@ class BaseEnvironment(Model):
     def __setitem__(self, key, value):
         return self.env_params.__setitem__(key, value)
 
-    def _agent_to_tuples(self, agent, now=None):
-        if now is None:
-            now = self.now
-        for k, v in agent.state.items():
-            yield Record(dict_id=agent.id,
-                          t_step=now,
-                          key=k,
-                          value=v)
-
-    def state_to_tuples(self, agent_id=None, now=None):
-        if now is None:
-            now = self.now
-
-        if agent_id:
-            agent = self.agents[agent_id]
-            yield from self._agent_to_tuples(agent, now)
-            return
-
-        for k, v in self.env_params.items():
-            yield Record(dict_id='env',
-                         t_step=now,
-                         key=k,
-                         value=v)
-        for agent in self.agents:
-            yield from self._agent_to_tuples(agent, now)
+    def __str__(self):
+        return str(self.env_params)
 
 
 class NetworkEnvironment(BaseEnvironment):
+    '''
+    The NetworkEnvironment is an environment that includes one or more networkx.Graph intances
+    and methods to associate agents to nodes and vice versa.
+    '''
 
-    def __init__(self, *args, topology: nx.Graph = None, topologies: Dict[str, config.NetConfig] = {}, **kwargs):
+    def __init__(self, *args, topology: Union[config.NetConfig, nx.Graph] = None, **kwargs):
         agents = kwargs.pop('agents', None)
         super().__init__(*args, agents=None, **kwargs)
-        self._node_ids = {}
-        assert not hasattr(self, 'topologies')
-        if topology is not None:
-            if topologies:
-                raise ValueError('Please, provide either a single topology or a dictionary of them')
-            topologies = {'default': topology}
 
-        self.topologies = {}
-        for (name, cfg) in topologies.items():
-            self.set_topology(cfg=cfg, graph=name)
+        self._set_topology(topology)
 
         self.init_agents(agents)
 
+    def init_agents(self, *args, **kwargs):
+        '''Initialize the agents from a '''
+        super().init_agents(*args, **kwargs)
+        for agent in self.schedule._agents.values():
+            if hasattr(agent, 'node_id'):
+                self._init_node(agent)
 
-    def _read_single_agent(self, agent, unique_id=None):
+    def _init_node(self, agent):
+        '''
+        Make sure the node for a given agent has the proper attributes.
+        '''
+        self.G.nodes[agent.node_id]['agent'] = agent
+
+    def _agent_dict_from_config(self, cfg):
+            return agentmod.from_config(cfg,
+                                        topology=self.G,
+                                        random=self.random)
+
+    def _agent_from_dict(self, agent, unique_id=None):
         agent = dict(agent)
 
-        if agent.get('topology', None) is not None:
-            topology = agent.get('topology')
-            if unique_id is None:
-                unique_id = self.next_id()
-            if topology:
-                node_id = self.agent_to_node(unique_id, graph_name=topology, node_id=agent.get('node_id'))
-                agent['node_id'] = node_id
-                agent['topology'] = topology
-            agent['unique_id'] = unique_id
+        if not agent.get('topology', False):
+            return super()._agent_from_dict(agent)
 
-        return super()._read_single_agent(agent)
-        
+        if unique_id is None:
+            unique_id = self.next_id()
+        node_id = agent.get('node_id', None)
+        if node_id is None:
+            node_id = network.find_unassigned(self.G, random=self.random)
+        agent['node_id'] = node_id
+        agent['unique_id'] = unique_id
+        agent['topology'] = self.G
+        node_attrs = self.G.nodes[node_id]
+        node_attrs.update(agent)
+        agent = node_attrs
 
-    @property
-    def topology(self):
-        return self.topologies['default']
+        a = super()._agent_from_dict(agent)
+        self._init_node(a)
 
-    def set_topology(self, cfg=None, dir_path=None, graph='default'):
-        topology = cfg
-        if not isinstance(cfg, nx.Graph):
-            topology = network.from_config(cfg, dir_path=dir_path or self.dir_path)
+        return a
 
-        self.topologies[graph] = topology
+    def _set_topology(self, cfg=None, dir_path=None):
+        if cfg is None:
+            cfg = nx.Graph()
+        elif not isinstance(cfg, nx.Graph):
+            cfg = network.from_config(cfg, dir_path=dir_path or self.dir_path)
 
-    def topology_for(self, unique_id):
-        return self.topologies[self._node_ids[unique_id][0]]
+        self.G = cfg
 
     @property
     def network_agents(self):
-        yield from self.agents(agent_class=agentmod.NetworkAgent)
+        for a in self.schedule._agents:
+            if isinstance(a, agentmod.NetworkAgent):
+                yield a
 
-    def agent_to_node(self, unique_id, graph_name='default',
-                      node_id=None, shuffle=False):
-        node_id = network.agent_to_node(G=self.topologies[graph_name],
-                                        agent_id=unique_id,
-                                        node_id=node_id,
-                                        shuffle=shuffle,
-                                        random=self.random)
+    def add_node(self, agent_class, unique_id=None, node_id=None, **kwargs):
+        if unique_id is None:
+            unique_id = self.next_id()
+        if node_id is None:
+            node_id = network.find_unassigned(G=self.G,
+                                              shuffle=True,
+                                              random=self.random)
+        
+        if node_id in G.nodes:
+            self.G.nodes[node_id]['agent'] = None  # Reserve
+        else:
+            self.G.add_node(node_id)
 
-        self._node_ids[unique_id] = (graph_name, node_id)
-        return node_id
-
-    def add_node(self, agent_class, topology, **kwargs):
-        unique_id = self.next_id()
-        self.topologies[topology].add_node(unique_id)
-        node_id = self.agent_to_node(unique_id=unique_id, node_id=unique_id, graph_name=topology)
-
-        a = self.add_agent(unique_id=unique_id, agent_class=agent_class, node_id=node_id, topology=topology, **kwargs)
+        a = self.add_agent(unique_id=unique_id, agent_class=agent_class, node_id=node_id, **kwargs)
         a['visible'] = True
         return a
 
-    def add_edge(self, agent1, agent2, start=None, graph='default', **attrs):
-        agent1 = agent1.node_id
-        agent2 = agent2.node_id
-        return self.topologies[graph].add_edge(agent1, agent2, start=start)
+    def agent_for_node_id(self, node_id):
+        return self.G.nodes[node_id].get('agent')
 
-    def add_agent(self, unique_id, state=None, graph='default', **kwargs):
-        node = self.topologies[graph].nodes[unique_id]
-        node_state = node.get('state', {})
-        if node_state:
-            node_state.update(state or {})
-            state = node_state
-        a = super().add_agent(unique_id, state=state, **kwargs)
-        node['agent'] = a
-        return a
-
-    def node_id_for(self, agent_id):
-        return self._node_ids[agent_id][1]
+    def populate_network(self, agent_class, weights=None, **agent_params):
+        if not hasattr(agent_class, 'len'):
+            agent_class = [agent_class]
+            weights = None
+        for (node_id, node) in self.G.nodes(data=True):
+            if 'agent' in node:
+                continue
+            a_class = self.random.choices(agent_class, weights)[0]
+            self.add_agent(node_id=node_id,
+                           agent_class=a_class, **agent_params)
 
 
 Environment = NetworkEnvironment

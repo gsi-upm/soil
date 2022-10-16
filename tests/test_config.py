@@ -7,9 +7,9 @@ from os.path import join
 from soil import simulation, serialization, config, network, agents, utils
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
-EXAMPLES = join(ROOT, '..', 'examples')
+EXAMPLES = join(ROOT, "..", "examples")
 
-FORCE_TESTS = os.environ.get('FORCE_TESTS', '')
+FORCE_TESTS = os.environ.get("FORCE_TESTS", "")
 
 
 def isequal(a, b):
@@ -24,7 +24,6 @@ def isequal(a, b):
 
 
 class TestConfig(TestCase):
-
     def test_conversion(self):
         expected = serialization.load_file(join(ROOT, "complete_converted.yml"))[0]
         old = serialization.load_file(join(ROOT, "old_complete.yml"))[0]
@@ -38,7 +37,7 @@ class TestConfig(TestCase):
         The configuration should not change after running
          the simulation.
         """
-        config = serialization.load_file(join(EXAMPLES, 'complete.yml'))[0]
+        config = serialization.load_file(join(EXAMPLES, "complete.yml"))[0]
         s = simulation.from_config(config)
         init_config = copy.copy(s.to_dict())
 
@@ -47,11 +46,8 @@ class TestConfig(TestCase):
         # del nconfig['to
         isequal(init_config, nconfig)
 
-
     def test_topology_config(self):
-        netconfig = config.NetConfig(**{
-            'path': join(ROOT, 'test.gexf')
-        })
+        netconfig = config.NetConfig(**{"path": join(ROOT, "test.gexf")})
         net = network.from_config(netconfig, dir_path=ROOT)
         assert len(net.nodes) == 2
         assert len(net.edges) == 1
@@ -62,36 +58,33 @@ class TestConfig(TestCase):
         network agents are initialized properly.
         """
         cfg = {
-            'name': 'CounterAgent',
-            'network_params': {
-                'path': join(ROOT, 'test.gexf')
-            },
-            'agent_class': 'CounterModel',
+            "name": "CounterAgent",
+            "network_params": {"path": join(ROOT, "test.gexf")},
+            "agent_class": "CounterModel",
             # 'states': [{'times': 10}, {'times': 20}],
-            'max_time': 2,
-            'dry_run': True,
-            'num_trials': 1,
-            'environment_params': {
-            }
+            "max_time": 2,
+            "dry_run": True,
+            "num_trials": 1,
+            "environment_params": {},
         }
         conf = config.convert_old(cfg)
         s = simulation.from_config(conf)
 
         env = s.get_env()
-        assert len(env.topologies['default'].nodes) == 2
-        assert len(env.topologies['default'].edges) == 1
+        assert len(env.G.nodes) == 2
+        assert len(env.G.edges) == 1
         assert len(env.agents) == 2
-        assert env.agents[0].G == env.topologies['default']
+        assert env.agents[0].G == env.G
 
     def test_agents_from_config(self):
-        '''We test that the known complete configuration produces
-        the right agents in the right groups'''
+        """We test that the known complete configuration produces
+        the right agents in the right groups"""
         cfg = serialization.load_file(join(ROOT, "complete_converted.yml"))[0]
         s = simulation.from_config(cfg)
         env = s.get_env()
-        assert len(env.topologies['default'].nodes) == 4
-        assert len(env.agents(group='network')) == 4
-        assert len(env.agents(group='environment')) == 1
+        assert len(env.G.nodes) == 4
+        assert len(env.agents(group="network")) == 4
+        assert len(env.agents(group="environment")) == 1
 
     def test_yaml(self):
         """
@@ -100,15 +93,16 @@ class TestConfig(TestCase):
         Values not present in the original config file should have reasonable
         defaults.
         """
-        with utils.timer('loading'):
-            config = serialization.load_file(join(EXAMPLES, 'complete.yml'))[0]
+        with utils.timer("loading"):
+            config = serialization.load_file(join(EXAMPLES, "complete.yml"))[0]
             s = simulation.from_config(config)
-        with utils.timer('serializing'):
+        with utils.timer("serializing"):
             serial = s.to_yaml()
-        with utils.timer('recovering'):
+        with utils.timer("recovering"):
             recovered = yaml.load(serial, Loader=yaml.SafeLoader)
         for (k, v) in config.items():
             assert recovered[k] == v
+
 
 def make_example_test(path, cfg):
     def wrapped(self):
@@ -133,18 +127,19 @@ def make_example_test(path, cfg):
         #             assert env.now <= config['max_time']  # But not further than allowed
         #         except KeyError:
         #             pass
+
     return wrapped
 
 
 def add_example_tests():
     for config, path in serialization.load_files(
-            join(EXAMPLES, '*', '*.yml'),
-            join(EXAMPLES, '*.yml'),
+        join(EXAMPLES, "*", "*.yml"),
+        join(EXAMPLES, "*.yml"),
     ):
         p = make_example_test(path=path, cfg=config)
         fname = os.path.basename(path)
-        p.__name__ = 'test_example_file_%s' % fname
-        p.__doc__ = '%s should be a valid configuration' % fname
+        p.__name__ = "test_example_file_%s" % fname
+        p.__doc__ = "%s should be a valid configuration" % fname
         setattr(TestConfig, p.__name__, p)
         del p
 

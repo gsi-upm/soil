@@ -9,17 +9,16 @@ interval: 1
 seed: "CompleteSeed!"
 model_class: Environment
 model_params:
-  topologies:
-    default:
-      params:
-        generator: complete_graph
-        n: 4
+  topology:
+    params:
+      generator: complete_graph
+      n: 4
   agents:
     agent_class: CounterModel
     state:
       group: network
       times: 1
-    topology: 'default'
+    topology: true
     distribution:
       - agent_class: CounterModel
         weight: 0.25
@@ -42,7 +41,7 @@ model_params:
     fixed:
       - agent_class: BaseAgent
         hidden: true
-        topology: null
+        topology: false
         state:
           name: 'Environment Agent 1'
           times: 10

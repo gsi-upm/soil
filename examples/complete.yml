@@ -10,19 +10,14 @@ seed: "CompleteSeed!"
 model_class: Environment
 model_params:
   am_i_complete: true
-  topologies:
-    default:
-      params:
-        generator: complete_graph
-        n: 10
-    another_graph:
-      params:
-        generator: complete_graph
-        n: 2
+  topology:
+    params:
+      generator: complete_graph
+      n: 12
   environment:
   agents:
     agent_class: CounterModel
-    topology: default
+    topology: true
     state:
       times: 1
       # In this group we are not specifying any topology
@@ -30,25 +25,23 @@ model_params:
       - name: 'Environment Agent 1'
         agent_class: BaseAgent
         group: environment
-        topology: null
+        topology: false
         hidden: true
         state:
           times: 10
       - agent_class: CounterModel
         id: 0
-        group: other_counters
-        topology: another_graph
+        group: fixed_counters
         state:
           times: 1
           total: 0
       - agent_class: CounterModel
-        topology: another_graph
-        group: other_counters
+        group: fixed_counters
         id: 1
     distribution:
       - agent_class: CounterModel
         weight: 1
-        group: general_counters
+        group: distro_counters
         state:
           times: 3
       - agent_class: AggregatedCounter

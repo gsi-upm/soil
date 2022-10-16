@@ -4,7 +4,6 @@ Example of a fully programmatic simulation, without definition files.
 '''
 from soil import Simulation, agents
 from soil.time import Delta
-import logging
 
 
 
@@ -40,5 +39,4 @@ s = Simulation(name='Programmatic',
                dry_run=True)
 
 
-logging.basicConfig(level=logging.INFO)
 envs = s.run()

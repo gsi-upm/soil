@@ -1,4 +1,4 @@
-'''
+"""
 Mesa-SOIL integration tests
 
 We have to test that:
@@ -8,13 +8,15 @@ We have to test that:
 
 - Mesa visualizations work with SOIL simulations
 
-'''
+"""
 from mesa import Agent, Model
 from mesa.time import RandomActivation
 from mesa.space import MultiGrid
 
+
 class MoneyAgent(Agent):
-    """ An agent with fixed initial wealth."""
+    """An agent with fixed initial wealth."""
+
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
         self.wealth = 1
@@ -33,15 +35,15 @@ class MoneyAgent(Agent):
 
     def move(self):
         possible_steps = self.model.grid.get_neighborhood(
-            self.pos,
-            moore=True,
-            include_center=False)
+            self.pos, moore=True, include_center=False
+        )
         new_position = self.random.choice(possible_steps)
         self.model.grid.move_agent(self, new_position)
 
 
 class MoneyModel(Model):
     """A model with some number of agents."""
+
     def __init__(self, N, width, height):
         self.num_agents = N
         self.grid = MultiGrid(width, height, True)
@@ -58,7 +60,7 @@ class MoneyModel(Model):
             self.grid.place_agent(a, (x, y))
 
     def step(self):
-        '''Advance the model by one step.'''
+        """Advance the model by one step."""
         self.schedule.step()
 
 

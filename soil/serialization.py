@@ -17,42 +17,6 @@ from jinja2 import Template
 
 logger = logging.getLogger('soil')
 
-
-# def load_network(network_params, dir_path=None):
-#     G = nx.Graph()
-
-#     if not network_params:
-#         return G
-
-#     if 'path' in network_params:
-#         path = network_params['path']
-#         if dir_path and not os.path.isabs(path):
-#             path = os.path.join(dir_path, path)
-#         extension = os.path.splitext(path)[1][1:]
-#         kwargs = {}
-#         if extension == 'gexf':
-#             kwargs['version'] = '1.2draft'
-#             kwargs['node_type'] = int
-#         try:
-#             method = getattr(nx.readwrite, 'read_' + extension)
-#         except AttributeError:
-#             raise AttributeError('Unknown format')
-#         G = method(path, **kwargs)
-
-#     elif 'generator' in network_params:
-#         net_args = network_params.copy()
-#         net_gen = net_args.pop('generator')
-
-#         if dir_path not in sys.path:
-#             sys.path.append(dir_path)
-
-#         method = deserializer(net_gen,
-#                               known_modules=['networkx.generators',])
-#         G = method(**net_args)
-
-#     return G
-
-
 def load_file(infile):
     folder = os.path.dirname(infile)
     if folder not in sys.path:
@@ -121,7 +85,7 @@ def params_for_template(config):
 
 def load_files(*patterns, **kwargs):
     for pattern in patterns:
-        for i in glob(pattern, **kwargs):
+        for i in glob(pattern, **kwargs, recursive=True):
             for cfg in load_file(i):
                 path = os.path.abspath(i)
                 yield Config.from_raw(cfg), path
@@ -229,14 +193,17 @@ def deserializer(type_, known_modules=KNOWN_MODULES):
             return getattr(cls, 'deserialize', cls)
         except (ImportError, AttributeError) as ex:
             errors.append((modname, tname, ex))
-    raise Exception('Could not find type {}. Tried: {}'.format(type_, errors))
+    raise Exception('Could not find type "{}". Tried: {}'.format(type_, errors))
 
 
-def deserialize(type_, value=None, **kwargs):
+def deserialize(type_, value=None, globs=None, **kwargs):
     '''Get an object from a text representation'''
     if not isinstance(type_, str):
         return type_
-    des = deserializer(type_, **kwargs)
+    if globs and type_ in globs:
+        des = globs[type_]
+    else:
+      des = deserializer(type_, **kwargs)
     if value is None:
         return des
     return des(value)
@@ -244,6 +211,8 @@ def deserialize(type_, value=None, **kwargs):
 
 def deserialize_all(names, *args, known_modules=KNOWN_MODULES, **kwargs):
     '''Return the list of deserialized objects'''
+    #TODO: remove
+    print('SERIALIZATION', kwargs)
     objects = []
     for name in names:
         mod = deserialize(name, known_modules=known_modules)

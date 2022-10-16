@@ -53,6 +53,6 @@ setup(
     include_package_data=True,
     entry_points={
         'console_scripts':
-        ['soil = soil.__init__:main',
+        ['soil = soil.__main__:main',
         'soil-web = soil.web.__init__:main']
     })

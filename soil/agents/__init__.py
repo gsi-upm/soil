@@ -47,7 +47,7 @@ class MetaAgent(ABCMeta):
         }
 
         for attr, func in namespace.items():
-            if isinstance(func, types.FunctionType) or isinstance(func, property) or attr[0] == '_':
+            if isinstance(func, types.FunctionType) or isinstance(func, property) or isinstance(func, classmethod) or attr[0] == '_':
                 new_nmspc[attr] = func
             elif attr == 'defaults':
                 defaults.update(func)
@@ -113,21 +113,18 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
     def id(self):
         return self.unique_id
 
-    @property
-    def state(self):
-        '''
-        Return the agent itself, which behaves as a dictionary.
-
-        This method shouldn't be used, but is kept here for backwards compatibility.
-        '''
-        return self
-
-    @state.setter
-    def state(self, value):
-        if not value:
-            return
-        for k, v in value.items():
-            self[k] = v
+    @classmethod
+    def from_dict(cls, model, attrs, warn_extra=True):
+        ignored = {}
+        args = {}
+        for  k, v in attrs.items():
+            if k in inspect.signature(cls).parameters:
+                args[k] = v
+            else:
+                ignored[k] = v
+        if ignored and warn_extra:
+            utils.logger.info(f'Ignoring the following arguments for agent class { agent_class.__name__ }: { ignored }')
+        return cls(model=model, **args)
 
     def __getitem__(self, key):
         try:
@@ -232,18 +229,27 @@ class NetworkAgent(BaseAgent):
     def __init__(self, *args, topology, node_id, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.topology = topology
-        self.node_id = node_id
-        self.G = self.model.topologies[topology]
+        assert topology is not None
+        assert node_id is not None
+        self.G = topology
         assert self.G
+        self.node_id = node_id
 
     def count_neighboring_agents(self, state_id=None, **kwargs):
         return len(self.get_neighboring_agents(state_id=state_id, **kwargs))
 
-    def get_neighboring_agents(self, state_id=None, **kwargs):
-        return self.get_agents(limit_neighbors=True, state_id=state_id, **kwargs)
+    def get_neighboring_agents(self, **kwargs):
+        return list(self.iter_agents(limit_neighbors=True, **kwargs))
 
-    def iter_agents(self, unique_id=None, limit_neighbors=False, **kwargs):
+    def add_edge(self, other):
+        self.topology.add_edge(self.node_id, other.node_id)
+
+    @property
+    def node(self):
+        return self.topology.nodes[self.node_id]
+
+
+    def iter_agents(self, unique_id=None, *, limit_neighbors=False, **kwargs):
         unique_ids = None
         if isinstance(unique_id, list):
             unique_ids = set(unique_id)
@@ -253,7 +259,7 @@ class NetworkAgent(BaseAgent):
         if limit_neighbors:
             neighbor_ids = set()
             for node_id in self.G.neighbors(self.node_id):
-                if self.G.nodes[node_id].get('agent_id') is not None:
+                if self.G.nodes[node_id].get('agent') is not None:
                     neighbor_ids.add(node_id)
             if unique_ids:
                 unique_ids = unique_ids & neighbor_ids
@@ -697,7 +703,7 @@ def filter_agents(agents, *id_args, unique_id=None, state_id=None, agent_class=N
     state.update(kwargs)
 
     for k, v in state.items():
-        f = filter(lambda agent: agent.state.get(k, None) == v, f)
+        f = filter(lambda agent: getattr(agent, k, None) == v, f)
 
     if limit is not None:
         f = islice(f, limit)
@@ -705,7 +711,7 @@ def filter_agents(agents, *id_args, unique_id=None, state_id=None, agent_class=N
     yield from f
 
 
-def from_config(cfg: config.AgentConfig, random, topologies: Dict[str, nx.Graph] = None) -> List[Dict[str, Any]]:
+def from_config(cfg: config.AgentConfig, random, topology: nx.Graph = None) -> List[Dict[str, Any]]:
     '''
     This function turns an agentconfig into a list of individual "agent specifications", which are just a dictionary
     with the parameters that the environment will use to construct each agent.
@@ -716,40 +722,40 @@ def from_config(cfg: config.AgentConfig, random, topologies: Dict[str, nx.Graph]
     default = cfg or config.AgentConfig()
     if not isinstance(cfg, config.AgentConfig):
         cfg = config.AgentConfig(**cfg)
-    return _agents_from_config(cfg, topologies=topologies, random=random)
+    return _agents_from_config(cfg, topology=topology, random=random)
 
 
 def _agents_from_config(cfg: config.AgentConfig,
-                        topologies: Dict[str, nx.Graph],
+                        topology: nx.Graph,
                         random) -> List[Dict[str, Any]]:
     if cfg and not isinstance(cfg, config.AgentConfig):
         cfg = config.AgentConfig(**cfg)
 
     agents = []
 
-    assigned = defaultdict(int)
+    assigned_total = 0
+    assigned_network = 0
 
     if cfg.fixed is not None:
-        agents, counts = _from_fixed(cfg.fixed, topology=cfg.topology, default=cfg)
-        assigned.update(counts)
+        agents, assigned_total, assigned_network = _from_fixed(cfg.fixed, topology=cfg.topology, default=cfg)
 
     n = cfg.n
 
     if cfg.distribution:
-        topo_size = {top: len(topologies[top]) for top in topologies}
+        topo_size = len(topology) if topology else 0
 
-        grouped = defaultdict(list)
+        networked = []
         total = []
 
         for d in cfg.distribution:
             if d.strategy == config.Strategy.topology:
-                topology = d.topology if ('topology' in d.__fields_set__) else cfg.topology
-                if not topology:
-                    raise ValueError('The "topology" strategy only works if the topology parameter is specified')
-                if topology not in topo_size:
-                    raise ValueError(f'Unknown topology selected: { topology }. Make sure the topology has been defined')
+                topo = d.topology if ('topology' in d.__fields_set__) else cfg.topology
+                if not topo:
+                    raise ValueError('The "topology" strategy only works if the topology parameter is set to True')
+                if not topo_size:
+                    raise ValueError(f'Topology does not have enough free nodes to assign one to the agent')
 
-                grouped[topology].append(d)
+                networked.append(d)
 
             if d.strategy == config.Strategy.total:
                 if not cfg.n:
@@ -757,41 +763,36 @@ def _agents_from_config(cfg: config.AgentConfig,
                 total.append(d)
 
         
-        for (topo, distro) in grouped.items():
-            if not topologies or topo not in topo_size:
-                raise ValueError(
-                    'You need to specify a target number of agents for the distribution \
-                    or a configuration with a topology, along with a dictionary with \
-                    all the available topologies')
-            n = len(topologies[topo])
-            target = topo_size[topo] - assigned[topo]
-            new_agents = _from_distro(cfg.distribution, target,
+        if networked:
+            new_agents = _from_distro(networked,
+                                      n= topo_size - assigned_network,
                                       topology=topo,
                                       default=cfg,
                                       random=random)
-            assigned[topo] += len(new_agents)
+            assigned_total += len(new_agents)
+            assigned_network += len(new_agents)
             agents += new_agents
 
         if total:
-          remaining = n - sum(assigned.values())
-          agents += _from_distro(total, remaining,
-                                topology='',  # DO NOT assign to any topology
-                                default=cfg,
-                                random=random)
+          remaining = n - assigned_total
+          agents += _from_distro(total, n=remaining,
+                                 default=cfg,
+                                 random=random)
 
 
-        if sum(assigned.values()) != sum(topo_size.values()):
+        if assigned_network < topo_size:
             utils.logger.warn(f'The total number of agents does not match the total number of nodes in '
                               'every topology. This may be due to a definition error: assigned: '
-                              f'{ assigned } total sizes: { topo_size }')
+                              f'{ assigned } total size: { topo_size }')
 
     return agents
 
 
-def _from_fixed(lst: List[config.FixedAgentConfig], topology: str, default: config.SingleAgentConfig) -> List[Dict[str, Any]]:
+def _from_fixed(lst: List[config.FixedAgentConfig], topology: bool, default: config.SingleAgentConfig) -> List[Dict[str, Any]]:
     agents = []
 
-    counts = {}
+    counts_total = 0
+    counts_network = 0
 
     for fixed in lst:
         agent = {}
@@ -803,12 +804,13 @@ def _from_fixed(lst: List[config.FixedAgentConfig], topology: str, default: conf
         topo = fixed.topology if ('topology' in fixed.__fields_set__) else topology or default.topology
 
         if topo:
-            agent['topology'] = topo
+            agent['topology'] = True
+            counts_network += 1
         if not fixed.hidden:
-            counts[topo] = counts.get(topo, 0) + 1
+            counts_total += 1
         agents.append(agent)
 
-    return agents, counts
+    return agents, counts_total, counts_network
 
 
 def _from_distro(distro: List[config.AgentDistro],
@@ -854,7 +856,6 @@ def _from_distro(distro: List[config.AgentDistro],
         agent['agent_class'] = cls
         if default:
             agent.update(default.state)
-        # agent = cls(unique_id=agent_id, model=env, **state)
         topology = d.topology if ('topology' in d.__fields_set__) else topology or default.topology
         if topology:
             agent['topology'] = topology

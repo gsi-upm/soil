@@ -11,17 +11,16 @@ import networkx as nx
 from textwrap import dedent
 
 from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, Union, Optional
+from typing import Any, Dict, Union, Optional, List
 
 
 from networkx.readwrite import json_graph
 from functools import partial
 import pickle
 
-from . import serialization, utils, basestring, agents
+from . import serialization, exporters, utils, basestring, agents
 from .environment import Environment
 from .utils import logger, run_and_return_exceptions
-from .exporters import default
 from .time import INFINITY
 from .config import Config, convert_old
 
@@ -35,7 +34,7 @@ class Simulation:
     config (optional): :class:`config.Config`
         name of the Simulation
 
-    kwargs: parameters to use to initialize a new configuration, if one has not been provided.
+    kwargs: parameters to use to initialize a new configuration, if one not been provided.
     """
     version: str = '2'
     name: str = 'Unnamed simulation'
@@ -49,22 +48,27 @@ class Simulation:
     max_steps: int = -1
     interval: int = 1
     num_trials: int = 3
+    parallel: Optional[bool] = None
+    exporters: Optional[List[str]] = field(default_factory=list)
+    outdir: Optional[str] = None
+    exporter_params: Optional[Dict[str, Any]] = field(default_factory=dict)
     dry_run: bool = False
     extra: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, env):      
+    def from_dict(cls, env, **kwargs):      
 
         ignored = {k: v for k, v in env.items() 
                    if k not in inspect.signature(cls).parameters}
 
-        kwargs = {k:v for k, v in env.items() if k not in ignored}
+        d = {k:v for k, v in env.items() if k not in ignored}
         if ignored:
-            kwargs.setdefault('extra', {}).update(ignored)
+            d.setdefault('extra', {}).update(ignored)
         if ignored:
             print(f'Warning: Ignoring these parameters (added to "extra"): { ignored }')
+        d.update(kwargs)
 
-        return cls(**kwargs)
+        return cls(**d)
 
     def run_simulation(self, *args, **kwargs):
         return self.run(*args, **kwargs)
@@ -78,15 +82,23 @@ class Simulation:
         self.to_yaml())
         return list(self.run_gen(*args, **kwargs))
 
-    def run_gen(self, parallel=False, dry_run=False,
-                exporters=[default, ], outdir=None, exporter_params={},
+    def run_gen(self, parallel=False, dry_run=None,
+                exporters=None, outdir=None, exporter_params={},
                 log_level=None,
                 **kwargs):
         '''Run the simulation and yield the resulting environments.'''
         if log_level:
             logger.setLevel(log_level)
+        outdir = outdir or self.outdir
         logger.info('Using exporters: %s', exporters or [])
         logger.info('Output directory: %s', outdir)
+        if dry_run is None:
+            dry_run = self.dry_run
+        if exporters is None:
+            exporters = self.exporters
+        if not exporter_params:
+            exporter_params = self.exporter_params
+
         exporters = serialization.deserialize_all(exporters,
                                                   simulation=self,
                                                   known_modules=['soil.exporters', ],
@@ -115,18 +127,21 @@ class Simulation:
             for exporter in exporters:
                 exporter.sim_end()
 
-    def get_env(self, trial_id=0, **kwargs):
+    def get_env(self, trial_id=0, model_params=None, **kwargs):
         '''Create an environment for a trial of the simulation'''
         def deserialize_reporters(reporters):
             for (k, v) in reporters.items():
                 if isinstance(v, str) and v.startswith('py:'):
                     reporters[k] = serialization.deserialize(value.lsplit(':', 1)[1])
+            return reporters
 
-        model_params = self.model_params.copy()
-        model_params.update(kwargs)
+        params = self.model_params.copy()
+        if model_params:
+            params.update(model_params)
+        params.update(kwargs)
 
-        agent_reporters = deserialize_reporters(model_params.pop('agent_reporters', {}))
-        model_reporters = deserialize_reporters(model_params.pop('model_reporters', {}))
+        agent_reporters = deserialize_reporters(params.pop('agent_reporters', {}))
+        model_reporters = deserialize_reporters(params.pop('model_reporters', {}))
 
         env =  serialization.deserialize(self.model_class)
         return env(id=f'{self.name}_trial_{trial_id}',
@@ -134,7 +149,7 @@ class Simulation:
                    dir_path=self.dir_path,
                    agent_reporters=agent_reporters,
                    model_reporters=model_reporters,
-                   **model_params)
+                   **params)
 
     def run_trial(self, trial_id=None, until=None, log_file=False, log_level=logging.INFO, **opts):
         """
@@ -172,13 +187,10 @@ class Simulation:
         logger.info(dedent(f'''
 Model stats:
   Agents (total: { model.schedule.get_agent_count() }):
-      - { (newline + '      - ').join(str(a) for a in model.schedule.agents) }'''
-f'''
+      - { (newline + '      - ').join(str(a) for a in model.schedule.agents) }
 
-  Topologies (size):
-      -  { dict( (k, len(v)) for (k, v) in model.topologies.items())  }
-''' if getattr(model, "topologies", None) else ''
-))
+  Topology size: { len(model.G) if hasattr(model, "G") else 0 }
+        '''))
 
         while not is_done():
             utils.logger.debug(f'Simulation time {model.schedule.time}/{until}. Next: {getattr(model.schedule, "next_time", model.schedule.time + self.interval)}')
@@ -198,14 +210,14 @@ f'''
         return yaml.dump(self.to_dict())
 
 
-def iter_from_config(*cfgs):
+def iter_from_config(*cfgs, **kwargs):
     for config in cfgs:
         configs = list(serialization.load_config(config))
         for config, path in configs:
             d = dict(config)
             if 'dir_path' not in d:
                 d['dir_path'] = os.path.dirname(path)
-            yield Simulation.from_dict(d)
+            yield Simulation.from_dict(d, **kwargs)
 
 
 def from_config(conf_or_path):
