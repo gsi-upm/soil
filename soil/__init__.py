@@ -22,58 +22,107 @@ from .utils import logger
 from .time import *
 
 
-def main(cfg='simulation.yml', exporters=None, parallel=None, output="soil_output", *, do_run=False, debug=False, **kwargs):
+def main(
+    cfg="simulation.yml",
+    exporters=None,
+    parallel=None,
+    output="soil_output",
+    *,
+    do_run=False,
+    debug=False,
+    **kwargs,
+):
     import argparse
     from . import simulation
 
-    logger.info('Running SOIL version: {}'.format(__version__))
+    logger.info("Running SOIL version: {}".format(__version__))
 
-    parser = argparse.ArgumentParser(description='Run a SOIL simulation')
-    parser.add_argument('file', type=str,
-                        nargs="?",
-                        default=cfg,
-                        help='Configuration file for the simulation (e.g., YAML or JSON)')
-    parser.add_argument('--version', action='store_true',
-                        help='Show version info and exit')
-    parser.add_argument('--module', '-m', type=str,
-                        help='file containing the code of any custom agents.')
-    parser.add_argument('--dry-run', '--dry', action='store_true',
-                        help='Do not store the results of the simulation to disk, show in terminal instead.')
-    parser.add_argument('--pdb', action='store_true',
-                        help='Use a pdb console in case of exception.')
-    parser.add_argument('--debug', action='store_true',
-                        help='Run a customized version of a pdb console to debug a simulation.')
-    parser.add_argument('--graph', '-g', action='store_true',
-                        help='Dump each trial\'s network topology as a GEXF graph. Defaults to false.')
-    parser.add_argument('--csv', action='store_true',
-                        help='Dump all data collected in CSV format. Defaults to false.')
-    parser.add_argument('--level', type=str,
-                        help='Logging level')
-    parser.add_argument('--output', '-o', type=str, default=output or "soil_output",
-                        help='folder to write results to. It defaults to the current directory.')
+    parser = argparse.ArgumentParser(description="Run a SOIL simulation")
+    parser.add_argument(
+        "file",
+        type=str,
+        nargs="?",
+        default=cfg,
+        help="Configuration file for the simulation (e.g., YAML or JSON)",
+    )
+    parser.add_argument(
+        "--version", action="store_true", help="Show version info and exit"
+    )
+    parser.add_argument(
+        "--module",
+        "-m",
+        type=str,
+        help="file containing the code of any custom agents.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        "--dry",
+        action="store_true",
+        help="Do not store the results of the simulation to disk, show in terminal instead.",
+    )
+    parser.add_argument(
+        "--pdb", action="store_true", help="Use a pdb console in case of exception."
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Run a customized version of a pdb console to debug a simulation.",
+    )
+    parser.add_argument(
+        "--graph",
+        "-g",
+        action="store_true",
+        help="Dump each trial's network topology as a GEXF graph. Defaults to false.",
+    )
+    parser.add_argument(
+        "--csv",
+        action="store_true",
+        help="Dump all data collected in CSV format. Defaults to false.",
+    )
+    parser.add_argument("--level", type=str, help="Logging level")
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=str,
+        default=output or "soil_output",
+        help="folder to write results to. It defaults to the current directory.",
+    )
     if parallel is None:
-        parser.add_argument('--synchronous', action='store_true',
-                            help='Run trials serially and synchronously instead of in parallel. Defaults to false.')
+        parser.add_argument(
+            "--synchronous",
+            action="store_true",
+            help="Run trials serially and synchronously instead of in parallel. Defaults to false.",
+        )
 
-    parser.add_argument('-e', '--exporter', action='append',
-                        default=[],
-                        help='Export environment and/or simulations using this exporter')
+    parser.add_argument(
+        "-e",
+        "--exporter",
+        action="append",
+        default=[],
+        help="Export environment and/or simulations using this exporter",
+    )
 
-    parser.add_argument('--only-convert', '--convert', action='store_true',
-                        help='Do not run the simulation, only convert the configuration file(s) and output them.')
+    parser.add_argument(
+        "--only-convert",
+        "--convert",
+        action="store_true",
+        help="Do not run the simulation, only convert the configuration file(s) and output them.",
+    )
 
-    parser.add_argument("--set",
-                        metavar="KEY=VALUE",
-                        action='append',
-                        help="Set a number of parameters that will be passed to the simulation."
-                        "(do not put spaces before or after the = sign). "
-                        "If a value contains spaces, you should define "
-                        "it with double quotes: "
-                        'foo="this is a sentence". Note that '
-                        "values are always treated as strings.")
+    parser.add_argument(
+        "--set",
+        metavar="KEY=VALUE",
+        action="append",
+        help="Set a number of parameters that will be passed to the simulation."
+        "(do not put spaces before or after the = sign). "
+        "If a value contains spaces, you should define "
+        "it with double quotes: "
+        'foo="this is a sentence". Note that '
+        "values are always treated as strings.",
+    )
 
     args = parser.parse_args()
-    logger.setLevel(getattr(logging, (args.level or 'INFO').upper()))
+    logger.setLevel(getattr(logging, (args.level or "INFO").upper()))
 
     if args.version:
         return
@@ -81,14 +130,16 @@ def main(cfg='simulation.yml', exporters=None, parallel=None, output="soil_outpu
     if parallel is None:
         parallel = not args.synchronous
 
-    exporters = exporters or ['default', ]
+    exporters = exporters or [
+        "default",
+    ]
     for exp in args.exporter:
         if exp not in exporters:
             exporters.append(exp)
     if args.csv:
-        exporters.append('csv')
+        exporters.append("csv")
     if args.graph:
-        exporters.append('gexf')
+        exporters.append("gexf")
 
     if os.getcwd() not in sys.path:
         sys.path.append(os.getcwd())
@@ -97,38 +148,38 @@ def main(cfg='simulation.yml', exporters=None, parallel=None, output="soil_outpu
     if output is None:
         output = args.output
 
-
-    logger.info('Loading config file: {}'.format(args.file))
+    logger.info("Loading config file: {}".format(args.file))
 
     debug = debug or args.debug
 
     if args.pdb or debug:
         args.synchronous = True
 
-
     res = []
     try:
         exp_params = {}
 
         if not os.path.exists(args.file):
-            logger.error('Please, input a valid file')
+            logger.error("Please, input a valid file")
             return
 
-        for sim in simulation.iter_from_config(args.file,
-                                               dry_run=args.dry_run,
-                                               exporters=exporters,
-                                               parallel=parallel,
-                                               outdir=output,
-                                               exporter_params=exp_params,
-                                               **kwargs):
+        for sim in simulation.iter_from_config(
+            args.file,
+            dry_run=args.dry_run,
+            exporters=exporters,
+            parallel=parallel,
+            outdir=output,
+            exporter_params=exp_params,
+            **kwargs,
+        ):
             if args.set:
                 for s in args.set:
-                    k, v = s.split('=', 1)[:2]
+                    k, v = s.split("=", 1)[:2]
                     v = eval(v)
-                    tail, *head = k.rsplit('.', 1)[::-1]
+                    tail, *head = k.rsplit(".", 1)[::-1]
                     target = sim
                     if head:
-                        for part in head[0].split('.'):
+                        for part in head[0].split("."):
                             try:
                                 target = getattr(target, part)
                             except AttributeError:
@@ -144,19 +195,21 @@ def main(cfg='simulation.yml', exporters=None, parallel=None, output="soil_outpu
             if do_run:
                 res.append(sim.run())
             else:
-                print('not running')
+                print("not running")
                 res.append(sim)
 
     except Exception as ex:
         if args.pdb:
             from .debugging import post_mortem
+
             print(traceback.format_exc())
             post_mortem()
         else:
             raise
     if debug:
         from .debugging import set_trace
-        os.environ['SOIL_DEBUG'] = 'true'
+
+        os.environ["SOIL_DEBUG"] = "true"
         set_trace()
     return res
 
@@ -165,5 +218,5 @@ def easy(cfg, debug=False, **kwargs):
     return main(cfg, **kwargs)[0]
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main(do_run=True)

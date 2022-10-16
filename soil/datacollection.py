@@ -1,6 +1,6 @@
 from mesa import DataCollector as MDC
 
-class SoilDataCollector(MDC):
 
+class SoilDataCollector(MDC):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

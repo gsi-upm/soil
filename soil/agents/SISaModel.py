@@ -6,25 +6,25 @@ class SISaModel(FSM):
     """
     Settings:
         neutral_discontent_spon_prob
-        
+
         neutral_discontent_infected_prob
-        
+
         neutral_content_spon_prob
-        
+
         neutral_content_infected_prob
-        
+
         discontent_neutral
-        
+
         discontent_content
-        
+
         variance_d_c
-        
+
         content_discontent
-        
+
         variance_c_d
-        
+
         content_neutral
-        
+
         standard_variance
     """
 
@@ -33,24 +33,32 @@ class SISaModel(FSM):
 
         random = np.random.default_rng(seed=self._seed)
 
-        self.neutral_discontent_spon_prob = random.normal(self.env['neutral_discontent_spon_prob'],
-                                                             self.env['standard_variance'])
-        self.neutral_discontent_infected_prob = random.normal(self.env['neutral_discontent_infected_prob'],
-                                                                 self.env['standard_variance'])
-        self.neutral_content_spon_prob = random.normal(self.env['neutral_content_spon_prob'],
-                                                          self.env['standard_variance'])
-        self.neutral_content_infected_prob = random.normal(self.env['neutral_content_infected_prob'],
-                                                              self.env['standard_variance'])
+        self.neutral_discontent_spon_prob = random.normal(
+            self.env["neutral_discontent_spon_prob"], self.env["standard_variance"]
+        )
+        self.neutral_discontent_infected_prob = random.normal(
+            self.env["neutral_discontent_infected_prob"], self.env["standard_variance"]
+        )
+        self.neutral_content_spon_prob = random.normal(
+            self.env["neutral_content_spon_prob"], self.env["standard_variance"]
+        )
+        self.neutral_content_infected_prob = random.normal(
+            self.env["neutral_content_infected_prob"], self.env["standard_variance"]
+        )
 
-        self.discontent_neutral = random.normal(self.env['discontent_neutral'],
-                                                   self.env['standard_variance'])
-        self.discontent_content = random.normal(self.env['discontent_content'],
-                                                   self.env['variance_d_c'])
+        self.discontent_neutral = random.normal(
+            self.env["discontent_neutral"], self.env["standard_variance"]
+        )
+        self.discontent_content = random.normal(
+            self.env["discontent_content"], self.env["variance_d_c"]
+        )
 
-        self.content_discontent = random.normal(self.env['content_discontent'],
-                                                   self.env['variance_c_d'])
-        self.content_neutral = random.normal(self.env['content_neutral'],
-                                                self.env['standard_variance'])
+        self.content_discontent = random.normal(
+            self.env["content_discontent"], self.env["variance_c_d"]
+        )
+        self.content_neutral = random.normal(
+            self.env["content_neutral"], self.env["standard_variance"]
+        )
 
     @state
     def neutral(self):
@@ -88,7 +96,9 @@ class SISaModel(FSM):
             return self.neutral
 
         # Superinfected
-        discontent_neighbors = self.count_neighboring_agents(state_id=self.discontent.id)
+        discontent_neighbors = self.count_neighboring_agents(
+            state_id=self.discontent.id
+        )
         if self.prob(scontent_neighbors * self.content_discontent):
             self.discontent
         return self.content

@@ -9,12 +9,12 @@ from multiprocessing import Pool
 
 from contextlib import contextmanager
 
-logger = logging.getLogger('soil')
+logger = logging.getLogger("soil")
 logger.setLevel(logging.INFO)
 
 timeformat = "%H:%M:%S"
 
-if os.environ.get('SOIL_VERBOSE', ''):
+if os.environ.get("SOIL_VERBOSE", ""):
     logformat = "[%(levelname)-5.5s][%(asctime)s][%(name)s]:  %(message)s"
 else:
     logformat = "[%(levelname)-5.5s][%(asctime)s] %(message)s"
@@ -23,38 +23,44 @@ logFormatter = logging.Formatter(logformat, timeformat)
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
 
-logging.basicConfig(level=logging.INFO,
-                    handlers=[consoleHandler,])
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[
+        consoleHandler,
+    ],
+)
 
 
 @contextmanager
-def timer(name='task', pre="", function=logger.info, to_object=None):
+def timer(name="task", pre="", function=logger.info, to_object=None):
     start = current_time()
-    function('{}Starting {} at {}.'.format(pre, name,
-                                           strftime("%X", gmtime(start))))
+    function("{}Starting {} at {}.".format(pre, name, strftime("%X", gmtime(start))))
     yield start
     end = current_time()
-    function('{}Finished {} at {} in {} seconds'.format(pre, name,
-                                                        strftime("%X", gmtime(end)),
-                                                        str(end-start)))
+    function(
+        "{}Finished {} at {} in {} seconds".format(
+            pre, name, strftime("%X", gmtime(end)), str(end - start)
+        )
+    )
     if to_object:
         to_object.start = start
         to_object.end = end
 
 
-def safe_open(path, mode='r', backup=True, **kwargs):
+def safe_open(path, mode="r", backup=True, **kwargs):
     outdir = os.path.dirname(path)
     if outdir and not os.path.exists(outdir):
         os.makedirs(outdir)
-    if backup and 'w' in mode and os.path.exists(path):
+    if backup and "w" in mode and os.path.exists(path):
         creation = os.path.getctime(path)
-        stamp = strftime('%Y-%m-%d_%H.%M.%S', localtime(creation))
+        stamp = strftime("%Y-%m-%d_%H.%M.%S", localtime(creation))
 
-        backup_dir = os.path.join(outdir, 'backup')
+        backup_dir = os.path.join(outdir, "backup")
         if not os.path.exists(backup_dir):
             os.makedirs(backup_dir)
-        newpath = os.path.join(backup_dir, '{}@{}'.format(os.path.basename(path),
-                                                          stamp))
+        newpath = os.path.join(
+            backup_dir, "{}@{}".format(os.path.basename(path), stamp)
+        )
         copyfile(path, newpath)
     return open(path, mode=mode, **kwargs)
 
@@ -67,21 +73,23 @@ def open_or_reuse(f, *args, **kwargs):
     except (AttributeError, TypeError):
         yield f
 
+
 def flatten_dict(d):
     if not isinstance(d, dict):
         return d
     return dict(_flatten_dict(d))
 
-def _flatten_dict(d, prefix=''):
+
+def _flatten_dict(d, prefix=""):
     if not isinstance(d, dict):
         # print('END:', prefix, d)
         yield prefix, d
         return
     if prefix:
-        prefix = prefix + '.'
+        prefix = prefix + "."
     for k, v in d.items():
         # print(k, v)
-        res = list(_flatten_dict(v, prefix='{}{}'.format(prefix, k)))
+        res = list(_flatten_dict(v, prefix="{}{}".format(prefix, k)))
         # print('RES:', res)
         yield from res
 
@@ -93,7 +101,7 @@ def unflatten_dict(d):
         if not isinstance(k, str):
             target[k] = v
             continue
-        tokens = k.split('.')
+        tokens = k.split(".")
         if len(tokens) < 2:
             target[k] = v
             continue
@@ -106,27 +114,28 @@ def unflatten_dict(d):
 
 
 def run_and_return_exceptions(func, *args, **kwargs):
-    '''
+    """
     A wrapper for run_trial that catches exceptions and returns them.
     It is meant for async simulations.
-    '''
+    """
     try:
         return func(*args, **kwargs)
     except Exception as ex:
         if ex.__cause__ is not None:
             ex = ex.__cause__
-        ex.message = ''.join(traceback.format_exception(type(ex), ex, ex.__traceback__)[:])
+        ex.message = "".join(
+            traceback.format_exception(type(ex), ex, ex.__traceback__)[:]
+        )
         return ex
 
 
 def run_parallel(func, iterable, parallel=False, **kwargs):
-    if parallel and not os.environ.get('SOIL_DEBUG', None):
+    if parallel and not os.environ.get("SOIL_DEBUG", None):
         p = Pool()
-        wrapped_func = partial(run_and_return_exceptions,
-                               func, **kwargs)
+        wrapped_func = partial(run_and_return_exceptions, func, **kwargs)
         for i in p.imap_unordered(wrapped_func, iterable):
             if isinstance(i, Exception):
-                logger.error('Trial failed:\n\t%s', i.message)
+                logger.error("Trial failed:\n\t%s", i.message)
                 continue
             yield i
     else:

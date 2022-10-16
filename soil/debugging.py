@@ -18,9 +18,9 @@ def wrapcmd(func):
         known = globals()
         known.update(self.curframe.f_globals)
         known.update(self.curframe.f_locals)
-        known['agent'] = known.get('self', None)
-        known['model'] = known.get('self', {}).get('model')
-        known['attrs'] = arg.strip().split()
+        known["agent"] = known.get("self", None)
+        known["model"] = known.get("self", {}).get("model")
+        known["attrs"] = arg.strip().split()
 
         exec(func.__code__, known, known)
 
@@ -29,12 +29,12 @@ def wrapcmd(func):
 
 class Debug(pdb.Pdb):
     def __init__(self, *args, skip_soil=False, **kwargs):
-        skip = kwargs.get('skip', [])
-        skip.append('soil')
+        skip = kwargs.get("skip", [])
+        skip.append("soil")
         if skip_soil:
-            skip.append('soil')
-            skip.append('soil.*')
-            skip.append('mesa.*')
+            skip.append("soil")
+            skip.append("soil.*")
+            skip.append("mesa.*")
         super(Debug, self).__init__(*args, skip=skip, **kwargs)
         self.prompt = "[soil-pdb] "
 
@@ -42,7 +42,7 @@ class Debug(pdb.Pdb):
     def _soil_agents(model, attrs=None, pretty=True, **kwargs):
         for agent in model.agents(**kwargs):
             d = agent
-            print(' - ' + indent(agent.to_str(keys=attrs, pretty=pretty), '  '))
+            print(" - " + indent(agent.to_str(keys=attrs, pretty=pretty), "  "))
 
     @wrapcmd
     def do_soil_agents():
@@ -52,20 +52,20 @@ class Debug(pdb.Pdb):
 
     @wrapcmd
     def do_soil_list():
-        return Debug._soil_agents(model, attrs=['state_id'], pretty=False)
+        return Debug._soil_agents(model, attrs=["state_id"], pretty=False)
 
     do_sl = do_soil_list
 
     def do_continue_state(self, arg):
         self.do_break_state(arg, temporary=True)
-        return self.do_continue('')
+        return self.do_continue("")
 
     do_cs = do_continue_state
 
     @wrapcmd
     def do_soil_agent():
         if not agent:
-            print('No agent available')
+            print("No agent available")
             return
 
         keys = None
@@ -81,9 +81,9 @@ class Debug(pdb.Pdb):
     do_aa = do_soil_agent
 
     def do_break_state(self, arg: str, instances=None, temporary=False):
-        '''
+        """
         Break before a specified state is stepped into.
-        '''
+        """
 
         klass = None
         state = arg
@@ -95,39 +95,39 @@ class Debug(pdb.Pdb):
         if tokens:
             instances = list(eval(token) for token in tokens)
 
-        colon = state.find(':')
+        colon = state.find(":")
 
         if colon > 0:
             klass = state[:colon].rstrip()
-            state = state[colon+1:].strip()
-
+            state = state[colon + 1 :].strip()
 
             print(klass, state, tokens)
-            klass = eval(klass,
-                         self.curframe.f_globals,
-                         self.curframe_locals)
+            klass = eval(klass, self.curframe.f_globals, self.curframe_locals)
 
         if klass:
             klasses = [klass]
         else:
-            klasses = [k for k in self.curframe.f_globals.values() if isinstance(k, type) and issubclass(k, FSM)]
+            klasses = [
+                k
+                for k in self.curframe.f_globals.values()
+                if isinstance(k, type) and issubclass(k, FSM)
+            ]
 
         if not klasses:
-            self.error('No agent classes found')
-        
-        
+            self.error("No agent classes found")
+
         for klass in klasses:
             try:
                 func = getattr(klass, state)
             except AttributeError:
-                self.error(f'State {state} not found in class {klass}')
+                self.error(f"State {state} not found in class {klass}")
                 continue
-            if hasattr(func, '__func__'):
+            if hasattr(func, "__func__"):
                 func = func.__func__
 
             code = func.__code__
-            #use co_name to identify the bkpt (function names
-            #could be aliased, but co_name is invariant)
+            # use co_name to identify the bkpt (function names
+            # could be aliased, but co_name is invariant)
             funcname = code.co_name
             lineno = code.co_firstlineno
             filename = code.co_filename
@@ -135,44 +135,43 @@ class Debug(pdb.Pdb):
             # Check for reasonable breakpoint
             line = self.checkline(filename, lineno)
             if not line:
-                raise ValueError('no line found')
+                raise ValueError("no line found")
                 # now set the break point
             cond = None
             if instances:
-                cond = f'self.unique_id in { repr(instances) }'
+                cond = f"self.unique_id in { repr(instances) }"
 
             existing = self.get_breaks(filename, line)
             if existing:
-                self.message("Breakpoint already exists at %s:%d" %
-                              (filename, line))
+                self.message("Breakpoint already exists at %s:%d" % (filename, line))
                 continue
             err = self.set_break(filename, line, temporary, cond, funcname)
             if err:
                 self.error(err)
             else:
                 bp = self.get_breaks(filename, line)[-1]
-                self.message("Breakpoint %d at %s:%d" %
-                              (bp.number, bp.file, bp.line))
+                self.message("Breakpoint %d at %s:%d" % (bp.number, bp.file, bp.line))
 
     do_bs = do_break_state
 
     def do_break_state_self(self, arg: str, temporary=False):
-        '''
+        """
         Break before a specified state is stepped into, for the current agent
-        '''
-        agent = self.curframe.f_locals.get('self')
+        """
+        agent = self.curframe.f_locals.get("self")
         if not agent:
-            self.error('No current agent.')
-            self.error('Try this again when the debugger is stopped inside an agent')
+            self.error("No current agent.")
+            self.error("Try this again when the debugger is stopped inside an agent")
             return
 
-        arg = f'{agent.__class__.__name__}:{ arg } {agent.unique_id}' 
+        arg = f"{agent.__class__.__name__}:{ arg } {agent.unique_id}"
         return self.do_break_state(arg)
 
     do_bss = do_break_state_self
 
 
 debugger = None
+
 
 def set_trace(frame=None, **kwargs):
     global debugger

@@ -6,7 +6,8 @@ from .utils import logger
 from mesa import Agent as MesaAgent
 
 
-INFINITY = float('inf')
+INFINITY = float("inf")
+
 
 class When:
     def __init__(self, time):
@@ -42,7 +43,7 @@ class TimedActivation(BaseScheduler):
         self._next = {}
         self._queue = []
         self.next_time = 0
-        self.logger = logger.getChild(f'time_{ self.model }')
+        self.logger = logger.getChild(f"time_{ self.model }")
 
     def add(self, agent: MesaAgent, when=None):
         if when is None:
@@ -51,7 +52,7 @@ class TimedActivation(BaseScheduler):
             self._queue.remove((self._next[agent.unique_id], agent.unique_id))
             del self._agents[agent.unique_id]
             heapify(self._queue)
-        
+
         heappush(self._queue, (when, agent.unique_id))
         self._next[agent.unique_id] = when
         super().add(agent)
@@ -62,7 +63,7 @@ class TimedActivation(BaseScheduler):
         an agent will signal when it wants to be scheduled next.
         """
 
-        self.logger.debug(f'Simulation step {self.next_time}')
+        self.logger.debug(f"Simulation step {self.next_time}")
         if not self.model.running:
             return
 
@@ -71,18 +72,22 @@ class TimedActivation(BaseScheduler):
 
         while self._queue and self._queue[0][0] == self.time:
             (when, agent_id) = heappop(self._queue)
-            self.logger.debug(f'Stepping agent {agent_id}')
+            self.logger.debug(f"Stepping agent {agent_id}")
 
             agent = self._agents[agent_id]
             returned = agent.step()
 
-            if not getattr(agent, 'alive', True):
+            if not getattr(agent, "alive", True):
                 self.remove(agent)
                 continue
 
             when = (returned or Delta(1)).abs(self.time)
             if when < self.time:
-                raise Exception("Cannot schedule an agent for a time in the past ({} < {})".format(when, self.time))
+                raise Exception(
+                    "Cannot schedule an agent for a time in the past ({} < {})".format(
+                        when, self.time
+                    )
+                )
 
             self._next[agent_id] = when
             heappush(self._queue, (when, agent_id))
@@ -96,4 +101,4 @@ class TimedActivation(BaseScheduler):
             return self.time
 
         self.next_time = self._queue[0][0]
-        self.logger.debug(f'Next step: {self.next_time}')
+        self.logger.debug(f"Next step: {self.next_time}")
