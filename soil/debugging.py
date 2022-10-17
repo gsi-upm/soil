@@ -31,8 +31,8 @@ class Debug(pdb.Pdb):
     def __init__(self, *args, skip_soil=False, **kwargs):
         skip = kwargs.get("skip", [])
         skip.append("soil")
+        skip.append("contextlib")
         if skip_soil:
-            skip.append("soil")
             skip.append("soil.*")
             skip.append("mesa.*")
         super(Debug, self).__init__(*args, skip=skip, **kwargs)
@@ -181,7 +181,7 @@ def set_trace(frame=None, **kwargs):
     debugger.set_trace(frame)
 
 
-def post_mortem(traceback=None):
+def post_mortem(traceback=None, **kwargs):
     global debugger
     if debugger is None:
         debugger = Debug(**kwargs)

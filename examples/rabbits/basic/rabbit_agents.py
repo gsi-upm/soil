@@ -1,6 +1,4 @@
 from soil import FSM, state, default_state, BaseAgent, NetworkAgent, Environment
-from soil.time import Delta
-from enum import Enum
 from collections import Counter
 import logging
 import math
@@ -21,7 +19,7 @@ class RabbitEnv(Environment):
         return self.count_agents(agent_class=Female)
 
 
-class Rabbit(FSM, NetworkAgent):
+class Rabbit(NetworkAgent, FSM):
 
     sexual_maturity = 30
     life_expectancy = 300
@@ -72,7 +70,8 @@ class Male(Rabbit):
 
 
 class Female(Rabbit):
-    gestation = 30
+    gestation = 10
+    pregnancy = -1
 
     @state
     def fertile(self):
@@ -80,46 +79,49 @@ class Female(Rabbit):
         self.age += 1
         if self.age > self.life_expectancy:
             return self.dead
+        if self.pregnancy >= 0:
+            return self.pregnant
 
     def impregnate(self, male):
-        self.info(f'{repr(male)} impregnating female {repr(self)}')
+        self.info(f'impregnated by {repr(male)}')
         self.mate = male
-        self.pregnancy = -1
-        self.set_state(self.pregnant, when=self.now)
+        self.pregnancy = 0
         self.number_of_babies = int(8+4*self.random.random())
 
     @state
     def pregnant(self):
-        self.debug('I am pregnant')
+        self.info('I am pregnant')
         self.age += 1
-        self.pregnancy += 1
 
-        if self.prob(self.age / self.life_expectancy):
+        if self.age >= self.life_expectancy:
             return self.die()
 
-        if self.pregnancy >= self.gestation:
-            self.info('Having {} babies'.format(self.number_of_babies))
-            for i in range(self.number_of_babies):
-                state = {}
-                agent_class = self.random.choice([Male, Female])
-                child = self.model.add_node(agent_class=agent_class,
-                                            **state)
-                child.add_edge(self)
-                try:
-                    child.add_edge(self.mate)
-                    self.model.agents[self.mate].offspring += 1
-                except ValueError:
-                    self.debug('The father has passed away')
+        if self.pregnancy < self.gestation:
+            self.pregnancy += 1
+            return
 
-                self.offspring += 1
-            self.mate = None
-            return self.fertile
+        self.info('Having {} babies'.format(self.number_of_babies))
+        for i in range(self.number_of_babies):
+            state = {}
+            agent_class = self.random.choice([Male, Female])
+            child = self.model.add_node(agent_class=agent_class,
+                                        **state)
+            child.add_edge(self)
+            try:
+                child.add_edge(self.mate)
+                self.model.agents[self.mate].offspring += 1
+            except ValueError:
+                self.debug('The father has passed away')
 
-    @state
-    def dead(self):
-        super().dead()
+            self.offspring += 1
+        self.mate = None
+        self.pregnancy = -1
+        return self.fertile
+
+    def die(self):
         if 'pregnancy' in self and self['pregnancy'] > -1:
             self.info('A mother has died carrying a baby!!')
+        return super().die()
 
 
 class RandomAccident(BaseAgent):
@@ -138,11 +140,11 @@ class RandomAccident(BaseAgent):
             if self.prob(prob_death):
                 self.info('I killed a rabbit: {}'.format(i.id))
                 rabbits_alive -= 1
-                i.set_state(i.dead)
+                i.die()
         self.debug('Rabbits alive: {}'.format(rabbits_alive))
 
 
 if __name__ == '__main__':
     from soil import easy
-    sim = easy('rabbits.yml')
-    sim.run()
+    with easy('rabbits.yml') as sim:
+        sim.run()

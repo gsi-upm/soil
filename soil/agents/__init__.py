@@ -29,10 +29,6 @@ def as_node(agent):
 IGNORED_FIELDS = ("model", "logger")
 
 
-class DeadAgent(Exception):
-    pass
-
-
 class MetaAgent(ABCMeta):
     def __new__(mcls, name, bases, namespace):
         defaults = {}
@@ -198,7 +194,7 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
 
     def step(self):
         if not self.alive:
-            raise DeadAgent(self.unique_id)
+            raise time.DeadAgent(self.unique_id)
         return super().step() or time.Delta(self.interval)
 
     def log(self, message, *args, level=logging.INFO, **kwargs):
@@ -264,6 +260,10 @@ class NetworkAgent(BaseAgent):
         return list(self.iter_agents(limit_neighbors=True, **kwargs))
 
     def add_edge(self, other):
+        assert self.node_id
+        assert other.node_id
+        assert self.node_id in self.G.nodes
+        assert other.node_id in self.G.nodes
         self.topology.add_edge(self.node_id, other.node_id)
 
     @property
@@ -303,7 +303,9 @@ class NetworkAgent(BaseAgent):
         return G
 
     def remove_node(self):
+        print(f'Removing node for {self.unique_id}: {self.node_id}')
         self.G.remove_node(self.node_id)
+        self.node_id = None
 
     def add_edge(self, other, edge_attr_dict=None, *edge_attrs):
         if self.node_id not in self.G.nodes(data=False):
@@ -322,6 +324,8 @@ class NetworkAgent(BaseAgent):
         )
 
     def die(self, remove=True):
+        if not self.alive:
+            return
         if remove:
             self.remove_node()
         return super().die()
@@ -351,7 +355,7 @@ def state(name=None):
                         self._coroutine = None
                         next_state = ex.value
                         if next_state is not None:
-                            self.set_state(next_state)
+                            self._set_state(next_state)
                         return next_state
 
         func.id = name or func.__name__
@@ -401,8 +405,8 @@ class MetaFSM(MetaAgent):
 
 
 class FSM(BaseAgent, metaclass=MetaFSM):
-    def __init__(self, *args, **kwargs):
-        super(FSM, self).__init__(*args, **kwargs)
+    def __init__(self, **kwargs):
+        super(FSM, self).__init__(**kwargs)
         if not hasattr(self, "state_id"):
             if not self._default_state:
                 raise ValueError(
@@ -411,7 +415,7 @@ class FSM(BaseAgent, metaclass=MetaFSM):
             self.state_id = self._default_state.id
 
         self._coroutine = None
-        self.set_state(self.state_id)
+        self._set_state(self.state_id)
 
     def step(self):
         self.debug(f"Agent {self.unique_id} @ state {self.state_id}")
@@ -434,11 +438,11 @@ class FSM(BaseAgent, metaclass=MetaFSM):
             pass
 
         if next_state is not None:
-            self.set_state(next_state)
+            self._set_state(next_state)
 
         return when or default_interval
 
-    def set_state(self, state, when=None):
+    def _set_state(self, state, when=None):
         if hasattr(state, "id"):
             state = state.id
         if state not in self._states:
@@ -574,83 +578,6 @@ def _convert_agent_classs(ind, to_string=False, **kwargs):
     if to_string:
         return serialize_definition(ind, **kwargs)
     return deserialize_definition(ind, **kwargs)
-
-
-# def _agent_from_definition(definition, random, value=-1, unique_id=None):
-#     """Used in the initialization of agents given an agent distribution."""
-#     if value < 0:
-#         value = random.random()
-#     for d in sorted(definition, key=lambda x: x.get('threshold')):
-#         threshold = d.get('threshold', (-1, -1))
-#         # Check if the definition matches by id (first) or by threshold
-#         if (unique_id is not None and unique_id in d.get('ids', [])) or \
-#            (value >= threshold[0] and value < threshold[1]):
-#             state = {}
-#             if 'state' in d:
-#                 state = deepcopy(d['state'])
-#             return d['agent_class'], state
-
-#     raise Exception('Definition for value {} not found in: {}'.format(value, definition))
-
-
-# def _definition_to_dict(definition, random, size=None, default_state=None):
-#     state = default_state or {}
-#     agents = {}
-#     remaining = {}
-#     if size:
-#         for ix in range(size):
-#             remaining[ix] = copy(state)
-#     else:
-#         remaining = defaultdict(lambda x: copy(state))
-
-#     distro = sorted([item for item in definition if 'weight' in item])
-
-#     id = 0
-
-#     def init_agent(item, id=ix):
-#         while id in agents:
-#             id += 1
-
-#         agent = remaining[id]
-#         agent['state'].update(copy(item.get('state', {})))
-#         agents[agent.unique_id] = agent
-#         del remaining[id]
-#         return agent
-
-#     for item in definition:
-#         if 'ids' in item:
-#             ids = item['ids']
-#             del item['ids']
-#             for id in ids:
-#                 agent = init_agent(item, id)
-
-#     for item in definition:
-#         if 'number' in item:
-#             times = item['number']
-#             del item['number']
-#             for times in range(times):
-#                 if size:
-#                     ix = random.choice(remaining.keys())
-#                     agent = init_agent(item, id)
-#                 else:
-#                     agent = init_agent(item)
-#     if not size:
-#         return agents
-
-#     if len(remaining) < 0:
-#         raise Exception('Invalid definition. Too many agents to add')
-
-
-#     total_weight = float(sum(s['weight'] for s in distro))
-#     unit = size / total_weight
-
-#     for item in distro:
-#         times = unit * item['weight']
-#         del item['weight']
-#         for times in range(times):
-#             ix = random.choice(remaining.keys())
-#             agent = init_agent(item, id)
-#     return agents
 
 
 class AgentView(Mapping, Set):

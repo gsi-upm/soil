@@ -64,6 +64,7 @@ class Patron(FSM, NetworkAgent):
     drunk = False
     pints = 0
     max_pints = 3
+    kicked_out = False
 
     @default_state
     @state
@@ -105,7 +106,9 @@ class Patron(FSM, NetworkAgent):
         '''I'm out. Take me home!'''
         self.info('I\'m so drunk. Take me home!')
         self['drunk'] = True
-        pass  # out drunk
+        if self.kicked_out:
+            return self.at_home
+        pass  # out drun
 
     @state
     def at_home(self):
@@ -118,7 +121,7 @@ class Patron(FSM, NetworkAgent):
         self.debug('Cheers to that')
     
     def kick_out(self):
-        self.set_state(self.at_home)
+        self.kicked_out = True
 
     def befriend(self, other_agent, force=False):
         '''

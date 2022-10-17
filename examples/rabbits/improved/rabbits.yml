@@ -7,11 +7,10 @@ description: null
 group: null
 interval: 1.0
 max_time: 100
-model_class: soil.environment.Environment
+model_class: rabbit_agents.RabbitEnv
 model_params:
   agents:
     topology: true
-    agent_class: rabbit_agents.RabbitModel
     distribution:
     - agent_class: rabbit_agents.Male
       weight: 1
@@ -34,5 +33,10 @@ model_params:
       nodes:
       - id: 1
       - id: 0
+  model_reporters:
+    num_males: 'num_males'
+    num_females: 'num_females'
+    num_rabbits: |
+      py:lambda env: env.num_males + env.num_females
 extra:
   visualization_params: {}

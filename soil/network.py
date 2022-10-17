@@ -65,10 +65,8 @@ def find_unassigned(G, shuffle=False, random=random):
         random.shuffle(candidates)
     for next_id, data in candidates:
         if "agent" not in data:
-            node_id = next_id
-            break
-
-    return node_id
+            return next_id
+    return None
 
 
 def dump_gexf(G, f):

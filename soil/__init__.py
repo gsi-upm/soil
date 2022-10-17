@@ -5,6 +5,7 @@ import sys
 import os
 import logging
 import traceback
+from contextlib import contextmanager
 
 from .version import __version__
 
@@ -30,6 +31,7 @@ def main(
     *,
     do_run=False,
     debug=False,
+    pdb=False,
     **kwargs,
 ):
     import argparse
@@ -154,6 +156,7 @@ def main(
 
     if args.pdb or debug:
         args.synchronous = True
+        os.environ["SOIL_POSTMORTEM"] = "true"
 
     res = []
     try:
@@ -214,9 +217,20 @@ def main(
     return res
 
 
-def easy(cfg, debug=False, **kwargs):
-    return main(cfg, **kwargs)[0]
-
+@contextmanager
+def easy(cfg, pdb=False, debug=False, **kwargs):
+    ex = None
+    try:
+        yield main(cfg, **kwargs)[0]
+    except Exception as e:
+        if os.environ.get("SOIL_POSTMORTEM"):
+            from .debugging import post_mortem
+            print(traceback.format_exc())
+            post_mortem()
+        ex = e
+    finally:
+        if ex:
+            raise ex
 
 if __name__ == "__main__":
     main(do_run=True)

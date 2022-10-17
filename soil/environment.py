@@ -142,12 +142,12 @@ class BaseEnvironment(Model):
             "The environment has not been scheduled, so it has no sense of time"
         )
 
-    def add_agent(self, agent_class, unique_id=None, **kwargs):
-        a = None
+    def add_agent(self, unique_id=None, **kwargs):
         if unique_id is None:
             unique_id = self.next_id()
 
-        a = agent_class(model=self, unique_id=unique_id, **args)
+        kwargs['unique_id'] = unique_id
+        a = self._agent_from_dict(kwargs)
 
         self.schedule.add(a)
         return a
@@ -236,6 +236,7 @@ class NetworkEnvironment(BaseEnvironment):
         node_id = agent.get("node_id", None)
         if node_id is None:
             node_id = network.find_unassigned(self.G, random=self.random)
+        self.G.nodes[node_id]['agent'] = None
         agent["node_id"] = node_id
         agent["unique_id"] = unique_id
         agent["topology"] = self.G
@@ -269,16 +270,27 @@ class NetworkEnvironment(BaseEnvironment):
             node_id = network.find_unassigned(
                 G=self.G, shuffle=True, random=self.random
             )
+            if node_id is None:
+                node_id =  f'node_for_{unique_id}'
 
-        if node_id in G.nodes:
-            self.G.nodes[node_id]["agent"] = None  # Reserve
-        else:
+        if node_id not in self.G.nodes:
             self.G.add_node(node_id)
 
+        assert "agent" not in self.G.nodes[node_id]
+        self.G.nodes[node_id]["agent"] = None  # Reserve
+
         a = self.add_agent(
-            unique_id=unique_id, agent_class=agent_class, node_id=node_id, **kwargs
+            unique_id=unique_id, agent_class=agent_class, topology=self.G, node_id=node_id, **kwargs
         )
         a["visible"] = True
+        return a
+
+    def add_agent(self, *args, **kwargs):
+        a = super().add_agent(*args, **kwargs)
+        if 'node_id' in a:
+            if a.node_id == 24:
+                import pdb;pdb.set_trace()
+            assert self.G.nodes[a.node_id]['agent'] == a
         return a
 
     def agent_for_node_id(self, node_id):

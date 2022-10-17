@@ -24,7 +24,7 @@ class TestMain(TestCase):
         '''A dead agent should raise an exception if it is stepped after death'''
         d = Dead(unique_id=0, model=environment.Environment())
         d.step()
-        with pytest.raises(agents.DeadAgent):
+        with pytest.raises(stime.DeadAgent):
             d.step()
 
 
