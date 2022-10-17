@@ -3,6 +3,7 @@ import sys
 from time import time as current_time
 from io import BytesIO
 from sqlalchemy import create_engine
+from textwrap import dedent, indent
 
 
 import matplotlib.pyplot as plt
@@ -86,34 +87,8 @@ class Exporter:
                 pass
         return open_or_reuse(f, mode=mode, **kwargs)
 
-
-class default(Exporter):
-    """Default exporter. Writes sqlite results, as well as the simulation YAML"""
-
-    def sim_start(self):
-        if self.dry_run:
-            logger.info("NOT dumping results")
-            return
-        logger.info("Dumping results to %s", self.outdir)
-        with self.output(self.simulation.name + ".dumped.yml") as f:
-            f.write(self.simulation.to_yaml())
-        self.dbpath = os.path.join(self.outdir, f"{self.simulation.name}.sqlite")
-        try_backup(self.dbpath, move=True)
-
-    def trial_end(self, env):
-        if self.dry_run:
-            logger.info("Running in DRY_RUN mode, the database will NOT be created")
-            return
-
-        with timer(
-            "Dumping simulation {} trial {}".format(self.simulation.name, env.id)
-        ):
-
-            engine = create_engine(f"sqlite:///{self.dbpath}", echo=False)
-
-            dc = env.datacollector
-            for (t, df) in get_dc_dfs(dc, trial_id=env.id):
-                df.to_sql(t, con=engine, if_exists="append")
+    def get_dfs(self, env):
+        yield from get_dc_dfs(env.datacollector, trial_id=env.id)
 
 
 def get_dc_dfs(dc, trial_id=None):
@@ -129,6 +104,34 @@ def get_dc_dfs(dc, trial_id=None):
     yield from dfs.items()
 
 
+class default(Exporter):
+    """Default exporter. Writes sqlite results, as well as the simulation YAML"""
+
+    def sim_start(self):
+        if self.dry_run:
+            logger.info("NOT dumping results")
+            return
+        logger.info("Dumping results to %s", self.outdir)
+        with self.output(self.simulation.name + ".dumped.yml") as f:
+            f.write(self.simulation.to_yaml())
+        self.dbpath = os.path.join(self.outdir, f"{self.simulation.name}.sqlite")
+        try_backup(self.dbpath, remove=True)
+
+    def trial_end(self, env):
+        if self.dry_run:
+            logger.info("Running in DRY_RUN mode, the database will NOT be created")
+            return
+
+        with timer(
+            "Dumping simulation {} trial {}".format(self.simulation.name, env.id)
+        ):
+
+            engine = create_engine(f"sqlite:///{self.dbpath}", echo=False)
+
+            for (t, df) in self.get_dfs(env):
+                df.to_sql(t, con=engine, if_exists="append")
+
+
 class csv(Exporter):
 
     """Export the state of each environment (and its agents) in a separate CSV file"""
@@ -139,7 +142,7 @@ class csv(Exporter):
                 self.simulation.name, env.id, self.outdir
             )
         ):
-            for (df_name, df) in get_dc_dfs(env.datacollector, trial_id=env.id):
+            for (df_name, df) in self.get_dfs(env):
                 with self.output("{}.{}.csv".format(env.id, df_name)) as f:
                     df.to_csv(f)
 
@@ -192,52 +195,14 @@ class graphdrawing(Exporter):
             f.savefig(f)
 
 
-"""
-Convert an environment into a NetworkX graph
-"""
+class summary(Exporter):
+    """Print a summary of each trial to sys.stdout"""
 
-
-def env_to_graph(env, history=None):
-    G = nx.Graph(env.G)
-
-    for agent in env.network_agents:
-
-        attributes = {"agent": str(agent.__class__)}
-        lastattributes = {}
-        spells = []
-        lastvisible = False
-        laststep = None
-        if not history:
-            history = sorted(list(env.state_to_tuples()))
-        for _, t_step, attribute, value in history:
-            if attribute == "visible":
-                nowvisible = value
-                if nowvisible and not lastvisible:
-                    laststep = t_step
-                if not nowvisible and lastvisible:
-                    spells.append((laststep, t_step))
-
-                lastvisible = nowvisible
+    def trial_end(self, env):
+        for (t, df) in self.get_dfs(env):
+            if not len(df):
                 continue
-            key = "attr_" + attribute
-            if key not in attributes:
-                attributes[key] = list()
-            if key not in lastattributes:
-                lastattributes[key] = (value, t_step)
-            elif lastattributes[key][0] != value:
-                last_value, laststep = lastattributes[key]
-                commit_value = (last_value, laststep, t_step)
-                if key not in attributes:
-                    attributes[key] = list()
-                attributes[key].append(commit_value)
-                lastattributes[key] = (value, t_step)
-        for k, v in lastattributes.items():
-            attributes[k].append((v[0], v[1], None))
-        if lastvisible:
-            spells.append((laststep, None))
-        if spells:
-            G.add_node(agent.id, spells=spells, **attributes)
-        else:
-            G.add_node(agent.id, **attributes)
-
-    return G
+            msg = indent(str(df.describe()), '    ')
+            logger.info(dedent(f'''
+            Dataframe {t}:
+            ''') + msg)

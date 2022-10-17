@@ -169,7 +169,7 @@ class BaseEnvironment(Model):
         Advance one step in the simulation, and update the data collection and scheduler appropriately
         """
         super().step()
-        self.logger.info(f"--- Step {self.now:^5} ---")
+        self.logger.info(f"--- Step: {self.schedule.steps:^5} - Time: {self.now:^5} ---")
         self.schedule.step()
         self.datacollector.collect(self)
 

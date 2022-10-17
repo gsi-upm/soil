@@ -50,7 +50,6 @@ class Exporters(TestCase):
 
         for env in s.run_simulation(exporters=[Dummy], dry_run=True):
             assert len(env.agents) == 1
-            assert env.now == max_time
 
         assert Dummy.started
         assert Dummy.ended

@@ -21,7 +21,6 @@ import pickle
 from . import serialization, exporters, utils, basestring, agents
 from .environment import Environment
 from .utils import logger, run_and_return_exceptions
-from .time import INFINITY
 from .config import Config, convert_old
 
 
@@ -194,7 +193,7 @@ class Simulation:
 
         # Set up agents on nodes
         def is_done():
-            return False
+            return not model.running
 
         if until and hasattr(model.schedule, "time"):
             prev = is_done
@@ -226,6 +225,9 @@ Model stats:
                 f'Simulation time {model.schedule.time}/{until}. Next: {getattr(model.schedule, "next_time", model.schedule.time + self.interval)}'
             )
             model.step()
+
+        if model.schedule.time < until:  # Simulation ended (no more steps) before until (i.e., no changes expected)
+            model.schedule.time = until
         return model
 
     def to_dict(self):

@@ -18,7 +18,7 @@ class TestMain(TestCase):
         d = Dead(unique_id=0, model=environment.Environment())
         ret = d.step().abs(0)
         print(ret, "next")
-        assert ret == stime.INFINITY
+        assert ret == stime.NEVER
 
     def test_die_raises_exception(self):
         '''A dead agent should raise an exception if it is stepped after death'''

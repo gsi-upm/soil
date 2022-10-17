@@ -47,7 +47,7 @@ def timer(name="task", pre="", function=logger.info, to_object=None):
         to_object.end = end
 
 
-def try_backup(path, move=False):
+def try_backup(path, remove=False):
     if not os.path.exists(path):
         return None
     outdir = os.path.dirname(path)
