@@ -45,3 +45,17 @@ class TestMain(TestCase):
         for i in range(5):
             t = g.step()
             assert t == i
+
+    def test_state_decorator(self):
+        class MyAgent(agents.FSM):
+            run = 0
+            @agents.default_state
+            @agents.state('original')
+            def root(self):
+                self.run += 1
+        e = environment.Environment()
+        a = MyAgent(model=e, unique_id=e.next_id())
+        a.step()
+        assert a.run == 1
+        a.step()
+        assert a.run == 2

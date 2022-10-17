@@ -49,7 +49,7 @@ class TerroristSpreadModel(FSM, Geo):
 
     @state
     def civilian(self):
-        neighbours = list(self.get_neighboring_agents(agent_class=TerroristSpreadModel))
+        neighbours = list(self.get_neighbors(agent_class=TerroristSpreadModel))
         if len(neighbours) > 0:
             # Only interact with some of the neighbors
             interactions = list(
@@ -73,7 +73,7 @@ class TerroristSpreadModel(FSM, Geo):
     @state
     def leader(self):
         self.mean_belief = self.mean_belief ** (1 - self.terrorist_additional_influence)
-        for neighbour in self.get_neighboring_agents(
+        for neighbour in self.get_neighbors(
             state_id=[self.terrorist.id, self.leader.id]
         ):
             if self.betweenness(neighbour) > self.betweenness(self):
@@ -158,7 +158,7 @@ class TrainingAreaModel(FSM, Geo):
     @default_state
     @state
     def terrorist(self):
-        for neighbour in self.get_neighboring_agents(agent_class=TerroristSpreadModel):
+        for neighbour in self.get_neighbors(agent_class=TerroristSpreadModel):
             if neighbour.vulnerability > self.min_vulnerability:
                 neighbour.vulnerability = neighbour.vulnerability ** (
                     1 - self.training_influence
@@ -187,7 +187,7 @@ class HavenModel(FSM, Geo):
         self.max_vulnerability = model.environment_params["max_vulnerability"]
 
     def get_occupants(self, **kwargs):
-        return self.get_neighboring_agents(agent_class=TerroristSpreadModel, **kwargs)
+        return self.get_neighbors(agent_class=TerroristSpreadModel, **kwargs)
 
     @state
     def civilian(self):
@@ -243,7 +243,7 @@ class TerroristNetworkModel(TerroristSpreadModel):
         return super().leader()
 
     def update_relationships(self):
-        if self.count_neighboring_agents(state_id=self.civilian.id) == 0:
+        if self.count_neighbors(state_id=self.civilian.id) == 0:
             close_ups = set(
                 self.geo_search(
                     radius=self.vision_range, agent_class=TerroristNetworkModel
@@ -258,7 +258,7 @@ class TerroristNetworkModel(TerroristSpreadModel):
             )
             neighbours = set(
                 agent.id
-                for agent in self.get_neighboring_agents(
+                for agent in self.get_neighbors(
                     agent_class=TerroristNetworkModel
                 )
             )

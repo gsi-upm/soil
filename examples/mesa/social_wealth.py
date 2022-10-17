@@ -58,7 +58,7 @@ class SocialMoneyAgent(NetworkAgent, MoneyAgent):
 
     def give_money(self):
         cellmates = set(self.model.grid.get_cell_list_contents([self.pos]))
-        friends = set(self.get_neighboring_agents())
+        friends = set(self.get_neighbors())
         self.info("Trying to give money")
         self.info("Cellmates: ", cellmates)
         self.info("Friends: ", friends)

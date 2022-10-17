@@ -8,10 +8,9 @@ class DumbViewer(FSM, NetworkAgent):
     its neighbors once it's infected.
     """
 
-    defaults = {
-        "prob_neighbor_spread": 0.5,
-        "prob_tv_spread": 0.1,
-    }
+    prob_neighbor_spread = 0.5
+    prob_tv_spread = 0.1
+    has_been_infected = False
 
     @default_state
     @state
@@ -19,10 +18,12 @@ class DumbViewer(FSM, NetworkAgent):
         if self["has_tv"]:
             if self.prob(self.model["prob_tv_spread"]):
                 return self.infected
+        if self.has_been_infected:
+            return self.infected
 
     @state
     def infected(self):
-        for neighbor in self.get_neighboring_agents(state_id=self.neutral.id):
+        for neighbor in self.get_neighbors(state_id=self.neutral.id):
             if self.prob(self.model["prob_neighbor_spread"]):
                 neighbor.infect()
 
@@ -33,7 +34,7 @@ class DumbViewer(FSM, NetworkAgent):
         HerdViewer might not become infected right away
         """
 
-        self.set_state(self.infected)
+        self.has_been_infected = True
 
 
 class HerdViewer(DumbViewer):
@@ -43,12 +44,12 @@ class HerdViewer(DumbViewer):
 
     def infect(self):
         """Notice again that this is NOT a state. See DumbViewer.infect for reference"""
-        infected = self.count_neighboring_agents(state_id=self.infected.id)
-        total = self.count_neighboring_agents()
+        infected = self.count_neighbors(state_id=self.infected.id)
+        total = self.count_neighbors()
         prob_infect = self.model["prob_neighbor_spread"] * infected / total
         self.debug("prob_infect", prob_infect)
         if self.prob(prob_infect):
-            self.set_state(self.infected)
+            self.has_been_infected = True
 
 
 class WiseViewer(HerdViewer):
@@ -65,7 +66,7 @@ class WiseViewer(HerdViewer):
     @state
     def cured(self):
         prob_cure = self.model["prob_neighbor_cure"]
-        for neighbor in self.get_neighboring_agents(state_id=self.infected.id):
+        for neighbor in self.get_neighbors(state_id=self.infected.id):
             if self.prob(prob_cure):
                 try:
                     neighbor.cure()
@@ -73,13 +74,14 @@ class WiseViewer(HerdViewer):
                     self.debug("Viewer {} cannot be cured".format(neighbor.id))
 
     def cure(self):
-        self.set_state(self.cured.id)
+        self.has_been_cured = True
 
     @state
     def infected(self):
-        cured = max(self.count_neighboring_agents(self.cured.id), 1.0)
-        infected = max(self.count_neighboring_agents(self.infected.id), 1.0)
+        if self.has_been_cured:
+            return self.cured
+        cured = max(self.count_neighbors(self.cured.id), 1.0)
+        infected = max(self.count_neighbors(self.infected.id), 1.0)
         prob_cure = self.model["prob_neighbor_cure"] * (cured / infected)
         if self.prob(prob_cure):
             return self.cured
-        return self.set_state(super().infected)

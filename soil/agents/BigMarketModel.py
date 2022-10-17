@@ -24,14 +24,14 @@ class BigMarketModel(FSM):
         self.type = ""
 
         if self.id < len(self.enterprises):  # Enterprises
-            self.set_state(self.enterprise.id)
+            self._set_state(self.enterprise.id)
             self.type = "Enterprise"
             self.tweet_probability = environment.environment_params[
                 "tweet_probability_enterprises"
             ][self.id]
         else:  # normal users
             self.type = "User"
-            self.set_state(self.user.id)
+            self._set_state(self.user.id)
             self.tweet_probability = environment.environment_params[
                 "tweet_probability_users"
             ]
@@ -49,7 +49,7 @@ class BigMarketModel(FSM):
     def enterprise(self):
 
         if self.random.random() < self.tweet_probability:  # Tweets
-            aware_neighbors = self.get_neighboring_agents(
+            aware_neighbors = self.get_neighbors(
                 state_id=self.number_of_enterprises
             )  # Nodes neighbour users
             for x in aware_neighbors:
@@ -96,7 +96,7 @@ class BigMarketModel(FSM):
             ] = self.sentiment_about[i]
 
     def userTweets(self, sentiment, enterprise):
-        aware_neighbors = self.get_neighboring_agents(
+        aware_neighbors = self.get_neighbors(
             state_id=self.number_of_enterprises
         )  # Nodes neighbours users
         for x in aware_neighbors:

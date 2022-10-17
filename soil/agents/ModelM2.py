@@ -71,7 +71,7 @@ class SpreadModelM2(BaseAgent):
     def neutral_behaviour(self):
 
         # Infected
-        infected_neighbors = self.get_neighboring_agents(state_id=1)
+        infected_neighbors = self.get_neighbors(state_id=1)
         if len(infected_neighbors) > 0:
             if self.prob(self.prob_neutral_making_denier):
                 self.state["id"] = 3  # Vaccinated making denier
@@ -79,7 +79,7 @@ class SpreadModelM2(BaseAgent):
     def infected_behaviour(self):
 
         # Neutral
-        neutral_neighbors = self.get_neighboring_agents(state_id=0)
+        neutral_neighbors = self.get_neighbors(state_id=0)
         for neighbor in neutral_neighbors:
             if self.prob(self.prob_infect):
                 neighbor.state["id"] = 1  # Infected
@@ -87,13 +87,13 @@ class SpreadModelM2(BaseAgent):
     def cured_behaviour(self):
 
         # Vaccinate
-        neutral_neighbors = self.get_neighboring_agents(state_id=0)
+        neutral_neighbors = self.get_neighbors(state_id=0)
         for neighbor in neutral_neighbors:
             if self.prob(self.prob_cured_vaccinate_neutral):
                 neighbor.state["id"] = 3  # Vaccinated
 
         # Cure
-        infected_neighbors = self.get_neighboring_agents(state_id=1)
+        infected_neighbors = self.get_neighbors(state_id=1)
         for neighbor in infected_neighbors:
             if self.prob(self.prob_cured_healing_infected):
                 neighbor.state["id"] = 2  # Cured
@@ -101,19 +101,19 @@ class SpreadModelM2(BaseAgent):
     def vaccinated_behaviour(self):
 
         # Cure
-        infected_neighbors = self.get_neighboring_agents(state_id=1)
+        infected_neighbors = self.get_neighbors(state_id=1)
         for neighbor in infected_neighbors:
             if self.prob(self.prob_cured_healing_infected):
                 neighbor.state["id"] = 2  # Cured
 
         # Vaccinate
-        neutral_neighbors = self.get_neighboring_agents(state_id=0)
+        neutral_neighbors = self.get_neighbors(state_id=0)
         for neighbor in neutral_neighbors:
             if self.prob(self.prob_cured_vaccinate_neutral):
                 neighbor.state["id"] = 3  # Vaccinated
 
         # Generate anti-rumor
-        infected_neighbors_2 = self.get_neighboring_agents(state_id=1)
+        infected_neighbors_2 = self.get_neighbors(state_id=1)
         for neighbor in infected_neighbors_2:
             if self.prob(self.prob_generate_anti_rumor):
                 neighbor.state["id"] = 2  # Cured
@@ -191,7 +191,7 @@ class ControlModelM2(BaseAgent):
         self.state["visible"] = False
 
         # Infected
-        infected_neighbors = self.get_neighboring_agents(state_id=1)
+        infected_neighbors = self.get_neighbors(state_id=1)
         if len(infected_neighbors) > 0:
             if self.random(self.prob_neutral_making_denier):
                 self.state["id"] = 3  # Vaccinated making denier
@@ -199,7 +199,7 @@ class ControlModelM2(BaseAgent):
     def infected_behaviour(self):
 
         # Neutral
-        neutral_neighbors = self.get_neighboring_agents(state_id=0)
+        neutral_neighbors = self.get_neighbors(state_id=0)
         for neighbor in neutral_neighbors:
             if self.prob(self.prob_infect):
                 neighbor.state["id"] = 1  # Infected
@@ -209,13 +209,13 @@ class ControlModelM2(BaseAgent):
 
         self.state["visible"] = True
         # Vaccinate
-        neutral_neighbors = self.get_neighboring_agents(state_id=0)
+        neutral_neighbors = self.get_neighbors(state_id=0)
         for neighbor in neutral_neighbors:
             if self.prob(self.prob_cured_vaccinate_neutral):
                 neighbor.state["id"] = 3  # Vaccinated
 
         # Cure
-        infected_neighbors = self.get_neighboring_agents(state_id=1)
+        infected_neighbors = self.get_neighbors(state_id=1)
         for neighbor in infected_neighbors:
             if self.prob(self.prob_cured_healing_infected):
                 neighbor.state["id"] = 2  # Cured
@@ -224,47 +224,47 @@ class ControlModelM2(BaseAgent):
         self.state["visible"] = True
 
         # Cure
-        infected_neighbors = self.get_neighboring_agents(state_id=1)
+        infected_neighbors = self.get_neighbors(state_id=1)
         for neighbor in infected_neighbors:
             if self.prob(self.prob_cured_healing_infected):
                 neighbor.state["id"] = 2  # Cured
 
         # Vaccinate
-        neutral_neighbors = self.get_neighboring_agents(state_id=0)
+        neutral_neighbors = self.get_neighbors(state_id=0)
         for neighbor in neutral_neighbors:
             if self.prob(self.prob_cured_vaccinate_neutral):
                 neighbor.state["id"] = 3  # Vaccinated
 
         # Generate anti-rumor
-        infected_neighbors_2 = self.get_neighboring_agents(state_id=1)
+        infected_neighbors_2 = self.get_neighbors(state_id=1)
         for neighbor in infected_neighbors_2:
             if self.prob(self.prob_generate_anti_rumor):
                 neighbor.state["id"] = 2  # Cured
 
     def beacon_off_behaviour(self):
         self.state["visible"] = False
-        infected_neighbors = self.get_neighboring_agents(state_id=1)
+        infected_neighbors = self.get_neighbors(state_id=1)
         if len(infected_neighbors) > 0:
             self.state["id"] == 5  # Beacon on
 
     def beacon_on_behaviour(self):
         self.state["visible"] = False
         # Cure (M2 feature added)
-        infected_neighbors = self.get_neighboring_agents(state_id=1)
+        infected_neighbors = self.get_neighbors(state_id=1)
         for neighbor in infected_neighbors:
             if self.prob(self.prob_generate_anti_rumor):
                 neighbor.state["id"] = 2  # Cured
-            neutral_neighbors_infected = neighbor.get_neighboring_agents(state_id=0)
+            neutral_neighbors_infected = neighbor.get_neighbors(state_id=0)
             for neighbor in neutral_neighbors_infected:
                 if self.prob(self.prob_generate_anti_rumor):
                     neighbor.state["id"] = 3  # Vaccinated
-            infected_neighbors_infected = neighbor.get_neighboring_agents(state_id=1)
+            infected_neighbors_infected = neighbor.get_neighbors(state_id=1)
             for neighbor in infected_neighbors_infected:
                 if self.prob(self.prob_generate_anti_rumor):
                     neighbor.state["id"] = 2  # Cured
 
         # Vaccinate
-        neutral_neighbors = self.get_neighboring_agents(state_id=0)
+        neutral_neighbors = self.get_neighbors(state_id=0)
         for neighbor in neutral_neighbors:
             if self.prob(self.prob_cured_vaccinate_neutral):
                 neighbor.state["id"] = 3  # Vaccinated

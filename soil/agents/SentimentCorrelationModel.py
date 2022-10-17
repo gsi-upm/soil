@@ -41,25 +41,25 @@ class SentimentCorrelationModel(BaseAgent):
         sad_neighbors_1_time_step = []
         disgusted_neighbors_1_time_step = []
 
-        angry_neighbors = self.get_neighboring_agents(state_id=1)
+        angry_neighbors = self.get_neighbors(state_id=1)
         for x in angry_neighbors:
             if x.state["time_awareness"][0] > (self.env.now - 500):
                 angry_neighbors_1_time_step.append(x)
         num_neighbors_angry = len(angry_neighbors_1_time_step)
 
-        joyful_neighbors = self.get_neighboring_agents(state_id=2)
+        joyful_neighbors = self.get_neighbors(state_id=2)
         for x in joyful_neighbors:
             if x.state["time_awareness"][1] > (self.env.now - 500):
                 joyful_neighbors_1_time_step.append(x)
         num_neighbors_joyful = len(joyful_neighbors_1_time_step)
 
-        sad_neighbors = self.get_neighboring_agents(state_id=3)
+        sad_neighbors = self.get_neighbors(state_id=3)
         for x in sad_neighbors:
             if x.state["time_awareness"][2] > (self.env.now - 500):
                 sad_neighbors_1_time_step.append(x)
         num_neighbors_sad = len(sad_neighbors_1_time_step)
 
-        disgusted_neighbors = self.get_neighboring_agents(state_id=4)
+        disgusted_neighbors = self.get_neighbors(state_id=4)
         for x in disgusted_neighbors:
             if x.state["time_awareness"][3] > (self.env.now - 500):
                 disgusted_neighbors_1_time_step.append(x)

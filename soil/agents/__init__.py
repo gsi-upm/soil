@@ -243,223 +243,6 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
         return f"{self.__class__.__name__}({self.unique_id})"
 
 
-class NetworkAgent(BaseAgent):
-    def __init__(self, *args, topology, node_id, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        assert topology is not None
-        assert node_id is not None
-        self.G = topology
-        assert self.G
-        self.node_id = node_id
-
-    def count_neighboring_agents(self, state_id=None, **kwargs):
-        return len(self.get_neighboring_agents(state_id=state_id, **kwargs))
-
-    def get_neighboring_agents(self, **kwargs):
-        return list(self.iter_agents(limit_neighbors=True, **kwargs))
-
-    def add_edge(self, other):
-        assert self.node_id
-        assert other.node_id
-        assert self.node_id in self.G.nodes
-        assert other.node_id in self.G.nodes
-        self.topology.add_edge(self.node_id, other.node_id)
-
-    @property
-    def node(self):
-        return self.topology.nodes[self.node_id]
-
-    def iter_agents(self, unique_id=None, *, limit_neighbors=False, **kwargs):
-        unique_ids = None
-        if isinstance(unique_id, list):
-            unique_ids = set(unique_id)
-        elif unique_id is not None:
-            unique_ids = set(
-                [
-                    unique_id,
-                ]
-            )
-
-        if limit_neighbors:
-            neighbor_ids = set()
-            for node_id in self.G.neighbors(self.node_id):
-                if self.G.nodes[node_id].get("agent") is not None:
-                    neighbor_ids.add(node_id)
-            if unique_ids:
-                unique_ids = unique_ids & neighbor_ids
-            else:
-                unique_ids = neighbor_ids
-            if not unique_ids:
-                return
-            unique_ids = list(unique_ids)
-        yield from super().iter_agents(unique_id=unique_ids, **kwargs)
-
-    def subgraph(self, center=True, **kwargs):
-        include = [self] if center else []
-        G = self.G.subgraph(
-            n.node_id for n in list(self.get_agents(**kwargs) + include)
-        )
-        return G
-
-    def remove_node(self):
-        print(f"Removing node for {self.unique_id}: {self.node_id}")
-        self.G.remove_node(self.node_id)
-        self.node_id = None
-
-    def add_edge(self, other, edge_attr_dict=None, *edge_attrs):
-        if self.node_id not in self.G.nodes(data=False):
-            raise ValueError(
-                "{} not in list of existing agents in the network".format(
-                    self.unique_id
-                )
-            )
-        if other.node_id not in self.G.nodes(data=False):
-            raise ValueError(
-                "{} not in list of existing agents in the network".format(other)
-            )
-
-        self.G.add_edge(
-            self.node_id, other.node_id, edge_attr_dict=edge_attr_dict, *edge_attrs
-        )
-
-    def die(self, remove=True):
-        if not self.alive:
-            return
-        if remove:
-            self.remove_node()
-        return super().die()
-
-
-def state(name=None):
-    def decorator(func, name=None):
-        """
-        A state function should return either a state id, or a tuple (state_id, when)
-        The default value for state_id is the current state id.
-        The default value for when is the interval defined in the environment.
-        """
-        if inspect.isgeneratorfunction(func):
-            orig_func = func
-
-            @wraps(func)
-            def func(self):
-                while True:
-                    if not self._coroutine:
-                        self._coroutine = orig_func(self)
-                    try:
-                        n = next(self._coroutine)
-                        if n:
-                            return None, n
-                        return
-                    except StopIteration as ex:
-                        self._coroutine = None
-                        next_state = ex.value
-                        if next_state is not None:
-                            self._set_state(next_state)
-                        return next_state
-
-        func.id = name or func.__name__
-        func.is_default = False
-        return func
-
-    if callable(name):
-        return decorator(name)
-    else:
-        return partial(decorator, name=name)
-
-
-def default_state(func):
-    func.is_default = True
-    return func
-
-
-class MetaFSM(MetaAgent):
-    def __new__(mcls, name, bases, namespace):
-        states = {}
-        # Re-use states from inherited classes
-        default_state = None
-        for i in bases:
-            if isinstance(i, MetaFSM):
-                for state_id, state in i._states.items():
-                    if state.is_default:
-                        default_state = state
-                    states[state_id] = state
-
-        # Add new states
-        for attr, func in namespace.items():
-            if hasattr(func, "id"):
-                if func.is_default:
-                    default_state = func
-                states[func.id] = func
-
-        namespace.update(
-            {
-                "_default_state": default_state,
-                "_states": states,
-            }
-        )
-
-        return super(MetaFSM, mcls).__new__(
-            mcls=mcls, name=name, bases=bases, namespace=namespace
-        )
-
-
-class FSM(BaseAgent, metaclass=MetaFSM):
-    def __init__(self, **kwargs):
-        super(FSM, self).__init__(**kwargs)
-        if not hasattr(self, "state_id"):
-            if not self._default_state:
-                raise ValueError(
-                    "No default state specified for {}".format(self.unique_id)
-                )
-            self.state_id = self._default_state.id
-
-        self._coroutine = None
-        self._set_state(self.state_id)
-
-    def step(self):
-        self.debug(f"Agent {self.unique_id} @ state {self.state_id}")
-        default_interval = super().step()
-
-        next_state = self._states[self.state_id](self)
-
-        when = None
-        try:
-            next_state, *when = next_state
-            if not when:
-                when = None
-            elif len(when) == 1:
-                when = when[0]
-            else:
-                raise ValueError(
-                    "Too many values returned. Only state (and time) allowed"
-                )
-        except TypeError:
-            pass
-
-        if next_state is not None:
-            self._set_state(next_state)
-
-        return when or default_interval
-
-    def _set_state(self, state, when=None):
-        if hasattr(state, "id"):
-            state = state.id
-        if state not in self._states:
-            raise ValueError("{} is not a valid state".format(state))
-        self.state_id = state
-        if when is not None:
-            self.model.schedule.add(self, when=when)
-        return state
-
-    def die(self):
-        return self.dead, super().die()
-
-    @state
-    def dead(self):
-        return self.die()
-
-
 def prob(prob, random):
     """
     A true/False uniform distribution with a given probability.
@@ -525,7 +308,7 @@ def calculate_distribution(network_agents=None, agent_class=None):
     return network_agents
 
 
-def serialize_type(agent_class, known_modules=[], **kwargs):
+def _serialize_type(agent_class, known_modules=[], **kwargs):
     if isinstance(agent_class, str):
         return agent_class
     known_modules += ["soil.agents"]
@@ -534,50 +317,12 @@ def serialize_type(agent_class, known_modules=[], **kwargs):
     ]  # Get the name of the class
 
 
-def serialize_definition(network_agents, known_modules=[]):
-    """
-    When serializing an agent distribution, remove the thresholds, in order
-    to avoid cluttering the YAML definition file.
-    """
-    d = deepcopy(list(network_agents))
-    for v in d:
-        if "threshold" in v:
-            del v["threshold"]
-        v["agent_class"] = serialize_type(v["agent_class"], known_modules=known_modules)
-    return d
-
-
-def deserialize_type(agent_class, known_modules=[]):
+def _deserialize_type(agent_class, known_modules=[]):
     if not isinstance(agent_class, str):
         return agent_class
     known = known_modules + ["soil.agents", "soil.agents.custom"]
     agent_class = serialization.deserializer(agent_class, known_modules=known)
     return agent_class
-
-
-def deserialize_definition(ind, **kwargs):
-    d = deepcopy(ind)
-    for v in d:
-        v["agent_class"] = deserialize_type(v["agent_class"], **kwargs)
-    return d
-
-
-def _validate_states(states, topology):
-    """Validate states to avoid ignoring states during initialization"""
-    states = states or []
-    if isinstance(states, dict):
-        for x in states:
-            assert x in topology.nodes
-    else:
-        assert len(states) <= len(topology)
-    return states
-
-
-def _convert_agent_classs(ind, to_string=False, **kwargs):
-    """Convenience method to allow specifying agents by class or class name."""
-    if to_string:
-        return serialize_definition(ind, **kwargs)
-    return deserialize_definition(ind, **kwargs)
 
 
 class AgentView(Mapping, Set):
@@ -663,7 +408,7 @@ def filter_agents(
         state_id = tuple([state_id])
 
     if agent_class is not None:
-        agent_class = deserialize_type(agent_class)
+        agent_class = _deserialize_type(agent_class)
         try:
             agent_class = tuple(agent_class)
         except TypeError:
@@ -702,14 +447,6 @@ def from_config(
     """
     default = cfg or config.AgentConfig()
     if not isinstance(cfg, config.AgentConfig):
-        cfg = config.AgentConfig(**cfg)
-    return _agents_from_config(cfg, topology=topology, random=random)
-
-
-def _agents_from_config(
-    cfg: config.AgentConfig, topology: nx.Graph, random
-) -> List[Dict[str, Any]]:
-    if cfg and not isinstance(cfg, config.AgentConfig):
         cfg = config.AgentConfig(**cfg)
 
     agents = []
@@ -878,6 +615,8 @@ def _from_distro(
     return agents
 
 
+from .network_agents import *
+from .fsm import *
 from .BassModel import *
 from .BigMarketModel import *
 from .IndependentCascadeModel import *

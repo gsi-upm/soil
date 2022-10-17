@@ -160,31 +160,11 @@ class TestMain(TestCase):
 
     def test_serialize_agent_class(self):
         """A class from soil.agents should be serialized without the module part"""
-        ser = agents.serialize_type(CustomAgent)
+        ser = agents._serialize_type(CustomAgent)
         assert ser == "test_main.CustomAgent"
-        ser = agents.serialize_type(agents.BaseAgent)
+        ser = agents._serialize_type(agents.BaseAgent)
         assert ser == "BaseAgent"
         pickle.dumps(ser)
-
-    def test_deserialize_agent_distribution(self):
-        agent_distro = [
-            {"agent_class": "CounterModel", "weight": 1},
-            {"agent_class": "test_main.CustomAgent", "weight": 2},
-        ]
-        converted = agents.deserialize_definition(agent_distro)
-        assert converted[0]["agent_class"] == agents.CounterModel
-        assert converted[1]["agent_class"] == CustomAgent
-        pickle.dumps(converted)
-
-    def test_serialize_agent_distribution(self):
-        agent_distro = [
-            {"agent_class": agents.CounterModel, "weight": 1},
-            {"agent_class": CustomAgent, "weight": 2},
-        ]
-        converted = agents.serialize_definition(agent_distro)
-        assert converted[0]["agent_class"] == "CounterModel"
-        assert converted[1]["agent_class"] == "test_main.CustomAgent"
-        pickle.dumps(converted)
 
     def test_templates(self):
         """Loading a template should result in several configs"""

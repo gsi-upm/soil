@@ -89,7 +89,7 @@ class Patron(FSM, NetworkAgent):
         if self["pub"] != None:
             return self.sober_in_pub
         self.debug("I am looking for a pub")
-        group = list(self.get_neighboring_agents())
+        group = list(self.get_neighbors())
         for pub in self.model.available_pubs():
             self.debug("We're trying to get into {}: total: {}".format(pub, len(group)))
             if self.model.enter(pub, self, *group):

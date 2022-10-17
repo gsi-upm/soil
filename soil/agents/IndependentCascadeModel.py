@@ -36,7 +36,7 @@ class IndependentCascadeModel(BaseAgent):
 
         # Imitation effects
         if self.state["id"] == 0:
-            aware_neighbors = self.get_neighboring_agents(state_id=1)
+            aware_neighbors = self.get_neighbors(state_id=1)
             for x in aware_neighbors:
                 if x.state["time_awareness"] == (self.env.now - 1):
                     aware_neighbors_1_time_step.append(x)

@@ -20,7 +20,7 @@ class BassModel(FSM):
             self.sentimentCorrelation = 1
             return self.aware
         else:
-            aware_neighbors = self.get_neighboring_agents(state_id=self.aware.id)
+            aware_neighbors = self.get_neighbors(state_id=self.aware.id)
             num_neighbors_aware = len(aware_neighbors)
             if self.prob((self["imitation_prob"] * num_neighbors_aware)):
                 self.sentimentCorrelation = 1

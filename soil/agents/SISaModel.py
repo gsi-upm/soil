@@ -69,10 +69,10 @@ class SISaModel(FSM):
             return self.content
 
         # Infected
-        discontent_neighbors = self.count_neighboring_agents(state_id=self.discontent)
+        discontent_neighbors = self.count_neighbors(state_id=self.discontent)
         if self.prob(scontent_neighbors * self.neutral_discontent_infected_prob):
             return self.discontent
-        content_neighbors = self.count_neighboring_agents(state_id=self.content.id)
+        content_neighbors = self.count_neighbors(state_id=self.content.id)
         if self.prob(s * self.neutral_content_infected_prob):
             return self.content
         return self.neutral
@@ -84,7 +84,7 @@ class SISaModel(FSM):
             return self.neutral
 
         # Superinfected
-        content_neighbors = self.count_neighboring_agents(state_id=self.content.id)
+        content_neighbors = self.count_neighbors(state_id=self.content.id)
         if self.prob(s * self.discontent_content):
             return self.content
         return self.discontent
@@ -96,9 +96,7 @@ class SISaModel(FSM):
             return self.neutral
 
         # Superinfected
-        discontent_neighbors = self.count_neighboring_agents(
-            state_id=self.discontent.id
-        )
+        discontent_neighbors = self.count_neighbors(state_id=self.discontent.id)
         if self.prob(scontent_neighbors * self.content_discontent):
             self.discontent
         return self.content
