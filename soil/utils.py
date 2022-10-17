@@ -59,9 +59,7 @@ def try_backup(path, move=False):
     backup_dir = os.path.join(outdir, "backup")
     if not os.path.exists(backup_dir):
         os.makedirs(backup_dir)
-    newpath = os.path.join(
-        backup_dir, "{}@{}".format(os.path.basename(path), stamp)
-    )
+    newpath = os.path.join(backup_dir, "{}@{}".format(os.path.basename(path), stamp))
     if move:
         move(path, newpath)
     else:

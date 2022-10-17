@@ -21,7 +21,6 @@ class RabbitEnv(Environment):
         return self.count_agents(agent_class=Female)
 
 
-
 class Rabbit(FSM, NetworkAgent):
 
     sexual_maturity = 30
@@ -125,8 +124,6 @@ class Female(Rabbit):
 
 class RandomAccident(BaseAgent):
 
-    level = logging.INFO
-
     def step(self):
         rabbits_alive = self.model.G.number_of_nodes()
 
@@ -143,6 +140,7 @@ class RandomAccident(BaseAgent):
                 rabbits_alive -= 1
                 i.set_state(i.dead)
         self.debug('Rabbits alive: {}'.format(rabbits_alive))
+
 
 if __name__ == '__main__':
     from soil import easy

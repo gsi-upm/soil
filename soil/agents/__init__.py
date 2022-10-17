@@ -47,11 +47,29 @@ class MetaAgent(ABCMeta):
         }
 
         for attr, func in namespace.items():
-            if (
-                isinstance(func, types.FunctionType)
-                or isinstance(func, property)
-                or isinstance(func, classmethod)
-                or attr[0] == "_"
+            if attr == 'step' and inspect.isgeneratorfunction(func):
+                orig_func = func
+                new_nmspc['_MetaAgent__coroutine'] = None
+
+                @wraps(func)
+                def func(self):
+                    while True:
+                        if not self.__coroutine:
+                            self.__coroutine = orig_func(self)
+                        try:
+                            return next(self.__coroutine)
+                        except StopIteration as ex:
+                            self.__coroutine = None
+                            return ex.value
+
+                func.id = name or func.__name__
+                func.is_default = False
+                new_nmspc[attr] = func
+            elif (
+                    isinstance(func, types.FunctionType)
+                    or isinstance(func, property)
+                    or isinstance(func, classmethod)
+                    or attr[0] == "_"
             ):
                 new_nmspc[attr] = func
             elif attr == "defaults":

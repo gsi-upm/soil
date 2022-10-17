@@ -125,7 +125,7 @@ def get_dc_dfs(dc, trial_id=None):
         dfs[table_name] = dc.get_table_dataframe(table_name)
     if trial_id:
         for (name, df) in dfs.items():
-            df['trial_id'] = trial_id
+            df["trial_id"] = trial_id
     yield from dfs.items()
 
 
