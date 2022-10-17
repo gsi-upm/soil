@@ -202,7 +202,12 @@ class summary(Exporter):
         for (t, df) in self.get_dfs(env):
             if not len(df):
                 continue
-            msg = indent(str(df.describe()), '    ')
-            logger.info(dedent(f'''
+            msg = indent(str(df.describe()), "    ")
+            logger.info(
+                dedent(
+                    f"""
             Dataframe {t}:
-            ''') + msg)
+            """
+                )
+                + msg
+            )

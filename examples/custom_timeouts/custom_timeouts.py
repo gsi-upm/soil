@@ -2,34 +2,37 @@ from soil.agents import FSM, state, default_state
 
 
 class Fibonacci(FSM):
-    '''Agent that only executes in t_steps that are Fibonacci numbers'''
+    """Agent that only executes in t_steps that are Fibonacci numbers"""
 
-    defaults = {
-        'prev': 1
-    }
+    defaults = {"prev": 1}
 
     @default_state
     @state
     def counting(self):
-        self.log('Stopping at {}'.format(self.now))
-        prev, self['prev'] = self['prev'], max([self.now, self['prev']])
+        self.log("Stopping at {}".format(self.now))
+        prev, self["prev"] = self["prev"], max([self.now, self["prev"]])
         return None, self.env.timeout(prev)
 
 
 class Odds(FSM):
-    '''Agent that only executes in odd t_steps'''
+    """Agent that only executes in odd t_steps"""
+
     @default_state
     @state
     def odds(self):
-        self.log('Stopping at {}'.format(self.now))
-        return None, self.env.timeout(1+self.now%2)
+        self.log("Stopping at {}".format(self.now))
+        return None, self.env.timeout(1 + self.now % 2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from soil import Simulation
-    s = Simulation(network_agents=[{'ids': [0], 'agent_class': Fibonacci},
-                                   {'ids': [1], 'agent_class': Odds}],
-                   network_params={"generator": "complete_graph", "n": 2},
-                   max_time=100,
-                   )
+
+    s = Simulation(
+        network_agents=[
+            {"ids": [0], "agent_class": Fibonacci},
+            {"ids": [1], "agent_class": Odds},
+        ],
+        network_params={"generator": "complete_graph", "n": 2},
+        max_time=100,
+    )
     s.run(dry_run=True)

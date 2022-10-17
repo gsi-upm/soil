@@ -14,16 +14,18 @@ def network_portrayal(env):
     # The model ensures there is 0 or 1 agent per node
 
     portrayal = dict()
-    wealths = {node_id: data['agent'].wealth for (node_id, data) in env.G.nodes(data=True)}
+    wealths = {
+        node_id: data["agent"].wealth for (node_id, data) in env.G.nodes(data=True)
+    }
     portrayal["nodes"] = [
         {
             "id": node_id,
-            "size": 2*(wealth+1),
+            "size": 2 * (wealth + 1),
             "color": "#CC0000" if wealth == 0 else "#007959",
             # "color": "#CC0000",
             "label": f"{node_id}: {wealth}",
-        } for (node_id, wealth) in wealths.items()
-
+        }
+        for (node_id, wealth) in wealths.items()
     ]
 
     portrayal["edges"] = [
@@ -41,7 +43,7 @@ def gridPortrayal(agent):
     :param agent:  the agent in the simulation
     :return: the portrayal dictionary
     """
-    color = max(10, min(agent.wealth*10, 100))
+    color = max(10, min(agent.wealth * 10, 100))
     return {
         "Shape": "rect",
         "w": 1,
@@ -52,7 +54,7 @@ def gridPortrayal(agent):
         "Text": agent.unique_id,
         "x": agent.pos[0],
         "y": agent.pos[1],
-        "Color": f"rgba(31, 10, 255, 0.{color})"
+        "Color": f"rgba(31, 10, 255, 0.{color})",
     }
 
 
@@ -79,7 +81,7 @@ model_params = {
         10,
         1,
         description="Grid height",
-        ),
+    ),
     "width": UserSettableParameter(
         "slider",
         "width",
@@ -88,16 +90,20 @@ model_params = {
         10,
         1,
         description="Grid width",
-        ),
-    "agent_class": UserSettableParameter('choice', 'Agent class', value='MoneyAgent',
-                                         choices=['MoneyAgent', 'SocialMoneyAgent']),
+    ),
+    "agent_class": UserSettableParameter(
+        "choice",
+        "Agent class",
+        value="MoneyAgent",
+        choices=["MoneyAgent", "SocialMoneyAgent"],
+    ),
     "generator": graph_generator,
 }
 
 
-canvas_element = CanvasGrid(gridPortrayal,
-                            model_params["width"].value,
-                            model_params["height"].value, 500, 500)
+canvas_element = CanvasGrid(
+    gridPortrayal, model_params["width"].value, model_params["height"].value, 500, 500
+)
 
 
 server = ModularServer(

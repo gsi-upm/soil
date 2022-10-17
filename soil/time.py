@@ -174,7 +174,6 @@ class TimedActivation(BaseScheduler):
                 agent.alive = False
                 continue
 
-
             if not getattr(agent, "alive", True):
                 self.remove(agent)
                 continue

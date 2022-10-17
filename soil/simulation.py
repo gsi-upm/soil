@@ -226,7 +226,9 @@ Model stats:
             )
             model.step()
 
-        if model.schedule.time < until:  # Simulation ended (no more steps) before the expected time
+        if (
+            model.schedule.time < until
+        ):  # Simulation ended (no more steps) before the expected time
             model.schedule.time = until
         return model
 

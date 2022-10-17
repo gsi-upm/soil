@@ -146,7 +146,7 @@ class BaseEnvironment(Model):
         if unique_id is None:
             unique_id = self.next_id()
 
-        kwargs['unique_id'] = unique_id
+        kwargs["unique_id"] = unique_id
         a = self._agent_from_dict(kwargs)
 
         self.schedule.add(a)
@@ -169,7 +169,9 @@ class BaseEnvironment(Model):
         Advance one step in the simulation, and update the data collection and scheduler appropriately
         """
         super().step()
-        self.logger.info(f"--- Step: {self.schedule.steps:^5} - Time: {self.now:^5} ---")
+        self.logger.info(
+            f"--- Step: {self.schedule.steps:^5} - Time: {self.now:^5} ---"
+        )
         self.schedule.step()
         self.datacollector.collect(self)
 
@@ -236,7 +238,7 @@ class NetworkEnvironment(BaseEnvironment):
         node_id = agent.get("node_id", None)
         if node_id is None:
             node_id = network.find_unassigned(self.G, random=self.random)
-        self.G.nodes[node_id]['agent'] = None
+        self.G.nodes[node_id]["agent"] = None
         agent["node_id"] = node_id
         agent["unique_id"] = unique_id
         agent["topology"] = self.G
@@ -271,7 +273,7 @@ class NetworkEnvironment(BaseEnvironment):
                 G=self.G, shuffle=True, random=self.random
             )
             if node_id is None:
-                node_id =  f'node_for_{unique_id}'
+                node_id = f"node_for_{unique_id}"
 
         if node_id not in self.G.nodes:
             self.G.add_node(node_id)
@@ -280,17 +282,23 @@ class NetworkEnvironment(BaseEnvironment):
         self.G.nodes[node_id]["agent"] = None  # Reserve
 
         a = self.add_agent(
-            unique_id=unique_id, agent_class=agent_class, topology=self.G, node_id=node_id, **kwargs
+            unique_id=unique_id,
+            agent_class=agent_class,
+            topology=self.G,
+            node_id=node_id,
+            **kwargs,
         )
         a["visible"] = True
         return a
 
     def add_agent(self, *args, **kwargs):
         a = super().add_agent(*args, **kwargs)
-        if 'node_id' in a:
+        if "node_id" in a:
             if a.node_id == 24:
-                import pdb;pdb.set_trace()
-            assert self.G.nodes[a.node_id]['agent'] == a
+                import pdb
+
+                pdb.set_trace()
+            assert self.G.nodes[a.node_id]["agent"] == a
         return a
 
     def agent_for_node_id(self, node_id):

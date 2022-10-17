@@ -225,12 +225,14 @@ def easy(cfg, pdb=False, debug=False, **kwargs):
     except Exception as e:
         if os.environ.get("SOIL_POSTMORTEM"):
             from .debugging import post_mortem
+
             print(traceback.format_exc())
             post_mortem()
         ex = e
     finally:
         if ex:
             raise ex
+
 
 if __name__ == "__main__":
     main(do_run=True)

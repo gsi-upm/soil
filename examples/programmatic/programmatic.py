@@ -1,6 +1,6 @@
-'''
+"""
 Example of a fully programmatic simulation, without definition files.
-'''
+"""
 from soil import Simulation, agents
 from networkx import Graph
 import logging
@@ -14,21 +14,22 @@ def mygenerator():
 
 
 class MyAgent(agents.FSM):
-
     @agents.default_state
     @agents.state
     def neutral(self):
-        self.debug('I am running')
+        self.debug("I am running")
         if agents.prob(0.2):
-            self.info('This runs 2/10 times on average')
+            self.info("This runs 2/10 times on average")
 
 
-s = Simulation(name='Programmatic',
-               network_params={'generator': mygenerator},
-               num_trials=1,
-               max_time=100,
-               agent_class=MyAgent,
-               dry_run=True)
+s = Simulation(
+    name="Programmatic",
+    network_params={"generator": mygenerator},
+    num_trials=1,
+    max_time=100,
+    agent_class=MyAgent,
+    dry_run=True,
+)
 
 
 # By default, logging will only print WARNING logs (and above).

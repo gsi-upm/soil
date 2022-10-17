@@ -43,9 +43,9 @@ class MetaAgent(ABCMeta):
         }
 
         for attr, func in namespace.items():
-            if attr == 'step' and inspect.isgeneratorfunction(func):
+            if attr == "step" and inspect.isgeneratorfunction(func):
                 orig_func = func
-                new_nmspc['_MetaAgent__coroutine'] = None
+                new_nmspc["_MetaAgent__coroutine"] = None
 
                 @wraps(func)
                 def func(self):
@@ -62,10 +62,10 @@ class MetaAgent(ABCMeta):
                 func.is_default = False
                 new_nmspc[attr] = func
             elif (
-                    isinstance(func, types.FunctionType)
-                    or isinstance(func, property)
-                    or isinstance(func, classmethod)
-                    or attr[0] == "_"
+                isinstance(func, types.FunctionType)
+                or isinstance(func, property)
+                or isinstance(func, classmethod)
+                or attr[0] == "_"
             ):
                 new_nmspc[attr] = func
             elif attr == "defaults":
@@ -303,7 +303,7 @@ class NetworkAgent(BaseAgent):
         return G
 
     def remove_node(self):
-        print(f'Removing node for {self.unique_id}: {self.node_id}')
+        print(f"Removing node for {self.unique_id}: {self.node_id}")
         self.G.remove_node(self.node_id)
         self.node_id = None
 
