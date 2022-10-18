@@ -153,8 +153,6 @@ def main(
     if output is None:
         output = args.output
 
-
-
     debug = debug or args.debug
 
     if args.pdb or debug:
@@ -167,6 +165,10 @@ def main(
 
         if sim:
             logger.info("Loading simulation instance")
+            sim.dry_run = args.dry_run
+            sim.exporters = exporters
+            sim.parallel = parallel
+            sim.outdir = output
             sims = [sim, ]
         else:
             logger.info("Loading config file: {}".format(args.file))
@@ -231,7 +233,7 @@ def main(
 @contextmanager
 def easy(cfg, pdb=False, debug=False, **kwargs):
     try:
-        yield main(cfg, **kwargs)[0]
+        yield main(cfg, debug=debug, pdb=pdb, **kwargs)[0]
     except Exception as e:
         if os.environ.get("SOIL_POSTMORTEM"):
             from .debugging import post_mortem

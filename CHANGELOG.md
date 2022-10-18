@@ -3,7 +3,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3 UNRELEASED]
+## [0.30 UNRELEASED]
 ### Added
 * Simple debugging capabilities in `soil.debugging`, with a custom `pdb.Debugger` subclass that exposes commands to list agents and their status and set breakpoints on states (for FSM agents). Try it with `soil --debug <simulation file>`
 * Ability to run 
