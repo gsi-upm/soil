@@ -1,6 +1,6 @@
 from . import MetaAgent, BaseAgent
 
-from functools import partial
+from functools import partial, wraps
 import inspect
 
 
@@ -19,17 +19,26 @@ def state(name=None):
                 while True:
                     if not self._coroutine:
                         self._coroutine = orig_func(self)
+
                     try:
-                        n = next(self._coroutine)
+                        if self._last_except:
+                            n = self._coroutine.throw(self._last_except)
+                        else:
+                            n = self._coroutine.send(self._last_return)
                         if n:
                             return None, n
-                        return
+                        return n
                     except StopIteration as ex:
                         self._coroutine = None
                         next_state = ex.value
                         if next_state is not None:
                             self._set_state(next_state)
                         return next_state
+                    finally:
+                        self._last_return = None
+                        self._last_except = None
+
+
 
         func.id = name or func.__name__
         func.is_default = False

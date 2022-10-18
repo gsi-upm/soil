@@ -45,12 +45,16 @@ class When:
     def ready(self, agent):
         return self._time <= agent.model.schedule.time
 
+    def return_value(self, agent):
+        return None
+
 
 class Cond(When):
-    def __init__(self, func, delta=1):
+    def __init__(self, func, delta=1, return_func=lambda agent: None):
         self._func = func
         self._delta = delta
         self._checked = False
+        self._return_func = return_func
 
     def next(self, time):
         if self._checked:
@@ -63,6 +67,9 @@ class Cond(When):
     def ready(self, agent):
         self._checked = True
         return self._func(agent)
+
+    def return_value(self, agent):
+        return self._return_func(agent)
 
     def __eq__(self, other):
         return False
@@ -144,14 +151,21 @@ class TimedActivation(BaseScheduler):
 
         ix = 0
 
+        self.logger.debug(f"Queue length: {len(self._queue)}")
+
         while self._queue:
             (when, agent) = self._queue[0]
             if when > self.time:
                 break
             heappop(self._queue)
             if when.ready(agent):
-                to_process.append(agent)
+                try:
+                    agent._last_return = when.return_value(agent)
+                except Exception as ex:
+                    agent._last_except = ex
+
                 self._next.pop(agent.unique_id, None)
+                to_process.append(agent)
                 continue
 
             next_time = min(next_time, when.next(self.time))
@@ -175,10 +189,10 @@ class TimedActivation(BaseScheduler):
                 continue
 
             if not getattr(agent, "alive", True):
-                self.remove(agent)
                 continue
 
             value = returned.next(self.time)
+            agent._last_return = value
 
             if value < self.time:
                 raise Exception(

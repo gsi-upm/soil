@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import sqlite3
 import math
-import random
 import logging
 import inspect
 
@@ -19,7 +18,7 @@ import networkx as nx
 from mesa import Model
 from mesa.datacollection import DataCollector
 
-from . import agents as agentmod, config, serialization, utils, time, network
+from . import agents as agentmod, config, serialization, utils, time, network, events
 
 
 class BaseEnvironment(Model):
@@ -294,10 +293,6 @@ class NetworkEnvironment(BaseEnvironment):
     def add_agent(self, *args, **kwargs):
         a = super().add_agent(*args, **kwargs)
         if "node_id" in a:
-            if a.node_id == 24:
-                import pdb
-
-                pdb.set_trace()
             assert self.G.nodes[a.node_id]["agent"] == a
         return a
 
@@ -316,3 +311,14 @@ class NetworkEnvironment(BaseEnvironment):
 
 
 Environment = NetworkEnvironment
+
+
+class EventedEnvironment(Environment):
+    def broadcast(self, msg,  sender, expiration=None, ttl=None, **kwargs):
+        for agent in self.agents(**kwargs):
+            self.logger.info(f'Telling {repr(agent)}: {msg} ttl={ttl}')
+            try:
+                agent._inbox.append(events.Tell(payload=msg, sender=sender, expiration=expiration if ttl is None else self.now+ttl))
+            except AttributeError:
+                self.info(f'Agent {agent.unique_id} cannot receive events')
+

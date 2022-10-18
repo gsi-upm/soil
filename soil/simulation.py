@@ -47,7 +47,7 @@ class Simulation:
     max_time: float = float("inf")
     max_steps: int = -1
     interval: int = 1
-    num_trials: int = 3
+    num_trials: int = 1
     parallel: Optional[bool] = None
     exporters: Optional[List[str]] = field(default_factory=list)
     outdir: Optional[str] = None

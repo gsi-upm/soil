@@ -17,7 +17,7 @@ except NameError:
 from .agents import *
 from . import agents
 from .simulation import *
-from .environment import Environment
+from .environment import Environment, EventedEnvironment
 from . import serialization
 from .utils import logger
 from .time import *
@@ -34,6 +34,9 @@ def main(
     pdb=False,
     **kwargs,
 ):
+
+    if isinstance(cfg, Simulation):
+        sim = cfg
     import argparse
     from . import simulation
 
@@ -44,7 +47,7 @@ def main(
         "file",
         type=str,
         nargs="?",
-        default=cfg,
+        default=cfg if sim is None else '',
         help="Configuration file for the simulation (e.g., YAML or JSON)",
     )
     parser.add_argument(
@@ -150,7 +153,7 @@ def main(
     if output is None:
         output = args.output
 
-    logger.info("Loading config file: {}".format(args.file))
+
 
     debug = debug or args.debug
 
@@ -162,19 +165,27 @@ def main(
     try:
         exp_params = {}
 
-        if not os.path.exists(args.file):
-            logger.error("Please, input a valid file")
-            return
+        if sim:
+            logger.info("Loading simulation instance")
+            sims = [sim, ]
+        else:
+            logger.info("Loading config file: {}".format(args.file))
+            if not os.path.exists(args.file):
+                logger.error("Please, input a valid file")
+                return
 
-        for sim in simulation.iter_from_config(
-            args.file,
-            dry_run=args.dry_run,
-            exporters=exporters,
-            parallel=parallel,
-            outdir=output,
-            exporter_params=exp_params,
-            **kwargs,
-        ):
+            sims = list(simulation.iter_from_config(
+                args.file,
+                dry_run=args.dry_run,
+                exporters=exporters,
+                parallel=parallel,
+                outdir=output,
+                exporter_params=exp_params,
+                **kwargs,
+            ))
+
+        for sim in sims:
+
             if args.set:
                 for s in args.set:
                     k, v = s.split("=", 1)[:2]
@@ -219,7 +230,6 @@ def main(
 
 @contextmanager
 def easy(cfg, pdb=False, debug=False, **kwargs):
-    ex = None
     try:
         yield main(cfg, **kwargs)[0]
     except Exception as e:
@@ -228,10 +238,7 @@ def easy(cfg, pdb=False, debug=False, **kwargs):
 
             print(traceback.format_exc())
             post_mortem()
-        ex = e
-    finally:
-        if ex:
-            raise ex
+        raise
 
 
 if __name__ == "__main__":

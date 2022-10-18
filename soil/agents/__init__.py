@@ -40,23 +40,31 @@ class MetaAgent(ABCMeta):
 
         new_nmspc = {
             "_defaults": defaults,
+            "_last_return": None,
+            "_last_except": None,
         }
 
         for attr, func in namespace.items():
             if attr == "step" and inspect.isgeneratorfunction(func):
                 orig_func = func
-                new_nmspc["_MetaAgent__coroutine"] = None
+                new_nmspc["_coroutine"] = None
 
                 @wraps(func)
                 def func(self):
                     while True:
-                        if not self.__coroutine:
-                            self.__coroutine = orig_func(self)
+                        if not self._coroutine:
+                            self._coroutine = orig_func(self)
                         try:
-                            return next(self.__coroutine)
+                            if self._last_except:
+                                return self._coroutine.throw(self._last_except)
+                            else:
+                                return self._coroutine.send(self._last_return)
                         except StopIteration as ex:
-                            self.__coroutine = None
+                            self._coroutine = None
                             return ex.value
+                        finally:
+                            self._last_return = None
+                            self._last_except = None
 
                 func.id = name or func.__name__
                 func.is_default = False
@@ -190,6 +198,10 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
     def die(self):
         self.info(f"agent dying")
         self.alive = False
+        try:
+            self.model.schedule.remove(self)
+        except KeyError:
+            pass
         return time.NEVER
 
     def step(self):
@@ -617,6 +629,7 @@ def _from_distro(
 
 from .network_agents import *
 from .fsm import *
+from .evented import *
 from .BassModel import *
 from .BigMarketModel import *
 from .IndependentCascadeModel import *

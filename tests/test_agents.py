@@ -33,18 +33,20 @@ class TestMain(TestCase):
         The step function of an agent could be a generator. In that case, the state of the
         agent will be resumed after every call to step.
         '''
+        a = 0
         class Gen(agents.BaseAgent):
             def step(self):
-                a = 0
+                nonlocal a
                 for i in range(5):
-                    yield a
+                    yield
                     a += 1
         e = environment.Environment()
         g = Gen(model=e, unique_id=e.next_id())
+        e.schedule.add(g)
 
         for i in range(5):
-            t = g.step()
-            assert t == i
+            e.step()
+            assert a == i
 
     def test_state_decorator(self):
         class MyAgent(agents.FSM):
@@ -53,6 +55,12 @@ class TestMain(TestCase):
             @agents.state('original')
             def root(self):
                 self.run += 1
+                return self.other
+
+            @agents.state
+            def other(self):
+                self.run += 1
+
         e = environment.Environment()
         a = MyAgent(model=e, unique_id=e.next_id())
         a.step()

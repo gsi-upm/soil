@@ -30,9 +30,9 @@ def wrapcmd(func):
 class Debug(pdb.Pdb):
     def __init__(self, *args, skip_soil=False, **kwargs):
         skip = kwargs.get("skip", [])
-        skip.append("soil")
-        skip.append("contextlib")
         if skip_soil:
+            skip.append("soil")
+            skip.append("contextlib")
             skip.append("soil.*")
             skip.append("mesa.*")
         super(Debug, self).__init__(*args, skip=skip, **kwargs)
