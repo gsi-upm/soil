@@ -221,8 +221,6 @@ def deserialize(type_, value=None, globs=None, **kwargs):
 
 def deserialize_all(names, *args, known_modules=KNOWN_MODULES, **kwargs):
     """Return the list of deserialized objects"""
-    # TODO: remove
-    print("SERIALIZATION", kwargs)
     objects = []
     for name in names:
         mod = deserialize(name, known_modules=known_modules)

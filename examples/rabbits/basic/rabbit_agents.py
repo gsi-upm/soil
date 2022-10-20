@@ -133,7 +133,7 @@ class RandomAccident(BaseAgent):
             math.log10(max(1, rabbits_alive))
         )
         self.debug("Killing some rabbits with prob={}!".format(prob_death))
-        for i in self.iter_agents(agent_class=Rabbit):
+        for i in self.get_agents(agent_class=Rabbit):
             if i.state_id == i.dead.id:
                 continue
             if self.prob(prob_death):

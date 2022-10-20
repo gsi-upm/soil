@@ -66,7 +66,7 @@ class Simulation:
         if ignored:
             d.setdefault("extra", {}).update(ignored)
         if ignored:
-            print(f'Warning: Ignoring these parameters (added to "extra"): { ignored }')
+            logger.warning(f'Ignoring these parameters (added to "extra"): { ignored }')
         d.update(kwargs)
 
         return cls(**d)

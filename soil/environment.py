@@ -310,17 +310,20 @@ class NetworkEnvironment(BaseEnvironment):
             self.add_agent(node_id=node_id, agent_class=a_class, **agent_params)
 
 
-Environment = NetworkEnvironment
-
-
-class EventedEnvironment(Environment):
-    def broadcast(self, msg,  sender, expiration=None, ttl=None, **kwargs):
+class EventedEnvironment(BaseEnvironment):
+    def broadcast(self, msg,  sender=None, expiration=None, ttl=None, **kwargs):
         for agent in self.agents(**kwargs):
+            if agent == sender:
+                continue
             self.logger.info(f'Telling {repr(agent)}: {msg} ttl={ttl}')
             try:
                 inbox = agent._inbox
             except AttributeError:
                 self.logger.info(f'Agent {agent.unique_id} cannot receive events because it does not have an inbox')
                 continue
+            # Allow for AttributeError exceptions in this part of the code
             inbox.append(events.Tell(payload=msg, sender=sender, expiration=expiration if ttl is None else self.now+ttl))
 
+
+class Environment(NetworkEnvironment, EventedEnvironment):
+    '''Default environment class, has both network and event capabilities'''

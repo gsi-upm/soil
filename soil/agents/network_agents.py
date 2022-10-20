@@ -54,7 +54,7 @@ class NetworkAgent(BaseAgent):
         return G
 
     def remove_node(self):
-        print(f"Removing node for {self.unique_id}: {self.node_id}")
+        self.debug(f"Removing node for {self.unique_id}: {self.node_id}")
         self.G.remove_node(self.node_id)
         self.node_id = None
 
@@ -80,3 +80,5 @@ class NetworkAgent(BaseAgent):
         if remove:
             self.remove_node()
         return super().die()
+
+NetAgent = NetworkAgent

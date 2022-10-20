@@ -30,8 +30,9 @@ class TestMain(TestCase):
 
         times_started = []
         times_awakened = []
+        times_asleep = []
         times = []
-        done = 0
+        done = []
 
         class CondAgent(agents.BaseAgent):
 
@@ -39,36 +40,38 @@ class TestMain(TestCase):
                 nonlocal done
                 times_started.append(self.now)
                 while True:
-                    yield time.Cond(lambda agent: agent.model.schedule.time >= 10)
+                    times_asleep.append(self.now)
+                    yield time.Cond(lambda agent: agent.now >= 10,
+                                    delta=2)
                     times_awakened.append(self.now)
                     if self.now >= 10:
                         break
-                done += 1
+                done.append(self.now)
 
         env = environment.Environment(agents=[{'agent_class': CondAgent}])
 
 
         while env.schedule.time < 11:
-            env.step()
             times.append(env.now)
+            env.step()
+
         assert env.schedule.time == 11
         assert times_started == [0]
         assert times_awakened == [10]
-        assert done == 1
+        assert done == [10]
         # The first time will produce the Cond.
-        # Since there are no other agents, time will not advance, but the number
-        # of steps will.
-        assert env.schedule.steps == 12
-        assert len(times) == 12
+        assert env.schedule.steps == 6
+        assert len(times) == 6
 
-        while env.schedule.time < 12:
-            env.step()
+        while env.schedule.time < 13:
             times.append(env.now)
+            env.step()
 
-        assert env.schedule.time == 12
+        assert times == [0, 2, 4, 6, 8, 10, 11]
+        assert env.schedule.time == 13
         assert times_started == [0, 11]
-        assert times_awakened == [10, 11]
-        assert done == 2
+        assert times_awakened == [10]
+        assert done == [10]
         # Once more to yield the cond, another one to continue
-        assert env.schedule.steps == 14
-        assert len(times) == 14
+        assert env.schedule.steps == 7
+        assert len(times) == 7

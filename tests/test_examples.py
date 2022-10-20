@@ -44,6 +44,8 @@ def add_example_tests():
     for cfg, path in serialization.load_files(
         join(EXAMPLES, "**", "*.yml"),
     ):
+        if 'soil_output' in path:
+            continue
         p = make_example_test(path=path, cfg=config.Config.from_raw(cfg))
         fname = os.path.basename(path)
         p.__name__ = "test_example_file_%s" % fname

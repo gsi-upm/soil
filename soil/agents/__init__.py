@@ -20,12 +20,6 @@ from typing import Dict, List
 from .. import serialization, utils, time, config
 
 
-def as_node(agent):
-    if isinstance(agent, BaseAgent):
-        return agent.id
-    return agent
-
-
 IGNORED_FIELDS = ("model", "logger")
 
 
@@ -97,10 +91,6 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
     """
 
     def __init__(self, unique_id, model, name=None, interval=None, **kwargs):
-        # Check for REQUIRED arguments
-        # Initialize agent parameters
-        if isinstance(unique_id, MesaAgent):
-            raise Exception()
         assert isinstance(unique_id, int)
         super().__init__(unique_id=unique_id, model=model)
 
@@ -207,7 +197,8 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
     def step(self):
         if not self.alive:
             raise time.DeadAgent(self.unique_id)
-        return super().step() or time.Delta(self.interval)
+        super().step() 
+        return time.Delta(self.interval)
 
     def log(self, message, *args, level=logging.INFO, **kwargs):
         if not self.logger.isEnabledFor(level):
@@ -268,6 +259,7 @@ def prob(prob, random):
     """
     r = random.random()
     return r < prob
+
 
 
 def calculate_distribution(network_agents=None, agent_class=None):
@@ -414,7 +406,7 @@ def filter_agents(
     if ids:
         f = (agents[aid] for aid in ids if aid in agents)
     else:
-        f = (a for a in agents.values())
+        f = agents.values()
 
     if state_id is not None and not isinstance(state_id, (tuple, list)):
         state_id = tuple([state_id])
@@ -637,6 +629,10 @@ from .ModelM2 import *
 from .SentimentCorrelationModel import *
 from .SISaModel import *
 from .CounterModel import *
+
+
+class Agent(NetworkAgent, EventedAgent):
+    '''Default agent class, has both network and event capabilities'''
 
 try:
     import scipy

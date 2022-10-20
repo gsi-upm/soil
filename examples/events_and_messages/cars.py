@@ -127,7 +127,8 @@ class Driver(Evented, FSM):
                 )
 
             self.check_passengers()
-            self.check_messages()  # This will call on_receive behind the scenes, and the agent's status will be updated
+            # This will call on_receive behind the scenes, and the agent's status will be updated
+            self.check_messages()  
             yield Delta(30)  # Wait at least 30 seconds before checking again
 
         try:
@@ -204,6 +205,8 @@ class Passenger(Evented, FSM):
         while not self.journey:
             self.info(f"Passenger at: { self.pos }. Checking for responses.")
             try:
+                # This will call check_messages behind the scenes, and the agent's status will be updated
+                # If you want to avoid that, you can call it with: check=False
                 yield self.received(expiration=expiration)
             except events.TimedOut:
                 self.info(f"Passenger at: { self.pos }. Asking for journey.")
@@ -211,7 +214,6 @@ class Passenger(Evented, FSM):
                     journey, ttl=timeout, sender=self, agent_class=Driver
                 )
                 expiration = self.now + timeout
-            self.check_messages()
         return self.driving_home
 
     @state
@@ -220,7 +222,11 @@ class Passenger(Evented, FSM):
             self.pos[0] != self.journey.destination[0]
             or self.pos[1] != self.journey.destination[1]
         ):
-            yield self.received(timeout=60)
+            try:
+                yield self.received(timeout=60)
+            except events.TimedOut:
+                pass
+
         self.info("Got home safe!")
         self.die()
 

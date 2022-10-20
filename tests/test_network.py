@@ -72,7 +72,7 @@ class TestNetwork(TestCase):
         assert len(env.agents) == 2
         assert env.agents[1].count_agents(state_id="normal") == 2
         assert env.agents[1].count_agents(state_id="normal", limit_neighbors=True) == 1
-        assert env.agents[0].neighbors == 1
+        assert env.agents[0].count_neighbors() == 1
 
     def test_custom_agent_neighbors(self):
         """Allow for search of neighbors with a certain state_id"""
@@ -90,7 +90,7 @@ class TestNetwork(TestCase):
         env = s.run_simulation(dry_run=True)[0]
         assert env.agents[1].count_agents(state_id="normal") == 2
         assert env.agents[1].count_agents(state_id="normal", limit_neighbors=True) == 1
-        assert env.agents[0].neighbors == 1
+        assert env.agents[0].count_neighbors() == 1
 
     def test_subgraph(self):
         """An agent should be able to subgraph the global topology"""

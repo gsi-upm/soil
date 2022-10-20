@@ -59,7 +59,6 @@ def find_unassigned(G, shuffle=False, random=random):
 
     If node_id is None, a node without an agent_id will be found.
     """
-    # TODO: test
     candidates = list(G.nodes(data=True))
     if shuffle:
         random.shuffle(candidates)

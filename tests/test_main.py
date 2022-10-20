@@ -172,25 +172,21 @@ class TestMain(TestCase):
         assert len(configs) > 0
 
     def test_until(self):
-        config = {
-            "name": "until_sim",
-            "model_params": {
-                "network_params": {},
-                "agents": {
-                    "fixed": [
-                        {
-                            "agent_class": agents.BaseAgent,
-                        }
-                    ]
-                },
-            },
-            "max_time": 2,
-            "num_trials": 50,
-        }
-        s = simulation.from_config(config)
+        n_runs = 0
+
+        class CheckRun(agents.BaseAgent):
+            def step(self):
+                nonlocal n_runs
+                n_runs += 1
+                return super().step()
+
+        n_trials = 50
+        max_time = 2
+        s = simulation.Simulation(model_params={'agents': [{'agent_class': CheckRun}]},
+                                  num_trials=n_trials, max_time=max_time)
         runs = list(s.run_simulation(dry_run=True))
         over = list(x.now for x in runs if x.now > 2)
-        assert len(runs) == config["num_trials"]
+        assert len(runs) == n_trials
         assert len(over) == 0
 
     def test_fsm(self):
