@@ -103,7 +103,19 @@ class TestAgents(TestCase):
         An agent should be able to ask another agent, and wait for a response.
         '''
 
-        # #Results depend on ordering (agents are shuffled), so force the first agent
+        # There are two agents, they try to send pings
+        # This is arguably a very contrived example. In practice, the or
+        # There should be a delay of one step between agent 0 and 1
+        # On the first step:
+        #   Agent 0 sends a PING, but blocks before a PONG
+        #   Agent 1 detects the PING, responds with a PONG, and blocks after its own PING
+        # After that step, every agent can both receive (there are pending messages) and send.
+        # In each step, for each agent, one message is sent, and another one is received
+        # (although not necessarily in that order).
+
+        # Results depend on ordering (agents are normally shuffled)
+        # so we force the timedactivation not to be shuffled
+
         pings = []
         pongs = []
         responses = []
@@ -114,46 +126,37 @@ class TestAgents(TestCase):
                 target = self.model.agents[target_id]
                 print('starting')
                 while True:
-                    print('Pings: ', pings, responses or not pings, self.model.schedule._queue)
-                    if pongs or not pings:
+                    if pongs or not pings:  #First agent, or anyone after that
                         pings.append(self.now)
                         response = yield target.ask('PING')
                         responses.append(response)
                     else:
                         print('NOT sending ping')
                     print('Checking msgs')
-                    # Do not advance until we have received a message.
-                    # warning: it will wait at least until the next time in the simulation
-                    yield self.received(check=True)
+                    # Do not block if we have already received a PING
+                    if not self.check_messages():
+                      yield self.received()
                 print('done')
 
             def on_receive(self, msg, sender=None):
                 if msg == 'PING':
                     pongs.append(self.now)
                     return 'PONG'
+                raise Exception("This should never happen")
 
-        e = environment.EventedEnvironment()
+        e = environment.EventedEnvironment(schedule_class=stime.OrderedTimedActivation)
         for i in range(2):
             e.add_agent(agent_class=Ping)
         assert e.now == 0
 
-        # There should be a delay of one step between agent 0 and 1
-        # On the first step:
-        #   Agent 0 sends a PING, but blocks before a PONG
-        #   Agent 1 sends a PONG, and blocks after its PING
-        # After that step, every agent can both receive (there are pending messages) and then send.
 
-        e.step()
-        assert e.now == 1
-        assert pings == [0]
-        assert pongs == []
-
-        e.step()
-        assert e.now == 2
-        assert pings == [0, 1]
-        assert pongs == [1]
-
-        e.step()
-        assert e.now == 3
-        assert pings == [0, 1, 2]
-        assert pongs == [1, 2]
+        for i in range(5):
+            e.step()
+            time = i + 1
+            assert e.now == time
+            assert len(pings) == 2 * time
+            assert len(pongs) == (2 * time) - 1
+            # Every step between 0 and t appears twice
+            assert sum(pings) == sum(range(time)) * 2
+            # It is the same as pings, without the leading 0
+            assert sum(pongs) == sum(range(time)) * 2

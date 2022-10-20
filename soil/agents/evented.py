@@ -52,11 +52,11 @@ class EventedAgent(BaseAgent):
     def tell(self, msg, sender=None):
         self._inbox.append(Tell(timestamp=self.now, payload=msg, sender=sender))
 
-    def ask(self, msg, timeout=None):
-        ask = Ask(timestamp=self.now, payload=msg)
+    def ask(self, msg, timeout=None, **kwargs):
+        ask = Ask(timestamp=self.now, payload=msg, sender=self)
         self._inbox.append(ask)
         expiration = float('inf') if timeout is None else self.now + timeout
-        return ask.replied(expiration=expiration)
+        return ask.replied(expiration=expiration, **kwargs)
 
     def check_messages(self):
         changed = False

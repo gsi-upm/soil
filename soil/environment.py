@@ -38,7 +38,7 @@ class BaseEnvironment(Model):
         self,
         id="unnamed_env",
         seed="default",
-        schedule=None,
+        schedule_class=time.TimedActivation,
         dir_path=None,
         interval=1,
         agent_class=None,
@@ -58,9 +58,11 @@ class BaseEnvironment(Model):
 
         self.dir_path = dir_path or os.getcwd()
 
-        if schedule is None:
-            schedule = time.TimedActivation(self)
-        self.schedule = schedule
+        if schedule_class is None:
+            schedule_class = time.TimedActivation
+        else:
+            schedule_class = serialization.deserialize(schedule_class)
+        self.schedule = schedule_class(self)
 
         self.agent_class = agent_class or agentmod.BaseAgent
 

@@ -192,3 +192,13 @@ class TimedActivation(BaseScheduler):
         self.logger.debug(f"Updating time step: {self.time} -> {next_time}")
 
         self.time = next_time
+
+
+class ShuffledTimedActivation(TimedActivation):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, shuffle=True, **kwargs)
+
+
+class OrderedTimedActivation(TimedActivation):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, shuffle=False, **kwargs)
