@@ -232,7 +232,10 @@ class Passenger(Evented, FSM):
 
 
 simulation = Simulation(
-    name="RideHailing", model_class=City, model_params={"n_passengers": 2}
+    name="RideHailing",
+    model_class=City,
+    model_params={"n_passengers": 2},
+    seed="carsSeed",
 )
 
 if __name__ == "__main__":
