@@ -258,9 +258,7 @@ class TerroristNetworkModel(TerroristSpreadModel):
             )
             neighbours = set(
                 agent.id
-                for agent in self.get_neighbors(
-                    agent_class=TerroristNetworkModel
-                )
+                for agent in self.get_neighbors(agent_class=TerroristNetworkModel)
             )
             search = (close_ups | step_neighbours) - neighbours
             for agent in self.get_agents(search):

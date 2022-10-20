@@ -105,15 +105,16 @@ class TimedActivation(BaseScheduler):
             when = self.time
         elif isinstance(when, When):
             when = when.abs()
-            
+
         self._schedule(agent, None, when)
         super().add(agent)
 
     def _schedule(self, agent, condition=None, when=None):
         if condition:
             if not when:
-                when, condition = condition.schedule_next(when or self.time,
-                                                          self.step_interval)
+                when, condition = condition.schedule_next(
+                    when or self.time, self.step_interval
+                )
         else:
             if when is None:
                 when = self.time + self.step_interval
@@ -124,7 +125,6 @@ class TimedActivation(BaseScheduler):
             key = (when, agent.unique_id, condition)
         self._next[agent.unique_id] = key
         heappush(self._queue, (key, agent))
-
 
     def step(self) -> None:
         """
@@ -170,7 +170,9 @@ class TimedActivation(BaseScheduler):
                 continue
 
             if returned:
-                next_check = returned.schedule_next(self.time, self.step_interval, first=True)
+                next_check = returned.schedule_next(
+                    self.time, self.step_interval, first=True
+                )
                 self._schedule(agent, when=next_check[0], condition=next_check[1])
             else:
                 next_check = (self.time + self.step_interval, None)

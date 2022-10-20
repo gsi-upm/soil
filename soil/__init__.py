@@ -47,7 +47,7 @@ def main(
         "file",
         type=str,
         nargs="?",
-        default=cfg if sim is None else '',
+        default=cfg if sim is None else "",
         help="Configuration file for the simulation (e.g., YAML or JSON)",
     )
     parser.add_argument(
@@ -169,22 +169,26 @@ def main(
             sim.exporters = exporters
             sim.parallel = parallel
             sim.outdir = output
-            sims = [sim, ]
+            sims = [
+                sim,
+            ]
         else:
             logger.info("Loading config file: {}".format(args.file))
             if not os.path.exists(args.file):
                 logger.error("Please, input a valid file")
                 return
 
-            sims = list(simulation.iter_from_config(
-                args.file,
-                dry_run=args.dry_run,
-                exporters=exporters,
-                parallel=parallel,
-                outdir=output,
-                exporter_params=exp_params,
-                **kwargs,
-            ))
+            sims = list(
+                simulation.iter_from_config(
+                    args.file,
+                    dry_run=args.dry_run,
+                    exporters=exporters,
+                    parallel=parallel,
+                    outdir=output,
+                    exporter_params=exp_params,
+                    **kwargs,
+                )
+            )
 
         for sim in sims:
 

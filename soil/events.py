@@ -3,8 +3,10 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import uuid4
 
+
 class Event:
     pass
+
 
 @dataclass
 class Message:
@@ -16,6 +18,7 @@ class Message:
 
     def expired(self, when):
         return self.expiration is not None and self.expiration < when
+
 
 class Reply(Message):
     source: Message

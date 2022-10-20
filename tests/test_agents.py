@@ -14,31 +14,32 @@ class Dead(agents.FSM):
 
 class TestAgents(TestCase):
     def test_die_returns_infinity(self):
-        '''The last step of a dead agent should return time.INFINITY'''
+        """The last step of a dead agent should return time.INFINITY"""
         d = Dead(unique_id=0, model=environment.Environment())
         ret = d.step()
         assert ret == stime.NEVER
 
     def test_die_raises_exception(self):
-        '''A dead agent should raise an exception if it is stepped after death'''
+        """A dead agent should raise an exception if it is stepped after death"""
         d = Dead(unique_id=0, model=environment.Environment())
         d.step()
         with pytest.raises(stime.DeadAgent):
             d.step()
 
-
     def test_agent_generator(self):
-        '''
+        """
         The step function of an agent could be a generator. In that case, the state of the
         agent will be resumed after every call to step.
-        '''
+        """
         a = 0
+
         class Gen(agents.BaseAgent):
             def step(self):
                 nonlocal a
                 for i in range(5):
                     yield
                     a += 1
+
         e = environment.Environment()
         g = Gen(model=e, unique_id=e.next_id())
         e.schedule.add(g)
@@ -50,8 +51,9 @@ class TestAgents(TestCase):
     def test_state_decorator(self):
         class MyAgent(agents.FSM):
             run = 0
+
             @agents.default_state
-            @agents.state('original')
+            @agents.state("original")
             def root(self):
                 self.run += 1
                 return self.other
@@ -66,19 +68,19 @@ class TestAgents(TestCase):
         assert a.run == 1
         a.step()
 
-
     def test_broadcast(self):
-        '''
+        """
         An agent should be able to broadcast messages to every other agent, AND each receiver should be able
         to process it
-        '''
+        """
+
         class BCast(agents.Evented):
             pings_received = 0
 
             def step(self):
                 print(self.model.broadcast)
                 try:
-                    self.model.broadcast('PING')
+                    self.model.broadcast("PING")
                 except Exception as ex:
                     print(ex)
                 while True:
@@ -87,7 +89,7 @@ class TestAgents(TestCase):
 
             def on_receive(self, msg, sender=None):
                 self.pings_received += 1
-        
+
         e = environment.EventedEnvironment()
 
         for i in range(10):
@@ -96,12 +98,12 @@ class TestAgents(TestCase):
         pings_received = lambda: [a.pings_received for a in e.agents]
         assert sorted(pings_received()) == list(range(1, 11))
         e.step()
-        assert all(x==10 for x in pings_received())
+        assert all(x == 10 for x in pings_received())
 
     def test_ask_messages(self):
-        '''
+        """
         An agent should be able to ask another agent, and wait for a response.
-        '''
+        """
 
         # There are two agents, they try to send pings
         # This is arguably a very contrived example. In practice, the or
@@ -124,31 +126,30 @@ class TestAgents(TestCase):
             def step(self):
                 target_id = (self.unique_id + 1) % self.count_agents()
                 target = self.model.agents[target_id]
-                print('starting')
+                print("starting")
                 while True:
-                    if pongs or not pings:  #First agent, or anyone after that
+                    if pongs or not pings:  # First agent, or anyone after that
                         pings.append(self.now)
-                        response = yield target.ask('PING')
+                        response = yield target.ask("PING")
                         responses.append(response)
                     else:
-                        print('NOT sending ping')
-                    print('Checking msgs')
+                        print("NOT sending ping")
+                    print("Checking msgs")
                     # Do not block if we have already received a PING
                     if not self.check_messages():
-                      yield self.received()
-                print('done')
+                        yield self.received()
+                print("done")
 
             def on_receive(self, msg, sender=None):
-                if msg == 'PING':
+                if msg == "PING":
                     pongs.append(self.now)
-                    return 'PONG'
+                    return "PONG"
                 raise Exception("This should never happen")
 
         e = environment.EventedEnvironment(schedule_class=stime.OrderedTimedActivation)
         for i in range(2):
             e.add_agent(agent_class=Ping)
         assert e.now == 0
-
 
         for i in range(5):
             e.step()

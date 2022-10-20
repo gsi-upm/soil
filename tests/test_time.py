@@ -2,11 +2,12 @@ from unittest import TestCase
 
 from soil import time, agents, environment
 
+
 class TestMain(TestCase):
     def test_cond(self):
-        '''
+        """
         A condition should match a When if the concition is True
-        '''
+        """
 
         t = time.Cond(lambda t: True)
         f = time.Cond(lambda t: False)
@@ -16,17 +17,16 @@ class TestMain(TestCase):
             assert w is not f
 
     def test_cond(self):
-        '''
+        """
         Comparing a Cond to a Delta should always return False
-        '''
+        """
 
         c = time.Cond(lambda t: False)
         d = time.Delta(1)
         assert c is not d
 
     def test_cond_env(self):
-        '''
-        '''
+        """ """
 
         times_started = []
         times_awakened = []
@@ -35,21 +35,18 @@ class TestMain(TestCase):
         done = []
 
         class CondAgent(agents.BaseAgent):
-
             def step(self):
                 nonlocal done
                 times_started.append(self.now)
                 while True:
                     times_asleep.append(self.now)
-                    yield time.Cond(lambda agent: agent.now >= 10,
-                                    delta=2)
+                    yield time.Cond(lambda agent: agent.now >= 10, delta=2)
                     times_awakened.append(self.now)
                     if self.now >= 10:
                         break
                 done.append(self.now)
 
-        env = environment.Environment(agents=[{'agent_class': CondAgent}])
-
+        env = environment.Environment(agents=[{"agent_class": CondAgent}])
 
         while env.schedule.time < 11:
             times.append(env.now)

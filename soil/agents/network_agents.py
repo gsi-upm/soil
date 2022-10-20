@@ -81,4 +81,5 @@ class NetworkAgent(BaseAgent):
             self.remove_node()
         return super().die()
 
+
 NetAgent = NetworkAgent

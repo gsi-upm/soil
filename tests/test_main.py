@@ -182,8 +182,11 @@ class TestMain(TestCase):
 
         n_trials = 50
         max_time = 2
-        s = simulation.Simulation(model_params={'agents': [{'agent_class': CheckRun}]},
-                                  num_trials=n_trials, max_time=max_time)
+        s = simulation.Simulation(
+            model_params={"agents": [{"agent_class": CheckRun}]},
+            num_trials=n_trials,
+            max_time=max_time,
+        )
         runs = list(s.run_simulation(dry_run=True))
         over = list(x.now for x in runs if x.now > 2)
         assert len(runs) == n_trials

@@ -197,7 +197,7 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
     def step(self):
         if not self.alive:
             raise time.DeadAgent(self.unique_id)
-        super().step() 
+        super().step()
         return time.Delta(self.interval)
 
     def log(self, message, *args, level=logging.INFO, **kwargs):
@@ -259,7 +259,6 @@ def prob(prob, random):
     """
     r = random.random()
     return r < prob
-
 
 
 def calculate_distribution(network_agents=None, agent_class=None):
@@ -632,7 +631,8 @@ from .CounterModel import *
 
 
 class Agent(NetworkAgent, EventedAgent):
-    '''Default agent class, has both network and event capabilities'''
+    """Default agent class, has both network and event capabilities"""
+
 
 try:
     import scipy

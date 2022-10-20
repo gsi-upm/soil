@@ -38,8 +38,6 @@ def state(name=None):
                         self._last_return = None
                         self._last_except = None
 
-
-
         func.id = name or func.__name__
         func.is_default = False
         return func

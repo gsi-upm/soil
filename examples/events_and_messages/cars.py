@@ -128,7 +128,7 @@ class Driver(Evented, FSM):
 
             self.check_passengers()
             # This will call on_receive behind the scenes, and the agent's status will be updated
-            self.check_messages()  
+            self.check_messages()
             yield Delta(30)  # Wait at least 30 seconds before checking again
 
         try:

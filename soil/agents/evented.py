@@ -6,7 +6,9 @@ from collections import deque
 
 
 class ReceivedOrTimeout(BaseCond):
-    def __init__(self, agent, expiration=None, timeout=None, check=True, ignore=False, **kwargs):
+    def __init__(
+        self, agent, expiration=None, timeout=None, check=True, ignore=False, **kwargs
+    ):
         if expiration is None:
             if timeout is not None:
                 expiration = agent.now + timeout
@@ -23,7 +25,7 @@ class ReceivedOrTimeout(BaseCond):
 
     def return_value(self, agent):
         if not self.ignore and self.expired(agent.now):
-            raise TimedOut('No messages received')
+            raise TimedOut("No messages received")
         if self.check:
             agent.check_messages()
         return None
@@ -34,7 +36,7 @@ class ReceivedOrTimeout(BaseCond):
         return (time + delta, self)
 
     def __repr__(self):
-        return f'ReceivedOrTimeout(expires={self.expiration})'
+        return f"ReceivedOrTimeout(expires={self.expiration})"
 
 
 class EventedAgent(BaseAgent):
@@ -55,7 +57,7 @@ class EventedAgent(BaseAgent):
     def ask(self, msg, timeout=None, **kwargs):
         ask = Ask(timestamp=self.now, payload=msg, sender=self)
         self._inbox.append(ask)
-        expiration = float('inf') if timeout is None else self.now + timeout
+        expiration = float("inf") if timeout is None else self.now + timeout
         return ask.replied(expiration=expiration, **kwargs)
 
     def check_messages(self):
@@ -70,5 +72,6 @@ class EventedAgent(BaseAgent):
             if isinstance(msg, Ask):
                 msg.reply = reply
         return changed
+
 
 Evented = EventedAgent
