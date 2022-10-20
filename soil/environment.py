@@ -318,7 +318,9 @@ class EventedEnvironment(Environment):
         for agent in self.agents(**kwargs):
             self.logger.info(f'Telling {repr(agent)}: {msg} ttl={ttl}')
             try:
-                agent._inbox.append(events.Tell(payload=msg, sender=sender, expiration=expiration if ttl is None else self.now+ttl))
+                inbox = agent._inbox
             except AttributeError:
-                self.info(f'Agent {agent.unique_id} cannot receive events')
+                self.logger.info(f'Agent {agent.unique_id} cannot receive events because it does not have an inbox')
+                continue
+            inbox.append(events.Tell(payload=msg, sender=sender, expiration=expiration if ttl is None else self.now+ttl))
 
