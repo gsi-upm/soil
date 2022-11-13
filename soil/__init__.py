@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+from importlib.resources import path
 import sys
 import os
 import logging
@@ -14,10 +15,12 @@ try:
 except NameError:
     basestring = str
 
+from pathlib import Path
 from .agents import *
 from . import agents
 from .simulation import *
 from .environment import Environment, EventedEnvironment
+from .datacollection import SoilCollector
 from . import serialization
 from .utils import logger
 from .time import *
@@ -35,8 +38,10 @@ def main(
     **kwargs,
 ):
 
+    sim = None
     if isinstance(cfg, Simulation):
         sim = cfg
+
     import argparse
     from . import simulation
 

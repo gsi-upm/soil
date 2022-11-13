@@ -14,6 +14,10 @@ Now test that it worked by running the command line tool
 
    soil --help
 
+   #or
+
+   python -m soil --help
+
 Or, if you're using using soil programmatically:
 
 .. code:: python
@@ -21,4 +25,4 @@ Or, if you're using using soil programmatically:
    import soil
    print(soil.__version__)
 
-The latest version can be installed through `GitLab <https://lab.gsi.upm.es/soil/soil.git>`_ or `GitHub <https://github.com/gsi-upm/soil>`_.
+The latest version can be installed through `GitHub <https://github.com/gsi-upm/soil>`_ or `GitLab <https://lab.gsi.upm.es/soil/soil.git>`_.

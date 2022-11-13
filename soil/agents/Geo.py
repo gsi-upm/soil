@@ -1,14 +1,14 @@
 from scipy.spatial import cKDTree as KDTree
 import networkx as nx
-from . import NetworkAgent, as_node
+from . import NetworkAgent
 
 
 class Geo(NetworkAgent):
     """In this type of network, nodes have a "pos" attribute."""
 
-    def geo_search(self, radius, node=None, center=False, **kwargs):
+    def geo_search(self, radius, agent=None, center=False, **kwargs):
         """Get a list of nodes whose coordinates are closer than *radius* to *node*."""
-        node = as_node(node if node is not None else self)
+        node = agent.node
 
         G = self.subgraph(**kwargs)
 

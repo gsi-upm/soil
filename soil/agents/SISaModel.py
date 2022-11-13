@@ -1,8 +1,9 @@
 import numpy as np
-from . import FSM, state
+from hashlib import sha512
+from . import Agent, state, default_state
 
 
-class SISaModel(FSM):
+class SISaModel(Agent):
     """
     Settings:
         neutral_discontent_spon_prob
@@ -28,38 +29,45 @@ class SISaModel(FSM):
         standard_variance
     """
 
-    def __init__(self, environment, unique_id=0, state=()):
-        super().__init__(model=environment, unique_id=unique_id, state=state)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-        random = np.random.default_rng(seed=self._seed)
+        seed = self.model._seed
+        if isinstance(seed, (str, bytes, bytearray)):
+            if isinstance(seed, str):
+                seed = seed.encode()
+            seed = int.from_bytes(seed + sha512(seed).digest(), 'big')
+
+        random = np.random.default_rng(seed=seed)
 
         self.neutral_discontent_spon_prob = random.normal(
-            self.env["neutral_discontent_spon_prob"], self.env["standard_variance"]
+            self.model.neutral_discontent_spon_prob, self.model.standard_variance
         )
         self.neutral_discontent_infected_prob = random.normal(
-            self.env["neutral_discontent_infected_prob"], self.env["standard_variance"]
+            self.model.neutral_discontent_infected_prob, self.model.standard_variance
         )
         self.neutral_content_spon_prob = random.normal(
-            self.env["neutral_content_spon_prob"], self.env["standard_variance"]
+            self.model.neutral_content_spon_prob, self.model.standard_variance
         )
         self.neutral_content_infected_prob = random.normal(
-            self.env["neutral_content_infected_prob"], self.env["standard_variance"]
+            self.model.neutral_content_infected_prob, self.model.standard_variance
         )
 
         self.discontent_neutral = random.normal(
-            self.env["discontent_neutral"], self.env["standard_variance"]
+            self.model.discontent_neutral, self.model.standard_variance
         )
         self.discontent_content = random.normal(
-            self.env["discontent_content"], self.env["variance_d_c"]
+            self.model.discontent_content, self.model.variance_d_c
         )
 
         self.content_discontent = random.normal(
-            self.env["content_discontent"], self.env["variance_c_d"]
+            self.model.content_discontent, self.model.variance_c_d
         )
         self.content_neutral = random.normal(
-            self.env["content_neutral"], self.env["standard_variance"]
+            self.model.discontent_neutral, self.model.standard_variance
         )
 
+    @default_state
     @state
     def neutral(self):
         # Spontaneous effects
@@ -70,10 +78,10 @@ class SISaModel(FSM):
 
         # Infected
         discontent_neighbors = self.count_neighbors(state_id=self.discontent)
-        if self.prob(scontent_neighbors * self.neutral_discontent_infected_prob):
+        if self.prob(discontent_neighbors * self.neutral_discontent_infected_prob):
             return self.discontent
         content_neighbors = self.count_neighbors(state_id=self.content.id)
-        if self.prob(s * self.neutral_content_infected_prob):
+        if self.prob(content_neighbors * self.neutral_content_infected_prob):
             return self.content
         return self.neutral
 
@@ -85,7 +93,7 @@ class SISaModel(FSM):
 
         # Superinfected
         content_neighbors = self.count_neighbors(state_id=self.content.id)
-        if self.prob(s * self.discontent_content):
+        if self.prob(content_neighbors * self.discontent_content):
             return self.content
         return self.discontent
 
@@ -97,6 +105,6 @@ class SISaModel(FSM):
 
         # Superinfected
         discontent_neighbors = self.count_neighbors(state_id=self.discontent.id)
-        if self.prob(scontent_neighbors * self.content_discontent):
+        if self.prob(discontent_neighbors * self.content_discontent):
             self.discontent
         return self.content

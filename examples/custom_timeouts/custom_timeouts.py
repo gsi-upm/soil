@@ -1,4 +1,5 @@
 from soil.agents import FSM, state, default_state
+from soil.time import Delta
 
 
 class Fibonacci(FSM):
@@ -11,7 +12,7 @@ class Fibonacci(FSM):
     def counting(self):
         self.log("Stopping at {}".format(self.now))
         prev, self["prev"] = self["prev"], max([self.now, self["prev"]])
-        return None, self.env.timeout(prev)
+        return None, Delta(prev)
 
 
 class Odds(FSM):
@@ -21,18 +22,26 @@ class Odds(FSM):
     @state
     def odds(self):
         self.log("Stopping at {}".format(self.now))
-        return None, self.env.timeout(1 + self.now % 2)
+        return None, Delta(1 + self.now % 2)
 
+
+from soil import Simulation
+
+simulation = Simulation(
+    model_params={
+        'agents':[
+            {'agent_class': Fibonacci, 'node_id': 0},
+            {'agent_class': Odds, 'node_id': 1}
+        ],
+        'topology': {
+            'params': {
+                'generator': 'complete_graph',
+                'n': 2
+            }
+        },
+    },
+    max_time=100,
+)
 
 if __name__ == "__main__":
-    from soil import Simulation
-
-    s = Simulation(
-        network_agents=[
-            {"ids": [0], "agent_class": Fibonacci},
-            {"ids": [1], "agent_class": Odds},
-        ],
-        network_params={"generator": "complete_graph", "n": 2},
-        max_time=100,
-    )
-    s.run(dry_run=True)
+    simulation.run(dry_run=True)

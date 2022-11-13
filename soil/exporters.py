@@ -104,17 +104,15 @@ def get_dc_dfs(dc, trial_id=None):
     yield from dfs.items()
 
 
-class default(Exporter):
-    """Default exporter. Writes sqlite results, as well as the simulation YAML"""
+class SQLite(Exporter):
+    """Writes sqlite results"""
 
     def sim_start(self):
         if self.dry_run:
             logger.info("NOT dumping results")
             return
-        logger.info("Dumping results to %s", self.outdir)
-        with self.output(self.simulation.name + ".dumped.yml") as f:
-            f.write(self.simulation.to_yaml())
         self.dbpath = os.path.join(self.outdir, f"{self.simulation.name}.sqlite")
+        logger.info("Dumping results to %s", self.dbpath)
         try_backup(self.dbpath, remove=True)
 
     def trial_end(self, env):
@@ -130,7 +128,6 @@ class default(Exporter):
 
             for (t, df) in self.get_dfs(env):
                 df.to_sql(t, con=engine, if_exists="append")
-
 
 class csv(Exporter):
 
@@ -199,15 +196,61 @@ class summary(Exporter):
     """Print a summary of each trial to sys.stdout"""
 
     def trial_end(self, env):
+        msg = ""
         for (t, df) in self.get_dfs(env):
             if not len(df):
                 continue
-            msg = indent(str(df.describe()), "    ")
-            logger.info(
-                dedent(
-                    f"""
+            tabs = "\t" * 2
+            description = indent(str(df.describe()), tabs)
+            last_line = indent(str(df.iloc[-1:]), tabs)
+            # value_counts = indent(str(df.value_counts()), tabs)
+            value_counts = indent(str(df.apply(lambda x: x.value_counts()).T.stack()), tabs)
+
+            msg += dedent("""
             Dataframe {t}:
-            """
-                )
-                + msg
-            )
+                Last line: :
+            {last_line}
+
+                Description:
+            {description}
+
+                Value counts:
+            {value_counts}
+
+            """).format(**locals())
+        logger.info(msg)
+
+class YAML(Exporter):
+    """Writes the configuration of the simulation to a YAML file"""
+
+    def sim_start(self):
+        if self.dry_run:
+            logger.info("NOT dumping results")
+            return
+        with self.output(self.simulation.name + ".dumped.yml") as f:
+            logger.info(f"Dumping simulation configuration to {self.outdir}")
+            f.write(self.simulation.to_yaml())
+
+class default(Exporter):
+    """Default exporter. Writes sqlite results, as well as the simulation YAML"""
+
+    def __init__(self, *args, exporter_cls=[], **kwargs):
+        exporter_cls = exporter_cls or [YAML, SQLite, summary]
+        self.inner = [cls(*args, **kwargs) for cls in exporter_cls]
+
+    def sim_start(self):
+        for exporter in self.inner:
+            exporter.sim_start()
+
+    def sim_end(self):
+        for exporter in self.inner:
+            exporter.sim_end()
+
+    def trial_start(self, env):
+        for exporter in self.inner:
+            exporter.trial_start(env)
+
+
+    def trial_end(self, env):
+        for exporter in self.inner:
+            exporter.trial_end(env)

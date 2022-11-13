@@ -5,8 +5,46 @@ Learn how to run your own simulations with our [documentation](http://soilsim.re
 
 Follow our [tutorial](examples/tutorial/soil_tutorial.ipynb) to develop your own agent models.
 
+**Note**: Mesa 0.30 introduced many fundamental changes. Check the [documention on how to update your simulations to work with newer versions](docs/migration_0.30.rst)
 
-# Changes in version 0.3
+## SOIL vs MESA
+
+SOIL is a batteries-included platform that builds on top of MESA and provides the following out of the box:
+
+* Integration with (social) networks
+* The ability to more easily assign agents to your model (and optionally to its network):
+  * Assigning agents to nodes, and vice versa
+  * Using a description (e.g., 2 agents of type `Foo`, 10% of the network should be agents of type `Bar`)
+* **Several types of abstractions for agents**:
+  * Finite state machine, where methods can be turned into a state
+  * Network agents, which have convenience methods to access the model's topology
+  * Generator-based agents, whose state is paused though a `yield` and resumed on the next step
+* **Reporting and data collection**:
+  * Soil models include data collection and record some data by default (# of agents, state of each agent, etc.)
+  * All data collected are exported by default to a SQLite database and a description file
+  * Options to export to other formats, such as CSV, or defining your own exporters
+  * A summary of the data collected is shown in the command line, for easy inspection
+* **An event-based scheduler**
+  * Agents can be explicit about when their next time/step should be, and not all agents run in every step. This avoids unnecessary computation.
+  * Time intervals between each step are flexible.
+  * There are primitives to specify when the next execution of an agent should be (or conditions)
+* **Actor-inspired** message-passing
+* A simulation runner (`soil.Simulation`) that can:
+  * Run models in parallel
+  * Save results to different formats
+* Simulation configuration files 
+* A command line interface (`soil`), to run multiple
+* An integrated debugger (`soil --debug`) with custom functions to print agent states and break at specific states
+
+Nevertheless, most features in SOIL have been designed to integrate with plain Mesa.
+For instance, it should be possible to run a `mesa.Model` models using a `soil.Simulation` and the `soil` CLI, or to integrate the `soil.TimedActivation` scheduler on a `mesa.Model`.
+
+Note that some combinations of `mesa` and `soil` components, while technically possible, are much less useful or even wrong.
+For instance, you may add any `soil.agent` agent (except for the `soil.NetworkAgent`, as it needs a topology) on a regular `mesa.Model` with a vanilla scheduler from `mesa.time`.
+But in that case the agents will not get any of the advanced event-based scheduling, and most agent behaviors that depend on that will greatly vary. 
+
+
+## Changes in version 0.3
 
 Version 0.3 came packed with many changes to provide much better integration with MESA.
 For a long time, we tried to keep soil backwards-compatible, but it turned out to be a big endeavour and the resulting code was less readable.
@@ -18,27 +56,6 @@ If you have an older Soil simulation, you have two options:
 * Update the necessary configuration files and code. You may use the examples in the `examples` folder for reference, as well as the documentation.
 * Keep using a previous `soil` version.
 
-## Mesa compatibility
-
-Soil is in the process of becoming fully compatible with MESA.
-The idea is to provide a set of modular classes and functions that extend the functionality of mesa, whilst staying compatible.
-In the end, it should be possible to add regular mesa agents to a soil simulation, or use a soil agent within a mesa simulation/model.
-
-This is a non-exhaustive list of tasks to achieve compatibility:
-
-- [ ] Integrate `soil.Simulation` with mesa's runners:
-  - [ ] `soil.Simulation` could mimic/become a `mesa.batchrunner`
-- [ ] Integrate `soil.Environment` with `mesa.Model`:
-  - [x] `Soil.Environment` inherits from `mesa.Model`
-  - [x] `Soil.Environment` includes a Mesa-like Scheduler (see the `soil.time` module.
-  - [ ] Allow for `mesa.Model` to be used in a simulation.
-- [ ] Integrate `soil.Agent` with `mesa.Agent`:
-  - [x] Rename agent.id to unique_id?
-  - [x] mesa agents can be used in soil simulations (see `examples/mesa`)
-- [ ] Provide examples
-  - [ ] Using mesa modules in a soil simulation
-  - [ ] Using soil modules in a mesa simulation
-- [ ] Document the new APIs and usage
 
 
 ## Citation 

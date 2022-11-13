@@ -5,6 +5,8 @@ import math
 
 
 class RabbitEnv(Environment):
+    prob_death = 1e-100
+
     @property
     def num_rabbits(self):
         return self.count_agents(agent_class=Rabbit)
@@ -129,7 +131,7 @@ class RandomAccident(BaseAgent):
         if not rabbits_alive:
             return self.die()
 
-        prob_death = self.model.get("prob_death", 1e-100) * math.floor(
+        prob_death = self.model.prob_death * math.floor(
             math.log10(max(1, rabbits_alive))
         )
         self.debug("Killing some rabbits with prob={}!".format(prob_death))

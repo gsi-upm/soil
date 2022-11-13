@@ -555,9 +555,9 @@ def _from_fixed(
 def _from_distro(
     distro: List[config.AgentDistro],
     n: int,
-    topology: str,
     default: config.SingleAgentConfig,
     random,
+    topology: str = None
 ) -> List[Dict[str, Any]]:
 
     agents = []
@@ -621,17 +621,16 @@ def _from_distro(
 from .network_agents import *
 from .fsm import *
 from .evented import *
+
+
+class Agent(NetworkAgent, FSM, EventedAgent):
+    """Default agent class, has both network and event capabilities"""
+
+
 from .BassModel import *
-from .BigMarketModel import *
 from .IndependentCascadeModel import *
-from .ModelM2 import *
-from .SentimentCorrelationModel import *
 from .SISaModel import *
 from .CounterModel import *
-
-
-class Agent(NetworkAgent, EventedAgent):
-    """Default agent class, has both network and event capabilities"""
 
 
 try:

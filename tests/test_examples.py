@@ -1,8 +1,9 @@
 from unittest import TestCase
 import os
 from os.path import join
+from glob import glob
 
-from soil import serialization, simulation, config
+from soil import  simulation, config
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
 EXAMPLES = join(ROOT, "..", "examples")
@@ -14,44 +15,49 @@ class TestExamples(TestCase):
     pass
 
 
-def make_example_test(path, cfg):
+def get_test_for_sim(sim, path):
+    root = os.getcwd()
+    iterations = sim.max_steps * sim.num_trials
+    if iterations < 0 or iterations > 1000:
+        sim.max_steps = 100
+        sim.num_trials = 1
+
     def wrapped(self):
-        root = os.getcwd()
-        for s in simulation.iter_from_config(cfg):
-            iterations = s.max_steps * s.num_trials
-            if iterations < 0 or iterations > 1000:
-                s.max_steps = 100
-                s.num_trials = 1
-            assert isinstance(cfg, config.Config)
-            if getattr(cfg, "skip_test", False) and not FORCE_TESTS:
-                self.skipTest("Example ignored.")
-            envs = s.run_simulation(dry_run=True)
-            assert envs
-            for env in envs:
-                assert env
-                try:
-                    n = cfg.model_params["network_params"]["n"]
-                    assert len(list(env.network_agents)) == n
-                except KeyError:
-                    pass
-                assert env.schedule.steps > 0  # It has run
-                assert env.schedule.steps <= s.max_steps  # But not further than allowed
+        envs = sim.run_simulation(dry_run=True)
+        assert envs
+        for env in envs:
+            assert env
+            try:
+                n = sim.model_params["network_params"]["n"]
+                assert len(list(env.network_agents)) == n
+            except KeyError:
+                pass
+            assert env.schedule.steps > 0  # It has run
+            assert env.schedule.steps <= sim.max_steps  # But not further than allowed
 
     return wrapped
 
 
 def add_example_tests():
-    for cfg, path in serialization.load_files(
-        join(EXAMPLES, "**", "*.yml"),
-    ):
+    sim_paths = []
+    for path in glob(join(EXAMPLES, '**', '*.yml')):
         if "soil_output" in path:
             continue
-        p = make_example_test(path=path, cfg=config.Config.from_raw(cfg))
+        for sim in simulation.iter_from_config(path):
+            sim_paths.append((sim, path))
+    for path in glob(join(EXAMPLES, '**', '*.py')):
+        for sim in simulation.iter_from_py(path):
+            sim_paths.append((sim, path))
+
+    for (sim, path) in sim_paths:
+        if sim.skip_test and not FORCE_TESTS:
+            continue
+        test_case = get_test_for_sim(sim, path)
         fname = os.path.basename(path)
-        p.__name__ = "test_example_file_%s" % fname
-        p.__doc__ = "%s should be a valid configuration" % fname
-        setattr(TestExamples, p.__name__, p)
-        del p
+        test_case.__name__ = "test_example_file_%s" % fname
+        test_case.__doc__ = "%s should be a valid configuration" % fname
+        setattr(TestExamples, test_case.__name__, test_case)
+        del test_case
 
 
 add_example_tests()

@@ -14,8 +14,11 @@ class NetworkAgent(BaseAgent):
     def count_neighbors(self, state_id=None, **kwargs):
         return len(self.get_neighbors(state_id=state_id, **kwargs))
 
+    def iter_neighbors(self, **kwargs):
+        return self.iter_agents(limit_neighbors=True, **kwargs)
+
     def get_neighbors(self, **kwargs):
-        return list(self.iter_agents(limit_neighbors=True, **kwargs))
+        return list(self.iter_neighbors())
 
     @property
     def node(self):

@@ -37,13 +37,8 @@ class Topology(BaseModel):
     links: List[Edge]
 
 
-class NetParams(BaseModel, extra=Extra.allow):
-    generator: Union[Callable, str]
-    n: int
-
-
 class NetConfig(BaseModel):
-    params: Optional[NetParams]
+    params: Optional[Dict[str, Any]]
     fixed: Optional[Union[Topology, nx.Graph]]
     path: Optional[str]
 
@@ -135,9 +130,11 @@ class Config(BaseModel, extra=Extra.allow):
     num_trials: int = 1
     max_time: float = 100
     max_steps: int = -1
+    num_processes: int = 1
     interval: float = 1
     seed: str = ""
     dry_run: bool = False
+    skip_test: bool = False
 
     model_class: Union[Type, str] = environment.Environment
     model_params: Optional[Dict[str, Any]] = {}

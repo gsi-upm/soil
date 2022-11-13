@@ -30,7 +30,7 @@ def from_config(cfg: config.NetConfig, dir_path: str = None):
         return method(path, **kwargs)
 
     if cfg.params:
-        net_args = cfg.params.dict()
+        net_args = dict(cfg.params)
         net_gen = net_args.pop("generator")
 
         if dir_path not in sys.path:

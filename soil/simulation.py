@@ -48,12 +48,17 @@ class Simulation:
     max_steps: int = -1
     interval: int = 1
     num_trials: int = 1
-    parallel: Optional[bool] = None
-    exporters: Optional[List[str]] = field(default_factory=list)
+    num_processes: Optional[int] = 1
+    parallel: Optional[bool] = False
+    exporters: Optional[List[str]] = field(default_factory=lambda: [exporters.default])
+    model_reporters: Optional[Dict[str, Any]] = field(default_factory=dict)
+    agent_reporters: Optional[Dict[str, Any]] = field(default_factory=dict)
+    tables: Optional[Dict[str, Any]] = field(default_factory=dict)
     outdir: Optional[str] = None
     exporter_params: Optional[Dict[str, Any]] = field(default_factory=dict)
     dry_run: bool = False
     extra: Dict[str, Any] = field(default_factory=dict)
+    skip_test: Optional[bool] = False
 
     @classmethod
     def from_dict(cls, env, **kwargs):
@@ -89,7 +94,7 @@ class Simulation:
 
     def run_gen(
         self,
-        parallel=False,
+        num_processes=1,
         dry_run=None,
         exporters=None,
         outdir=None,
@@ -128,7 +133,7 @@ class Simulation:
             for env in utils.run_parallel(
                 func=self.run_trial,
                 iterable=range(int(self.num_trials)),
-                parallel=parallel,
+                num_processes=num_processes,
                 log_level=log_level,
                 **kwargs,
             ):
@@ -158,8 +163,12 @@ class Simulation:
             params.update(model_params)
         params.update(kwargs)
 
-        agent_reporters = deserialize_reporters(params.pop("agent_reporters", {}))
-        model_reporters = deserialize_reporters(params.pop("model_reporters", {}))
+        agent_reporters = self.agent_reporters.copy()
+        agent_reporters.update(deserialize_reporters(params.pop("agent_reporters", {})))
+        model_reporters = self.model_reporters.copy()
+        model_reporters.update(deserialize_reporters(params.pop("model_reporters", {})))
+        tables = self.tables.copy()
+        tables.update(deserialize_reporters(params.pop("tables", {})))
 
         env = serialization.deserialize(self.model_class)
         return env(
@@ -168,6 +177,7 @@ class Simulation:
             dir_path=self.dir_path,
             agent_reporters=agent_reporters,
             model_reporters=model_reporters,
+            tables=tables,
             **params,
         )
 
@@ -234,12 +244,7 @@ Model stats:
 
     def to_dict(self):
         d = asdict(self)
-        if not isinstance(d["model_class"], str):
-            d["model_class"] = serialization.name(d["model_class"])
-        d["model_params"] = serialization.serialize_dict(d["model_params"])
-        d["dir_path"] = str(d["dir_path"])
-        d["version"] = "2"
-        return d
+        return serialization.serialize_dict(d)
 
     def to_yaml(self):
         return yaml.dump(self.to_dict())
@@ -260,6 +265,24 @@ def from_config(conf_or_path):
     if len(lst) > 1:
         raise AttributeError("Provide only one configuration")
     return lst[0]
+
+def iter_from_py(pyfile, module_name='custom_simulation'):
+    """Try to load every Simulation instance in a given Python file"""
+    import importlib
+    import inspect
+    spec = importlib.util.spec_from_file_location(module_name, pyfile)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    # import pdb;pdb.set_trace()
+    for (_name, sim) in inspect.getmembers(module, lambda x: isinstance(x, Simulation)):
+        yield sim
+    del sys.modules[module_name]
+
+
+def from_py(pyfile):
+    return next(iter_from_py(pyfile))
+
 
 
 def run_from_config(*configs, **kwargs):

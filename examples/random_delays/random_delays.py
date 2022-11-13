@@ -31,11 +31,11 @@ class MyAgent(agents.FSM):
 
 s = Simulation(
     name="Programmatic",
-    network_agents=[{"agent_class": MyAgent, "id": 0}],
-    topology={"nodes": [{"id": 0}], "links": []},
+    model_params={
+        'agents': [{'agent_class': MyAgent}],
+    },
     num_trials=1,
     max_time=100,
-    agent_class=MyAgent,
     dry_run=True,
 )
 

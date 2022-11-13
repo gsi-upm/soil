@@ -133,10 +133,10 @@ class TimedActivation(BaseScheduler):
         """
 
         self.logger.debug(f"Simulation step {self.time}")
-        if not self.model.running:
+        if not self.model.running or self.time == INFINITY:
             return
 
-        self.logger.debug(f"Queue length: {len(self._queue)}")
+        self.logger.debug("Queue length: {ql}", ql=len(self._queue))
 
         while self._queue:
             ((when, _id, cond), agent) = self._queue[0]
@@ -156,7 +156,7 @@ class TimedActivation(BaseScheduler):
                 agent._last_return = None
                 agent._last_except = None
 
-            self.logger.debug(f"Stepping agent {agent}")
+            self.logger.debug("Stepping agent {agent}", agent=agent)
             self._next.pop(agent.unique_id, None)
 
             try:
@@ -187,6 +187,7 @@ class TimedActivation(BaseScheduler):
             return self.time
 
         next_time = self._queue[0][0][0]
+        
         if next_time < self.time:
             raise Exception(
                 f"An agent has been scheduled for a time in the past, there is probably an error ({when} < {self.time})"

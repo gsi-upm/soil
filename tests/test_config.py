@@ -99,7 +99,7 @@ class TestConfig(TestCase):
         with utils.timer("serializing"):
             serial = s.to_yaml()
         with utils.timer("recovering"):
-            recovered = yaml.load(serial, Loader=yaml.SafeLoader)
+            recovered = yaml.load(serial, Loader=yaml.FullLoader)
         for (k, v) in config.items():
             assert recovered[k] == v
 
@@ -109,24 +109,23 @@ def make_example_test(path, cfg):
         root = os.getcwd()
         print(path)
         s = simulation.from_config(cfg)
-        # for s in simulation.all_from_config(path):
-        #     iterations = s.config.max_time * s.config.num_trials
-        #     if iterations > 1000:
-        #         s.config.max_time = 100
-        #         s.config.num_trials = 1
-        #     if config.get('skip_test', False) and not FORCE_TESTS:
-        #         self.skipTest('Example ignored.')
-        #     envs = s.run_simulation(dry_run=True)
-        #     assert envs
-        #     for env in envs:
-        #         assert env
-        #         try:
-        #             n = config['network_params']['n']
-        #             assert len(list(env.network_agents)) == n
-        #             assert env.now > 0  # It has run
-        #             assert env.now <= config['max_time']  # But not further than allowed
-        #         except KeyError:
-        #             pass
+        iterations = s.max_time * s.num_trials
+        if iterations > 1000:
+            s.max_time = 100
+            s.num_trials = 1
+        if cfg.skip_test and not FORCE_TESTS:
+            self.skipTest('Example ignored.')
+        envs = s.run_simulation(dry_run=True)
+        assert envs
+        for env in envs:
+            assert env
+            try:
+                n = cfg.model_params['topology']['params']['n']
+                assert len(list(env.network_agents)) == n
+                assert env.now > 0  # It has run
+                assert env.now <= cfg.max_time  # But not further than allowed
+            except KeyError:
+                pass
 
     return wrapped
 

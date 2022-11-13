@@ -28,7 +28,7 @@ class MoneyAgent(MesaAgent):
     It will only share wealth with neighbors based on grid proximity
     """
 
-    def __init__(self, unique_id, model, wealth=1):
+    def __init__(self, unique_id, model, wealth=1, **kwargs):
         super().__init__(unique_id=unique_id, model=model)
         self.wealth = wealth
 

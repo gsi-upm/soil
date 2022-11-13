@@ -170,6 +170,6 @@ class Police(FSM):
 
 
 if __name__ == "__main__":
-    from soil import simulation
+    from soil import run_from_config
 
-    simulation.run_from_config("pubcrawl.yml", dry_run=True, dump=None, parallel=False)
+    run_from_config("pubcrawl.yml", dry_run=True, dump=None, parallel=False)

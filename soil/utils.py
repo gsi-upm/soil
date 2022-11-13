@@ -5,7 +5,7 @@ import traceback
 
 from functools import partial
 from shutil import copyfile, move
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 
 from contextlib import contextmanager
 
@@ -24,7 +24,7 @@ consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     handlers=[
         consoleHandler,
     ],
@@ -140,9 +140,11 @@ def run_and_return_exceptions(func, *args, **kwargs):
         return ex
 
 
-def run_parallel(func, iterable, parallel=False, **kwargs):
-    if parallel and not os.environ.get("SOIL_DEBUG", None):
-        p = Pool()
+def run_parallel(func, iterable, num_processes=1, **kwargs):
+    if num_processes > 1 and not os.environ.get("SOIL_DEBUG", None):
+        if num_processes < 1:
+            num_processes = cpu_count() - num_processes
+        p = Pool(processes=num_processes)
         wrapped_func = partial(run_and_return_exceptions, func, **kwargs)
         for i in p.imap_unordered(wrapped_func, iterable):
             if isinstance(i, Exception):

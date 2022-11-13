@@ -115,13 +115,13 @@ Here's the code:
         @soil.agents.state
         def neutral(self):
             r = random.random()
-            if self['has_tv'] and r < self.env['prob_tv_spread']:
+            if self['has_tv'] and r < self.model['prob_tv_spread']:
                     return self.infected
             return
         
         @soil.agents.state
         def infected(self):
-            prob_infect = self.env['prob_neighbor_spread']
+            prob_infect = self.model['prob_neighbor_spread']
             for neighbor in self.get_neighboring_agents(state_id=self.neutral.id):
                 r = random.random()
                 if r < prob_infect:
@@ -146,11 +146,11 @@ spreading the rumor.
     class NewsEnvironmentAgent(soil.agents.BaseAgent):
         def step(self):
             if self.now == self['event_time']:
-                self.env['prob_tv_spread'] = 1
-                self.env['prob_neighbor_spread'] = 1
+                self.model['prob_tv_spread'] = 1
+                self.model['prob_neighbor_spread'] = 1
             elif self.now > self['event_time']:
-                self.env['prob_tv_spread'] = self.env['prob_tv_spread'] * TV_FACTOR
-                self.env['prob_neighbor_spread'] = self.env['prob_neighbor_spread'] * NEIGHBOR_FACTOR
+                self.model['prob_tv_spread'] = self.model['prob_tv_spread'] * TV_FACTOR
+                self.model['prob_neighbor_spread'] = self.model['prob_neighbor_spread'] * NEIGHBOR_FACTOR
 
 Testing the agents
 ~~~~~~~~~~~~~~~~~~

@@ -18,6 +18,7 @@ An example scenario could play like the following:
 - If there are no more passengers available in the simulation, Drivers die
 """
 from __future__ import annotations
+from typing import Optional
 from soil import *
 from soil import events
 from mesa.space import MultiGrid
@@ -39,7 +40,7 @@ class Journey:
     tip: float
 
     passenger: Passenger
-    driver: Driver = None
+    driver: Optional[Driver] = None
 
 
 class City(EventedEnvironment):
@@ -239,5 +240,4 @@ simulation = Simulation(
 )
 
 if __name__ == "__main__":
-    with easy(simulation) as s:
-        s.run()
+    simulation.run()

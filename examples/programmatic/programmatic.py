@@ -10,32 +10,48 @@ def mygenerator():
     # Add only a node
     G = Graph()
     G.add_node(1)
+    G.add_node(2)
     return G
 
 
 class MyAgent(agents.FSM):
+    times_run = 0
     @agents.default_state
     @agents.state
     def neutral(self):
         self.debug("I am running")
-        if agents.prob(0.2):
+        if self.prob(0.2):
+            self.times_run += 1
             self.info("This runs 2/10 times on average")
 
 
-s = Simulation(
+simulation = Simulation(
     name="Programmatic",
-    network_params={"generator": mygenerator},
+    model_params={
+        'topology': {
+            'params': {
+                'generator': mygenerator
+            },
+        },
+        'agents': {
+            'distribution': [{
+                'agent_class': MyAgent,
+                'topology': True,
+            }]
+        }
+    },
+    seed='Program',
+    agent_reporters={'times_run': 'times_run'},
     num_trials=1,
     max_time=100,
-    agent_class=MyAgent,
     dry_run=True,
 )
 
+if __name__ == "__main__":
+    # By default, logging will only print WARNING logs (and above).
+    # You need to choose a lower logging level to get INFO/DEBUG traces
+    logging.basicConfig(level=logging.INFO)
+    envs = simulation.run()
 
-# By default, logging will only print WARNING logs (and above).
-# You need to choose a lower logging level to get INFO/DEBUG traces
-logging.basicConfig(level=logging.INFO)
-envs = s.run()
-
-# Uncomment this to output the simulation to a YAML file
-# s.dump_yaml('simulation.yaml')
+    for agent in envs[0].agents:
+        print(agent.times_run)

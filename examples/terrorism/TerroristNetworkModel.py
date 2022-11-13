@@ -108,14 +108,14 @@ class TerroristSpreadModel(FSM, Geo):
                     return
             return self.leader
 
-    def ego_search(self, steps=1, center=False, node=None, **kwargs):
+    def ego_search(self, steps=1, center=False, agent=None, **kwargs):
         """Get a list of nodes in the ego network of *node* of radius *steps*"""
-        node = as_node(node if node is not None else self)
+        node = agent.node
         G = self.subgraph(**kwargs)
         return nx.ego_graph(G, node, center=center, radius=steps).nodes()
 
-    def degree(self, node, force=False):
-        node = as_node(node)
+    def degree(self, agent, force=False):
+        node = agent.node
         if (
             force
             or (not hasattr(self.model, "_degree"))
@@ -125,8 +125,8 @@ class TerroristSpreadModel(FSM, Geo):
             self.model._last_step = self.now
         return self.model._degree[node]
 
-    def betweenness(self, node, force=False):
-        node = as_node(node)
+    def betweenness(self, agent, force=False):
+        node = agent.node
         if (
             force
             or (not hasattr(self.model, "_betweenness"))

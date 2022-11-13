@@ -111,4 +111,5 @@ server = ModularServer(
 )
 server.port = 8521
 
-server.launch(open_browser=False)
+if __name__ == '__main__':
+    server.launch(open_browser=False)

@@ -146,7 +146,10 @@ def serialize(v, known_modules=KNOWN_MODULES):
 
 
 def serialize_dict(d, known_modules=KNOWN_MODULES):
-    d = dict(d)
+    try:
+        d = dict(d)
+    except (ValueError, TypeError) as ex:
+        return serialize(d)[0]
     for (k, v) in d.items():
         if isinstance(v, dict):
             d[k] = serialize_dict(v, known_modules=known_modules)
