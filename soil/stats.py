@@ -52,7 +52,7 @@ class distribution(Stats):
             except TypeError:
                 pass
 
-            for name, count in t.value_counts().iteritems():
+            for name, count in t.value_counts().items():
                 if a not in stats['count']:
                     stats['count'][a] = {}
                 stats['count'][a][name] = count
@@ -68,10 +68,10 @@ class distribution(Stats):
         mean = {}
 
         if self.means:
-            res = dfm.groupby(by=['key']).agg(['mean', 'std', 'count', 'median', 'max', 'min'])
+            res = dfm.drop('metric', axis=1).groupby(by=['key']).agg(['mean', 'std', 'count', 'median', 'max', 'min'])
             mean = res['value'].to_dict()
         if self.counts:
-            res = dfc.groupby(by=['key', 'value']).agg(['mean', 'std', 'count', 'median', 'max', 'min'])
+            res = dfc.drop('metric', axis=1).groupby(by=['key', 'value']).agg(['mean', 'std', 'count', 'median', 'max', 'min'])
             for k,v in res['count'].to_dict().items():
                 if k not in count:
                     count[k] = {}

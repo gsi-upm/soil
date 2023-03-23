@@ -124,7 +124,8 @@ class Environment(Model):
     def environment_agents(self, environment_agents):
         self._environment_agents = environment_agents
 
-        self._env_agents = agents._definition_to_dict(definition=environment_agents)
+        for (ix, agent) in enumerate(self._environment_agents):
+            self.init_agent(len(self.G) + ix, agent_definitions=environment_agents, with_node=False)
 
     @property
     def network_agents(self):
@@ -139,15 +140,19 @@ class Environment(Model):
         for ix in self.G.nodes():
             self.init_agent(ix, agent_definitions=network_agents)
 
-    def init_agent(self, agent_id, agent_definitions):
-        node = self.G.nodes[agent_id]
+    def init_agent(self, agent_id, agent_definitions, with_node=True):
         init = False
-        state = dict(node)
+
+        state = {}
+        if with_node:
+            node = self.G.nodes[agent_id]
+            state = dict(node)
+        state.update(self.states.get(agent_id, {}))
 
         agent_type = None
-        if 'agent_type' in self.states.get(agent_id, {}):
-            agent_type = self.states[agent_id]['agent_type']
-        elif 'agent_type' in node:
+        if 'agent_type' in state:
+            agent_type = state['agent_type']
+        elif with_node and 'agent_type' in node:
             agent_type = node['agent_type']
         elif 'agent_type' in self.default_state:
             agent_type = self.default_state['agent_type']
@@ -157,15 +162,16 @@ class Environment(Model):
         elif agent_definitions:
             agent_type, state = agents._agent_from_definition(agent_definitions, unique_id=agent_id)
         else:
-            serialization.logger.debug('Skipping node {}'.format(agent_id))
+            serialization.logger.debug('Skipping agent {}'.format(agent_id))
             return
-        return self.set_agent(agent_id, agent_type, state)
+        return self.set_agent(agent_id, agent_type, state, with_node=with_node)
 
-    def set_agent(self, agent_id, agent_type, state=None):
-        node = self.G.nodes[agent_id]
+    def set_agent(self, agent_id, agent_type, state=None, with_node=True):
         defstate = deepcopy(self.default_state) or {}
         defstate.update(self.states.get(agent_id, {}))
-        defstate.update(node.get('state', {}))
+        if with_node:
+            node = self.G.nodes[agent_id]
+            defstate.update(node.get('state', {}))
         if state:
             defstate.update(state)
         a = None
@@ -178,7 +184,8 @@ class Environment(Model):
         for (k, v) in state.items():
             setattr(a, k, v)
 
-        node['agent'] = a
+        if with_node:
+            node['agent'] = a
         self.schedule.add(a)
         return a
 

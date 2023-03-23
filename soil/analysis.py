@@ -112,7 +112,7 @@ def get_types(df):
     Get the value type for every key stored in a raw history dataframe.
     '''
     dtypes = df.groupby(by=['key'])['value_type'].unique()
-    return {k:v[0] for k,v in dtypes.iteritems()}
+    return {k:v[0] for k,v in dtypes.items()}
 
 
 def process_one(df, *keys, columns=['key', 'agent_id'], values='value',
@@ -146,7 +146,7 @@ def get_count(df, *keys):
     counts = pd.DataFrame()
     for key in df.columns.levels[0]:
         g = df[[key]].apply(pd.Series.value_counts, axis=1).fillna(0)
-        for value, series in g.iteritems():
+        for value, series in g.items():
             counts[key, value] = series
     counts.columns = pd.MultiIndex.from_tuples(counts.columns)
     return counts

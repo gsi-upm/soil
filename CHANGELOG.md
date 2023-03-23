@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [UNRELEASED]
+
+## [0.20.8]
+### Changed
+* Tsih bumped to version 0.1.8
+### Fixed
+* Mentions to `id` in docs. It should be `state_id` now.
+* Fixed bug: environment agents were not being added to the simulation
+
 ## [0.20.7]
 ### Changed
 * Creating a `time.When` from another `time.When` does not nest them anymore (it returns the argument)

@@ -281,7 +281,7 @@ def default_state(func):
 
 class MetaFSM(type):
     def __init__(cls, name, bases, nmspc):
-        super(MetaFSM, cls).__init__(name, bases, nmspc)
+        super().__init__(name, bases, nmspc)
         states = {}
         # Re-use states from inherited classes
         default_state = None
@@ -482,6 +482,7 @@ def _definition_to_dict(definition, size=None, default_state=None):
     distro = sorted([item for item in definition if 'weight' in item])
 
     ix = 0
+
     def init_agent(item, id=ix):
         while id in agents:
             id += 1

@@ -1,4 +1,3 @@
-
 Soil Tutorial
 =============
 
@@ -15,7 +14,7 @@ The steps we will follow are:
 -  Running the simulation using different configurations
 -  Analysing the results of each simulation
 
-But before that, let's import the soil module and networkx.
+But before that, let’s import the soil module and networkx.
 
 .. code:: ipython3
 
@@ -25,14 +24,8 @@ But before that, let's import the soil module and networkx.
     %load_ext autoreload
     %autoreload 2
     
-    %pylab inline
-    # To display plots in the notebook_
-
-
-.. parsed-literal::
-
-    Populating the interactive namespace from numpy and matplotlib
-
+    %matplotlib inline
+    # To display plots in the notebooed_
 
 Basic concepts
 --------------
@@ -47,6 +40,12 @@ There are three main elements in a soil simulation:
 -  The environment. It assigns agents to nodes in the network, and
    stores the environment parameters (shared state for all agents).
 
+Soil is based on ``simpy``, which is an event-based network simulation
+library. Soil provides several abstractions over events to make
+developing agents easier. This means you can use events (timeouts,
+delays) in soil, but for the most part we will assume your models will
+be step-based.
+
 Modeling behaviour
 ------------------
 
@@ -57,9 +56,9 @@ finite state machine).
 There are two types of people, those who have heard about a newsworthy
 event (infected) or those who have not (neutral). A neutral person may
 heard about the news either on the TV (with probability
-**prob\_tv\_spread**) or through their friends. Once a person has heard
+**prob_tv_spread**) or through their friends. Once a person has heard
 the news, they will spread it to their friends (with a probability
-**prob\_neighbor\_spread**). Some users do not have a TV, so they only
+**prob_neighbor_spread**). Some users do not have a TV, so they only
 rely on their friends.
 
 The spreading probabilities will change over time due to different
@@ -68,43 +67,48 @@ factors. We will represent this variance using an environment agent.
 Network Agents
 ~~~~~~~~~~~~~~
 
-A basic network agent in Soil should inherit from
-``soil.agents.BaseAgent``, and define its behaviour in every step of the
-simulation by implementing a ``run(self)`` method. The most important
-attributes of the agent are:
+A basic network agent in Soil would typically inherit from
+``soil.agents.NetworkAgent``, and define its behaviour in every step of
+the simulation by implementing a ``run(self)`` method. The most
+important attributes of the agent are:
 
--  ``agent.state``, a dictionary with the state of the agent.
-   ``agent.state['id']`` reflects the state id of the agent. That state
-   id can be used to look for other networks in that specific state. The
-   state can be access via the agent as well. For instance:
+-  ``agent.state``, a dictionary with the state of the agent. This tate
+   will be saved in every step of the simulation. It can be accessed
+   from the agent as well:
 
-   .. code:: py
+.. code:: py
 
-       a = soil.agents.BaseAgent(env=env)
-       a['hours_of_sleep'] = 10
-       print(a['hours_of_sleep'])
+   a = soil.agents.NetworkAgent(env=env)
+   agent.state['hours_of_sleep'] = 10
+   # is the same as
+   a['hours_of_sleep'] = 10
 
-   The state of the agent is stored in every step of the simulation:
-   ``py   print(a['hours_of_sleep', 10]) # hours of sleep before step #10   print(a[None, 0]) # whole state of the agent before step #0``
+The state of the agent is stored in every step of the simulation:
+``py   print(a['hours_of_sleep', 10]) # hours of sleep before step #10   print(a[None, 0]) # whole state of the agent before step #0``
 
 -  ``agent.env``, a reference to the environment. Most commonly used to
-   get access to the environment parameters and the topology:
+   get access to the environment parameters and the topology: \```py
+   a.env.G.nodes() # Get all nodes ids in the topology
+   a.env[‘minimum_hours_of_sleep’]
 
-   .. code:: py
-
-       a.env.G.nodes() # Get all nodes ids in the topology
-       a.env['minimum_hours_of_sleep']
+   \``\`
 
 Since our model is a finite state machine, we will be basing it on
 ``soil.agents.FSM``.
 
-With ``soil.agents.FSM``, we do not need to specify a ``step`` method.
-Instead, we describe every step as a function. To change to another
-state, a function may return the new state. If no state is returned, the
-state remains unchanged.[ It will consist of two states, ``neutral``
-(default) and ``infected``.
+Agents that inherit from ``soil.agents.FSM`` do not need to specify a
+``step`` method. Instead, we describe each finite state with a function.
+To change to another state, a function may return the new state, or the
+``id`` of a state. If no state is returned, the state remains unchanged.
 
-Here's the code:
+The current state of the agent can be checked with
+``agent.state['id']``. That state id can be used to look for other
+networks in that specific state
+
+Our agent will have of two states, ``neutral`` (default) and
+``infected``.
+
+Here’s the code:
 
 .. code:: ipython3
 
@@ -115,7 +119,7 @@ Here's the code:
         @soil.agents.state
         def neutral(self):
             r = random.random()
-            if self['has_tv'] and r < self.env['prob_tv_spread']:
+            if self['has_tv'] and r <= self.env['prob_tv_spread']:
                     return self.infected
             return
         
@@ -125,7 +129,7 @@ Here's the code:
             for neighbor in self.get_neighboring_agents(state_id=self.neutral.id):
                 r = random.random()
                 if r < prob_infect:
-                    neighbor.state['id'] = self.infected.id
+                    neighbor.set_state(self.infected.id)
             return
             
 
@@ -143,7 +147,9 @@ spreading the rumor.
 
     NEIGHBOR_FACTOR = 0.9
     TV_FACTOR = 0.5
-    class NewsEnvironmentAgent(soil.agents.BaseAgent):
+    
+    
+    class NewsEnvironmentAgent(soil.agents.NetworkAgent):
         def step(self):
             if self.now == self['event_time']:
                 self.env['prob_tv_spread'] = 1
@@ -161,7 +167,7 @@ Testing agents is not easy, and this is not a thorough testing process
 for agents. Rather, this section is aimed to show you how to access
 internal pats of soil so you can test your agents.
 
-First of all, let's check if our network agent has the states we would
+First of all, let’s check if our network agent has the states we would
 expect:
 
 .. code:: ipython3
@@ -173,12 +179,12 @@ expect:
 
 .. parsed-literal::
 
-    {'infected': <function __main__.NewsSpread.infected>,
-     'neutral': <function __main__.NewsSpread.neutral>}
+    {'neutral': <function __main__.NewsSpread.neutral(self)>,
+     'infected': <function __main__.NewsSpread.infected(self)>}
 
 
 
-Now, let's run a simulation on a simple network. It is comprised of
+Now, let’s run a simulation on a simple network. It is comprised of
 three nodes:
 
 .. code:: ipython3
@@ -197,40 +203,46 @@ three nodes:
 .. image:: output_21_0.png
 
 
-Let's run a simple simulation that assigns a NewsSpread agent to all the
+Let’s run a simple simulation that assigns a NewsSpread agent to all the
 nodes in that network. Notice how node 0 is the only one with a TV.
 
 .. code:: ipython3
 
-    env_params = {'prob_tv_spread': 0,
-                 'prob_neighbor_spread': 0}
+    import importlib
+    importlib.reload(soil.agents)
+
+
+
+
+.. parsed-literal::
+
+    <module 'soil.agents' from '/mnt/data/home/j/git/lab.gsi/soil/soil/soil/agents/__init__.py'>
+
+
+
+.. code:: ipython3
+
+    env_params = {
+        'prob_tv_spread': 0,
+        'prob_neighbor_spread': 0
+    }
     
     MAX_TIME = 100
     EVENT_TIME = 10
     
     sim = soil.Simulation(topology=G,
-                                         num_trials=1,
-                                         max_time=MAX_TIME,
-                                         environment_agents=[{'agent_type': NewsEnvironmentAgent,
-                                                             'state': {
-                                                                 'event_time': EVENT_TIME
-                                                             }}],
-                                         network_agents=[{'agent_type': NewsSpread,
-                                                          'weight': 1}],
-                                         states={0: {'has_tv': True}},
-                                         default_state={'has_tv': False},
-                                         environment_params=env_params)
-    env = sim.run_simulation()[0]
-
-
-.. parsed-literal::
-
-    INFO:soil.utils:Trial: 0
-    INFO:soil.utils:	Running
-    INFO:soil.utils:Finished trial in 0.02695441246032715 seconds
-    INFO:soil.utils:NOT dumping results
-    INFO:soil.utils:Finished simulation in 0.03360605239868164 seconds
-
+                          num_trials=1,
+                          max_time=MAX_TIME,
+                          environment_agents=[{'agent_type': NewsEnvironmentAgent,
+                                               'state': {
+                                               'event_time': EVENT_TIME
+                                             }}],
+                          network_agents=[{'agent_type': NewsSpread,
+                                          'weight': 1}],
+                          states={0: {'has_tv': True}},
+                          default_state={'has_tv': False},
+                          environment_params=env_params)
+    env = sim.run_simulation(dry_run=True)[0]
 
 Now we can access the results of the simulation and compare them to our
 expected results
@@ -242,23 +254,24 @@ expected results
     # Until the event, all agents are neutral
     for t in range(10):
         for a in agents:
-            assert a['id', t] == a.neutral.id
-    
+            assert a['state_id', t] == a.neutral.id
+            
     # After the event, the node with a TV is infected, the rest are not
-    assert agents[0]['id', 11] == NewsSpread.infected.id
+    assert agents[0]['has_tv']
+    assert agents[0]['state_id', 11] == NewsSpread.infected.id
+    assert not agents[2]['has_tv']
+    assert agents[2]['state_id', 11] == NewsSpread.neutral.id
     
-    for a in agents[1:4]:
-        assert a['id', 11] == NewsSpread.neutral.id
     
     # At the end, the agents connected to the infected one will probably be infected, too.
-    assert agents[1]['id', MAX_TIME] == NewsSpread.infected.id
-    assert agents[2]['id', MAX_TIME] == NewsSpread.infected.id
+    assert agents[1]['state_id', MAX_TIME] == NewsSpread.infected.id
+    assert agents[2]['state_id', MAX_TIME] == NewsSpread.infected.id
     
     # But the node with no friends should not be affected
-    assert agents[4]['id', MAX_TIME] == NewsSpread.neutral.id
+    assert agents[4]['state_id', MAX_TIME] == NewsSpread.neutral.id
             
 
-Lastly, let's see if the probabilities have decreased as expected:
+Lastly, let’s see if the probabilities have decreased as expected:
 
 .. code:: ipython3
 
@@ -313,23 +326,11 @@ For this demo, we will use a python dictionary:
         }
     }
 
-Let's run our simulation:
+Let’s run our simulation:
 
 .. code:: ipython3
 
-    soil.simulation.run_from_config(config)
-
-
-.. parsed-literal::
-
-    INFO:soil.utils:Using config(s): ExampleSimulation
-    INFO:soil.utils:Dumping results to soil_output/ExampleSimulation : False
-    INFO:soil.utils:Trial: 0
-    INFO:soil.utils:	Running
-    INFO:soil.utils:Finished trial in 5.869051456451416 seconds
-    INFO:soil.utils:NOT dumping results
-    INFO:soil.utils:Finished simulation in 6.9609293937683105 seconds
-
+    soil.simulation.run_from_config(config, dry_run=True)
 
 In real life, you probably want to run several simulations, varying some
 of the parameters so that you can compare and answer your research
@@ -363,86 +364,14 @@ For instance:
             config['environment_params']['prob_neighbor_spread'] = prob
             config['network_params'] = net
             config['name'] = 'Spread_{}_prob_{}'.format(net['generator'], prob)
-            s = soil.simulation.run_from_config(config)
+            s = soil.simulation.run_from_config(config, exporters=['default', 'csv'])
 
+The results are conveniently stored in sqlite (history of agent and
+environment state) and the configuration is saved in a YAML file.
 
-.. parsed-literal::
-
-    INFO:soil.utils:Using config(s): Spread_erdos_renyi_graph_prob_0.0
-    INFO:soil.utils:Dumping results to soil_output/Spread_erdos_renyi_graph_prob_0.0 : True
-    INFO:soil.utils:Trial: 0
-    INFO:soil.utils:	Running
-    INFO:soil.utils:Finished trial in 1.2258412837982178 seconds
-    INFO:soil.utils:Dumping results to soil_output/Spread_erdos_renyi_graph_prob_0.0
-    INFO:soil.utils:Finished simulation in 5.597268104553223 seconds
-    INFO:soil.utils:Using config(s): Spread_erdos_renyi_graph_prob_0.1
-    INFO:soil.utils:Dumping results to soil_output/Spread_erdos_renyi_graph_prob_0.1 : True
-    INFO:soil.utils:Trial: 0
-    INFO:soil.utils:	Running
-    INFO:soil.utils:Finished trial in 1.3026399612426758 seconds
-    INFO:soil.utils:Dumping results to soil_output/Spread_erdos_renyi_graph_prob_0.1
-    INFO:soil.utils:Finished simulation in 5.534018278121948 seconds
-    INFO:soil.utils:Using config(s): Spread_erdos_renyi_graph_prob_0.2
-    INFO:soil.utils:Dumping results to soil_output/Spread_erdos_renyi_graph_prob_0.2 : True
-    INFO:soil.utils:Trial: 0
-    INFO:soil.utils:	Running
-    INFO:soil.utils:Finished trial in 1.4764575958251953 seconds
-    INFO:soil.utils:Dumping results to soil_output/Spread_erdos_renyi_graph_prob_0.2
-    INFO:soil.utils:Finished simulation in 6.170421123504639 seconds
-    INFO:soil.utils:Using config(s): Spread_erdos_renyi_graph_prob_0.3
-    INFO:soil.utils:Dumping results to soil_output/Spread_erdos_renyi_graph_prob_0.3 : True
-    INFO:soil.utils:Trial: 0
-    INFO:soil.utils:	Running
-    INFO:soil.utils:Finished trial in 1.5429913997650146 seconds
-    INFO:soil.utils:Dumping results to soil_output/Spread_erdos_renyi_graph_prob_0.3
-    INFO:soil.utils:Finished simulation in 5.936013221740723 seconds
-    INFO:soil.utils:Using config(s): Spread_erdos_renyi_graph_prob_0.4
-    INFO:soil.utils:Dumping results to soil_output/Spread_erdos_renyi_graph_prob_0.4 : True
-    INFO:soil.utils:Trial: 0
-    INFO:soil.utils:	Running
-    INFO:soil.utils:Finished trial in 1.4097135066986084 seconds
-    INFO:soil.utils:Dumping results to soil_output/Spread_erdos_renyi_graph_prob_0.4
-    INFO:soil.utils:Finished simulation in 5.732810974121094 seconds
-    INFO:soil.utils:Using config(s): Spread_barabasi_albert_graph_prob_0.0
-    INFO:soil.utils:Dumping results to soil_output/Spread_barabasi_albert_graph_prob_0.0 : True
-    INFO:soil.utils:Trial: 0
-    INFO:soil.utils:	Running
-    INFO:soil.utils:Finished trial in 0.751497745513916 seconds
-    INFO:soil.utils:Dumping results to soil_output/Spread_barabasi_albert_graph_prob_0.0
-    INFO:soil.utils:Finished simulation in 2.3415369987487793 seconds
-    INFO:soil.utils:Using config(s): Spread_barabasi_albert_graph_prob_0.1
-    INFO:soil.utils:Dumping results to soil_output/Spread_barabasi_albert_graph_prob_0.1 : True
-    INFO:soil.utils:Trial: 0
-    INFO:soil.utils:	Running
-    INFO:soil.utils:Finished trial in 0.8503265380859375 seconds
-    INFO:soil.utils:Dumping results to soil_output/Spread_barabasi_albert_graph_prob_0.1
-    INFO:soil.utils:Finished simulation in 2.5671920776367188 seconds
-    INFO:soil.utils:Using config(s): Spread_barabasi_albert_graph_prob_0.2
-    INFO:soil.utils:Dumping results to soil_output/Spread_barabasi_albert_graph_prob_0.2 : True
-    INFO:soil.utils:Trial: 0
-    INFO:soil.utils:	Running
-    INFO:soil.utils:Finished trial in 0.8511502742767334 seconds
-    INFO:soil.utils:Dumping results to soil_output/Spread_barabasi_albert_graph_prob_0.2
-    INFO:soil.utils:Finished simulation in 2.55816912651062 seconds
-    INFO:soil.utils:Using config(s): Spread_barabasi_albert_graph_prob_0.3
-    INFO:soil.utils:Dumping results to soil_output/Spread_barabasi_albert_graph_prob_0.3 : True
-    INFO:soil.utils:Trial: 0
-    INFO:soil.utils:	Running
-    INFO:soil.utils:Finished trial in 0.8982968330383301 seconds
-    INFO:soil.utils:Dumping results to soil_output/Spread_barabasi_albert_graph_prob_0.3
-    INFO:soil.utils:Finished simulation in 2.6871559619903564 seconds
-    INFO:soil.utils:Using config(s): Spread_barabasi_albert_graph_prob_0.4
-    INFO:soil.utils:Dumping results to soil_output/Spread_barabasi_albert_graph_prob_0.4 : True
-    INFO:soil.utils:Trial: 0
-    INFO:soil.utils:	Running
-    INFO:soil.utils:Finished trial in 0.9563727378845215 seconds
-    INFO:soil.utils:Dumping results to soil_output/Spread_barabasi_albert_graph_prob_0.4
-    INFO:soil.utils:Finished simulation in 2.5253307819366455 seconds
-
-
-The results are conveniently stored in pickle (simulation), csv and
-sqlite (history of agent and environment state) and gexf (dynamic
-network) format.
+You can also export the results to GEXF format (dynamic network) and CSV
+using .\ ``run_from_config(config, dump=['gexf', 'csv'])`` or the
+command line flags ``--graph --csv``.
 
 .. code:: ipython3
 
@@ -454,97 +383,297 @@ network) format.
 
     [01;34msoil_output[00m
     ├── [01;34mSpread_barabasi_albert_graph_prob_0.0[00m
+    │   ├── [01;34mbackup[00m
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.dumped.yml@2023-03-23_12.57.35
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.dumped.yml@2023-03-23_14.06.30
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.dumped.yml@2023-03-23_14.19.33
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.dumped.yml@2023-03-23_14.30.56
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.sqlite@2023-03-23_12.57.35
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.sqlite@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.sqlite@2023-03-23_14.19.33
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.sqlite@2023-03-23_14.30.56
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.csv@2023-03-23_12.57.35
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.csv@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.csv@2023-03-23_14.19.33
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.csv@2023-03-23_14.30.56
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.sqlite@2023-03-23_12.57.35
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.sqlite@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.sqlite@2023-03-23_14.19.33
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.sqlite@2023-03-23_14.30.56
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.stats.csv@2023-03-23_12.57.35
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.stats.csv@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.stats.csv@2023-03-23_14.19.33
+    │   │   └── Spread_barabasi_albert_graph_prob_0.0_trial_0.stats.csv@2023-03-23_14.30.56
     │   ├── Spread_barabasi_albert_graph_prob_0.0.dumped.yml
-    │   ├── Spread_barabasi_albert_graph_prob_0.0.simulation.pickle
-    │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.backup1508409808.7944386.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.backup1508428617.9811945.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.db.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.environment.csv
-    │   └── Spread_barabasi_albert_graph_prob_0.0_trial_0.gexf
+    │   ├── Spread_barabasi_albert_graph_prob_0.0.sqlite
+    │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.csv
+    │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.sqlite
+    │   └── Spread_barabasi_albert_graph_prob_0.0_trial_0.stats.csv
     ├── [01;34mSpread_barabasi_albert_graph_prob_0.1[00m
+    │   ├── [01;34mbackup[00m
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.dumped.yml@2023-03-23_12.57.35
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.dumped.yml@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.dumped.yml@2023-03-23_14.19.34
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.dumped.yml@2023-03-23_14.30.56
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.sqlite@2023-03-23_12.57.35
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.sqlite@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.sqlite@2023-03-23_14.19.34
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.sqlite@2023-03-23_14.30.56
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.csv@2023-03-23_12.57.35
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.csv@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.csv@2023-03-23_14.19.34
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.csv@2023-03-23_14.30.56
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.sqlite@2023-03-23_12.57.35
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.sqlite@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.sqlite@2023-03-23_14.19.34
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.sqlite@2023-03-23_14.30.56
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.stats.csv@2023-03-23_12.57.35
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.stats.csv@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.stats.csv@2023-03-23_14.19.34
+    │   │   └── Spread_barabasi_albert_graph_prob_0.1_trial_0.stats.csv@2023-03-23_14.30.56
     │   ├── Spread_barabasi_albert_graph_prob_0.1.dumped.yml
-    │   ├── Spread_barabasi_albert_graph_prob_0.1.simulation.pickle
-    │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.backup1508409810.9913027.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.backup1508428620.3419535.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.db.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.environment.csv
-    │   └── Spread_barabasi_albert_graph_prob_0.1_trial_0.gexf
+    │   ├── Spread_barabasi_albert_graph_prob_0.1.sqlite
+    │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.csv
+    │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.sqlite
+    │   └── Spread_barabasi_albert_graph_prob_0.1_trial_0.stats.csv
     ├── [01;34mSpread_barabasi_albert_graph_prob_0.2[00m
+    │   ├── [01;34mbackup[00m
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.dumped.yml@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.dumped.yml@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.dumped.yml@2023-03-23_14.19.34
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.dumped.yml@2023-03-23_14.30.56
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.sqlite@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.sqlite@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.sqlite@2023-03-23_14.19.34
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.sqlite@2023-03-23_14.30.57
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.csv@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.csv@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.csv@2023-03-23_14.19.34
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.csv@2023-03-23_14.30.57
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.sqlite@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.sqlite@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.sqlite@2023-03-23_14.19.34
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.sqlite@2023-03-23_14.30.57
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.stats.csv@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.stats.csv@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.stats.csv@2023-03-23_14.19.34
+    │   │   └── Spread_barabasi_albert_graph_prob_0.2_trial_0.stats.csv@2023-03-23_14.30.57
     │   ├── Spread_barabasi_albert_graph_prob_0.2.dumped.yml
-    │   ├── Spread_barabasi_albert_graph_prob_0.2.simulation.pickle
-    │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.backup1508409813.2012305.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.backup1508428622.91827.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.db.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.environment.csv
-    │   └── Spread_barabasi_albert_graph_prob_0.2_trial_0.gexf
+    │   ├── Spread_barabasi_albert_graph_prob_0.2.sqlite
+    │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.csv
+    │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.sqlite
+    │   └── Spread_barabasi_albert_graph_prob_0.2_trial_0.stats.csv
     ├── [01;34mSpread_barabasi_albert_graph_prob_0.3[00m
+    │   ├── [01;34mbackup[00m
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.dumped.yml@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.dumped.yml@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.dumped.yml@2023-03-23_14.19.34
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.dumped.yml@2023-03-23_14.30.57
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.sqlite@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.sqlite@2023-03-23_14.06.32
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.sqlite@2023-03-23_14.19.34
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.sqlite@2023-03-23_14.30.57
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.csv@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.csv@2023-03-23_14.06.32
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.csv@2023-03-23_14.19.34
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.csv@2023-03-23_14.30.57
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.sqlite@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.sqlite@2023-03-23_14.06.31
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.sqlite@2023-03-23_14.19.34
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.sqlite@2023-03-23_14.30.57
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.stats.csv@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.stats.csv@2023-03-23_14.06.32
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.stats.csv@2023-03-23_14.19.34
+    │   │   └── Spread_barabasi_albert_graph_prob_0.3_trial_0.stats.csv@2023-03-23_14.30.57
     │   ├── Spread_barabasi_albert_graph_prob_0.3.dumped.yml
-    │   ├── Spread_barabasi_albert_graph_prob_0.3.simulation.pickle
-    │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.backup1508409815.5177016.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.backup1508428625.5117545.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.db.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.environment.csv
-    │   └── Spread_barabasi_albert_graph_prob_0.3_trial_0.gexf
+    │   ├── Spread_barabasi_albert_graph_prob_0.3.sqlite
+    │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.csv
+    │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.sqlite
+    │   └── Spread_barabasi_albert_graph_prob_0.3_trial_0.stats.csv
     ├── [01;34mSpread_barabasi_albert_graph_prob_0.4[00m
+    │   ├── [01;34mbackup[00m
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.dumped.yml@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.dumped.yml@2023-03-23_14.06.32
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.dumped.yml@2023-03-23_14.19.35
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.dumped.yml@2023-03-23_14.30.57
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.sqlite@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.sqlite@2023-03-23_14.06.32
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.sqlite@2023-03-23_14.19.35
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.sqlite@2023-03-23_14.30.57
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.csv@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.csv@2023-03-23_14.06.32
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.csv@2023-03-23_14.19.35
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.csv@2023-03-23_14.30.57
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.sqlite@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.sqlite@2023-03-23_14.06.32
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.sqlite@2023-03-23_14.19.35
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.sqlite@2023-03-23_14.30.57
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.stats.csv@2023-03-23_12.57.36
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.stats.csv@2023-03-23_14.06.32
+    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.stats.csv@2023-03-23_14.19.35
+    │   │   └── Spread_barabasi_albert_graph_prob_0.4_trial_0.stats.csv@2023-03-23_14.30.57
     │   ├── Spread_barabasi_albert_graph_prob_0.4.dumped.yml
-    │   ├── Spread_barabasi_albert_graph_prob_0.4.simulation.pickle
-    │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.backup1508409818.1516452.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.backup1508428628.1986933.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.db.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.environment.csv
-    │   └── Spread_barabasi_albert_graph_prob_0.4_trial_0.gexf
+    │   ├── Spread_barabasi_albert_graph_prob_0.4.sqlite
+    │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.csv
+    │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.sqlite
+    │   └── Spread_barabasi_albert_graph_prob_0.4_trial_0.stats.csv
     ├── [01;34mSpread_erdos_renyi_graph_prob_0.0[00m
+    │   ├── [01;34mbackup[00m
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.dumped.yml@2023-03-23_12.57.26
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.dumped.yml@2023-03-23_14.06.21
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.dumped.yml@2023-03-23_14.19.24
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.dumped.yml@2023-03-23_14.30.47
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.sqlite@2023-03-23_12.57.26
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.sqlite@2023-03-23_14.06.22
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.sqlite@2023-03-23_14.19.25
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.sqlite@2023-03-23_14.30.47
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.csv@2023-03-23_12.57.26
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.csv@2023-03-23_14.06.22
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.csv@2023-03-23_14.19.25
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.csv@2023-03-23_14.30.47
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.sqlite@2023-03-23_12.57.26
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.sqlite@2023-03-23_14.06.22
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.sqlite@2023-03-23_14.19.25
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.sqlite@2023-03-23_14.30.47
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.stats.csv@2023-03-23_12.57.26
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.stats.csv@2023-03-23_14.06.22
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.stats.csv@2023-03-23_14.19.25
+    │   │   └── Spread_erdos_renyi_graph_prob_0.0_trial_0.stats.csv@2023-03-23_14.30.47
     │   ├── Spread_erdos_renyi_graph_prob_0.0.dumped.yml
-    │   ├── Spread_erdos_renyi_graph_prob_0.0.simulation.pickle
-    │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.backup1508409781.0791047.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.backup1508428588.625598.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.db.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.environment.csv
-    │   └── Spread_erdos_renyi_graph_prob_0.0_trial_0.gexf
+    │   ├── Spread_erdos_renyi_graph_prob_0.0.sqlite
+    │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.csv
+    │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.sqlite
+    │   └── Spread_erdos_renyi_graph_prob_0.0_trial_0.stats.csv
     ├── [01;34mSpread_erdos_renyi_graph_prob_0.1[00m
+    │   ├── [01;34mbackup[00m
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.dumped.yml@2023-03-23_12.57.28
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.dumped.yml@2023-03-23_14.06.24
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.dumped.yml@2023-03-23_14.19.26
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.dumped.yml@2023-03-23_14.30.49
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.sqlite@2023-03-23_12.57.28
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.sqlite@2023-03-23_14.06.24
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.sqlite@2023-03-23_14.19.27
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.sqlite@2023-03-23_14.30.49
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.csv@2023-03-23_12.57.28
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.csv@2023-03-23_14.06.24
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.csv@2023-03-23_14.19.27
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.csv@2023-03-23_14.30.49
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.sqlite@2023-03-23_12.57.28
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.sqlite@2023-03-23_14.06.24
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.sqlite@2023-03-23_14.19.27
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.sqlite@2023-03-23_14.30.49
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.stats.csv@2023-03-23_12.57.28
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.stats.csv@2023-03-23_14.06.24
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.stats.csv@2023-03-23_14.19.27
+    │   │   └── Spread_erdos_renyi_graph_prob_0.1_trial_0.stats.csv@2023-03-23_14.30.49
     │   ├── Spread_erdos_renyi_graph_prob_0.1.dumped.yml
-    │   ├── Spread_erdos_renyi_graph_prob_0.1.simulation.pickle
-    │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.backup1508409786.6177793.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.backup1508428594.3783743.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.db.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.environment.csv
-    │   └── Spread_erdos_renyi_graph_prob_0.1_trial_0.gexf
+    │   ├── Spread_erdos_renyi_graph_prob_0.1.sqlite
+    │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.csv
+    │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.sqlite
+    │   └── Spread_erdos_renyi_graph_prob_0.1_trial_0.stats.csv
     ├── [01;34mSpread_erdos_renyi_graph_prob_0.2[00m
+    │   ├── [01;34mbackup[00m
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.dumped.yml@2023-03-23_12.57.30
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.dumped.yml@2023-03-23_14.06.26
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.dumped.yml@2023-03-23_14.19.28
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.dumped.yml@2023-03-23_14.30.51
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.sqlite@2023-03-23_12.57.31
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.sqlite@2023-03-23_14.06.26
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.sqlite@2023-03-23_14.19.29
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.sqlite@2023-03-23_14.30.51
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.csv@2023-03-23_12.57.31
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.csv@2023-03-23_14.06.26
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.csv@2023-03-23_14.19.29
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.csv@2023-03-23_14.30.51
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.sqlite@2023-03-23_12.57.31
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.sqlite@2023-03-23_14.06.26
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.sqlite@2023-03-23_14.19.29
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.sqlite@2023-03-23_14.30.51
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.stats.csv@2023-03-23_12.57.31
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.stats.csv@2023-03-23_14.06.26
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.stats.csv@2023-03-23_14.19.29
+    │   │   └── Spread_erdos_renyi_graph_prob_0.2_trial_0.stats.csv@2023-03-23_14.30.51
     │   ├── Spread_erdos_renyi_graph_prob_0.2.dumped.yml
-    │   ├── Spread_erdos_renyi_graph_prob_0.2.simulation.pickle
-    │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.backup1508409791.9751768.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.backup1508428600.041021.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.db.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.environment.csv
-    │   └── Spread_erdos_renyi_graph_prob_0.2_trial_0.gexf
+    │   ├── Spread_erdos_renyi_graph_prob_0.2.sqlite
+    │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.csv
+    │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.sqlite
+    │   └── Spread_erdos_renyi_graph_prob_0.2_trial_0.stats.csv
     ├── [01;34mSpread_erdos_renyi_graph_prob_0.3[00m
+    │   ├── [01;34mbackup[00m
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.dumped.yml@2023-03-23_12.57.32
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.dumped.yml@2023-03-23_14.06.28
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.dumped.yml@2023-03-23_14.19.31
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.dumped.yml@2023-03-23_14.30.53
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.sqlite@2023-03-23_12.57.33
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.sqlite@2023-03-23_14.06.28
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.sqlite@2023-03-23_14.19.31
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.sqlite@2023-03-23_14.30.53
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.csv@2023-03-23_12.57.33
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.csv@2023-03-23_14.06.28
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.csv@2023-03-23_14.19.31
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.csv@2023-03-23_14.30.53
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.sqlite@2023-03-23_12.57.33
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.sqlite@2023-03-23_14.06.28
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.sqlite@2023-03-23_14.19.31
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.sqlite@2023-03-23_14.30.53
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.stats.csv@2023-03-23_12.57.33
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.stats.csv@2023-03-23_14.06.28
+    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.stats.csv@2023-03-23_14.19.31
+    │   │   └── Spread_erdos_renyi_graph_prob_0.3_trial_0.stats.csv@2023-03-23_14.30.53
     │   ├── Spread_erdos_renyi_graph_prob_0.3.dumped.yml
-    │   ├── Spread_erdos_renyi_graph_prob_0.3.simulation.pickle
-    │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.backup1508409797.606661.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.backup1508428606.2884977.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.db.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.environment.csv
-    │   └── Spread_erdos_renyi_graph_prob_0.3_trial_0.gexf
+    │   ├── Spread_erdos_renyi_graph_prob_0.3.sqlite
+    │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.csv
+    │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.sqlite
+    │   └── Spread_erdos_renyi_graph_prob_0.3_trial_0.stats.csv
     └── [01;34mSpread_erdos_renyi_graph_prob_0.4[00m
+        ├── [01;34mbackup[00m
+        │   ├── Spread_erdos_renyi_graph_prob_0.4.dumped.yml@2023-03-23_12.57.34
+        │   ├── Spread_erdos_renyi_graph_prob_0.4.dumped.yml@2023-03-23_14.06.30
+        │   ├── Spread_erdos_renyi_graph_prob_0.4.dumped.yml@2023-03-23_14.19.33
+        │   ├── Spread_erdos_renyi_graph_prob_0.4.dumped.yml@2023-03-23_14.30.55
+        │   ├── Spread_erdos_renyi_graph_prob_0.4.sqlite@2023-03-23_12.57.35
+        │   ├── Spread_erdos_renyi_graph_prob_0.4.sqlite@2023-03-23_14.06.30
+        │   ├── Spread_erdos_renyi_graph_prob_0.4.sqlite@2023-03-23_14.19.33
+        │   ├── Spread_erdos_renyi_graph_prob_0.4.sqlite@2023-03-23_14.30.56
+        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.csv@2023-03-23_12.57.35
+        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.csv@2023-03-23_14.06.30
+        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.csv@2023-03-23_14.19.33
+        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.csv@2023-03-23_14.30.56
+        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.sqlite@2023-03-23_12.57.35
+        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.sqlite@2023-03-23_14.06.30
+        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.sqlite@2023-03-23_14.19.33
+        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.sqlite@2023-03-23_14.30.56
+        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.stats.csv@2023-03-23_12.57.35
+        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.stats.csv@2023-03-23_14.06.30
+        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.stats.csv@2023-03-23_14.19.33
+        │   └── Spread_erdos_renyi_graph_prob_0.4_trial_0.stats.csv@2023-03-23_14.30.56
         ├── Spread_erdos_renyi_graph_prob_0.4.dumped.yml
-        ├── Spread_erdos_renyi_graph_prob_0.4.simulation.pickle
-        ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.backup1508409803.4306188.sqlite
-        ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.backup1508428612.3312593.sqlite
-        ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.db.sqlite
-        ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.environment.csv
-        └── Spread_erdos_renyi_graph_prob_0.4_trial_0.gexf
+        ├── Spread_erdos_renyi_graph_prob_0.4.sqlite
+        ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.csv
+        ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.sqlite
+        └── Spread_erdos_renyi_graph_prob_0.4_trial_0.stats.csv
     
-    10 directories, 70 files
-    2.5M	soil_output/Spread_barabasi_albert_graph_prob_0.0
-    2.5M	soil_output/Spread_barabasi_albert_graph_prob_0.1
-    2.5M	soil_output/Spread_barabasi_albert_graph_prob_0.2
-    2.5M	soil_output/Spread_barabasi_albert_graph_prob_0.3
-    2.5M	soil_output/Spread_barabasi_albert_graph_prob_0.4
-    3.6M	soil_output/Spread_erdos_renyi_graph_prob_0.0
-    3.7M	soil_output/Spread_erdos_renyi_graph_prob_0.1
-    3.7M	soil_output/Spread_erdos_renyi_graph_prob_0.2
-    3.7M	soil_output/Spread_erdos_renyi_graph_prob_0.3
-    3.7M	soil_output/Spread_erdos_renyi_graph_prob_0.4
+    20 directories, 250 files
+    1.3M	soil_output/Spread_barabasi_albert_graph_prob_0.0/backup
+    1.7M	soil_output/Spread_barabasi_albert_graph_prob_0.0
+    1.3M	soil_output/Spread_barabasi_albert_graph_prob_0.1/backup
+    1.7M	soil_output/Spread_barabasi_albert_graph_prob_0.1
+    1.3M	soil_output/Spread_barabasi_albert_graph_prob_0.2/backup
+    1.6M	soil_output/Spread_barabasi_albert_graph_prob_0.2
+    1.3M	soil_output/Spread_barabasi_albert_graph_prob_0.3/backup
+    1.7M	soil_output/Spread_barabasi_albert_graph_prob_0.3
+    1.3M	soil_output/Spread_barabasi_albert_graph_prob_0.4/backup
+    1.7M	soil_output/Spread_barabasi_albert_graph_prob_0.4
+    2.7M	soil_output/Spread_erdos_renyi_graph_prob_0.0/backup
+    3.4M	soil_output/Spread_erdos_renyi_graph_prob_0.0
+    2.7M	soil_output/Spread_erdos_renyi_graph_prob_0.1/backup
+    3.4M	soil_output/Spread_erdos_renyi_graph_prob_0.1
+    2.7M	soil_output/Spread_erdos_renyi_graph_prob_0.2/backup
+    3.4M	soil_output/Spread_erdos_renyi_graph_prob_0.2
+    2.7M	soil_output/Spread_erdos_renyi_graph_prob_0.3/backup
+    3.4M	soil_output/Spread_erdos_renyi_graph_prob_0.3
+    2.7M	soil_output/Spread_erdos_renyi_graph_prob_0.4/backup
+    3.4M	soil_output/Spread_erdos_renyi_graph_prob_0.4
 
 
 Analysing the results
@@ -559,28 +688,29 @@ Soil allows you to load results for specific trials, or for a set of
 trials if you specify a pattern. The specific methods are:
 
 -  ``analysis.read_data(<directory pattern>)`` to load all the results
-   from a directory. e.g. ``read_data('my_simulation/')``. For each
+   from a directory. e.g. \ ``read_data('my_simulation/')``. For each
    trial it finds in each folder matching the pattern, it will return
    the dumped configuration for the simulation, the results of the
    trial, and the configuration itself. By default, it will try to load
    data from the sqlite database.
 -  ``analysis.read_csv(<csv_file>)`` to load all the results from a CSV
-   file. e.g.
-   ``read_csv('my_simulation/my_simulation_trial0.environment.csv')``
+   file.
+   e.g. \ ``read_csv('my_simulation/my_simulation_trial0.environment.csv')``
 -  ``analysis.read_sql(<sqlite_file>)`` to load all the results from a
-   sqlite database . e.g.
-   ``read_sql('my_simulation/my_simulation_trial0.db.sqlite')``
+   sqlite database .
+   e.g. \ ``read_sql('my_simulation/my_simulation_trial0.db.sqlite')``
 
-Let's see it in action by loading the stored results into a pandas
+Let’s see it in action by loading the stored results into a pandas
 dataframe:
 
 .. code:: ipython3
 
-    from soil.analysis import *
+    from soil import analysis
+    import pandas as pd
 
 .. code:: ipython3
 
-    df  = read_csv('soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0_trial_0.environment.csv', keys=['id'])
+    df = analysis.read_csv('soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0_trial_0.csv')
     df
 
 
@@ -589,533 +719,578 @@ dataframe:
 .. raw:: html
 
     <div>
-    <style>
-        .dataframe thead tr:only-child th {
-            text-align: right;
-        }
-    
-        .dataframe thead th {
-            text-align: left;
+    <style scoped>
+        .dataframe tbody tr th:only-of-type {
+            vertical-align: middle;
         }
     
         .dataframe tbody tr th {
             vertical-align: top;
         }
+    
+        .dataframe thead tr th {
+            text-align: left;
+        }
+    
+        .dataframe thead tr:last-of-type th {
+            text-align: right;
+        }
     </style>
     <table border="1" class="dataframe">
       <thead>
-        <tr style="text-align: right;">
-          <th></th>
-          <th>agent_id</th>
-          <th>t_step</th>
+        <tr>
           <th>key</th>
-          <th>value</th>
-          <th>value_type</th>
+          <th>SEED</th>
+          <th colspan="9" halign="left">alive</th>
+          <th>...</th>
+          <th colspan="10" halign="left">state_id</th>
+        </tr>
+        <tr>
+          <th>agent_id</th>
+          <th>env</th>
+          <th>0</th>
+          <th>1</th>
+          <th>10</th>
+          <th>100</th>
+          <th>101</th>
+          <th>102</th>
+          <th>103</th>
+          <th>104</th>
+          <th>105</th>
+          <th>...</th>
+          <th>90</th>
+          <th>91</th>
+          <th>92</th>
+          <th>93</th>
+          <th>94</th>
+          <th>95</th>
+          <th>96</th>
+          <th>97</th>
+          <th>98</th>
+          <th>99</th>
+        </tr>
+        <tr>
+          <th>t_step</th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <th>5</th>
-          <td>0</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>7</th>
-          <td>1</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>9</th>
-          <td>2</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>11</th>
-          <td>3</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>13</th>
-          <td>4</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>15</th>
-          <td>5</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>17</th>
-          <td>6</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>19</th>
-          <td>7</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21</th>
-          <td>8</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>23</th>
-          <td>9</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>25</th>
-          <td>10</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>27</th>
-          <td>11</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>29</th>
-          <td>12</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>31</th>
-          <td>13</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>33</th>
-          <td>14</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>35</th>
-          <td>15</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>37</th>
-          <td>16</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>39</th>
-          <td>17</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>41</th>
-          <td>18</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>43</th>
-          <td>19</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>45</th>
-          <td>20</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>47</th>
-          <td>21</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>49</th>
-          <td>22</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>51</th>
-          <td>23</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>53</th>
-          <td>24</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>55</th>
-          <td>25</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>57</th>
-          <td>26</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>59</th>
-          <td>27</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>61</th>
-          <td>28</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>63</th>
-          <td>29</td>
-          <td>0</td>
-          <td>id</td>
-          <td>neutral</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>...</th>
+          <th>0.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
           <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>1.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
           <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>2.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
           <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>3.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
           <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>4.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
           <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
         </tr>
         <tr>
-          <th>21025</th>
-          <td>470</td>
-          <td>20</td>
-          <td>id</td>
+          <th>5.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
           <td>infected</td>
-          <td>str</td>
+          <td>neutral</td>
+          <td>neutral</td>
         </tr>
         <tr>
-          <th>21027</th>
-          <td>471</td>
-          <td>20</td>
-          <td>id</td>
+          <th>6.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
           <td>infected</td>
-          <td>str</td>
+          <td>neutral</td>
+          <td>neutral</td>
         </tr>
         <tr>
-          <th>21029</th>
-          <td>472</td>
-          <td>20</td>
-          <td>id</td>
+          <th>7.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
           <td>infected</td>
-          <td>str</td>
+          <td>neutral</td>
+          <td>neutral</td>
         </tr>
         <tr>
-          <th>21031</th>
-          <td>473</td>
-          <td>20</td>
-          <td>id</td>
+          <th>8.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
           <td>infected</td>
-          <td>str</td>
+          <td>neutral</td>
+          <td>neutral</td>
         </tr>
         <tr>
-          <th>21033</th>
-          <td>474</td>
-          <td>20</td>
-          <td>id</td>
+          <th>9.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
           <td>infected</td>
-          <td>str</td>
+          <td>neutral</td>
+          <td>neutral</td>
         </tr>
         <tr>
-          <th>21035</th>
-          <td>475</td>
-          <td>20</td>
-          <td>id</td>
+          <th>10.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
           <td>infected</td>
-          <td>str</td>
+          <td>neutral</td>
+          <td>neutral</td>
         </tr>
         <tr>
-          <th>21037</th>
-          <td>476</td>
-          <td>20</td>
-          <td>id</td>
+          <th>11.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
           <td>infected</td>
-          <td>str</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
         </tr>
         <tr>
-          <th>21039</th>
-          <td>477</td>
-          <td>20</td>
-          <td>id</td>
+          <th>12.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
           <td>infected</td>
-          <td>str</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
         </tr>
         <tr>
-          <th>21041</th>
-          <td>478</td>
-          <td>20</td>
-          <td>id</td>
+          <th>13.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
           <td>infected</td>
-          <td>str</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
         </tr>
         <tr>
-          <th>21043</th>
-          <td>479</td>
-          <td>20</td>
-          <td>id</td>
+          <th>14.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
           <td>infected</td>
-          <td>str</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
         </tr>
         <tr>
-          <th>21045</th>
-          <td>480</td>
-          <td>20</td>
-          <td>id</td>
+          <th>15.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
           <td>infected</td>
-          <td>str</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
         </tr>
         <tr>
-          <th>21047</th>
-          <td>481</td>
-          <td>20</td>
-          <td>id</td>
+          <th>16.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
           <td>infected</td>
-          <td>str</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
         </tr>
         <tr>
-          <th>21049</th>
-          <td>482</td>
-          <td>20</td>
-          <td>id</td>
+          <th>17.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
           <td>infected</td>
-          <td>str</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
         </tr>
         <tr>
-          <th>21051</th>
-          <td>483</td>
-          <td>20</td>
-          <td>id</td>
+          <th>18.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
           <td>infected</td>
-          <td>str</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
         </tr>
         <tr>
-          <th>21053</th>
-          <td>484</td>
-          <td>20</td>
-          <td>id</td>
+          <th>19.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
           <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21055</th>
-          <td>485</td>
-          <td>20</td>
-          <td>id</td>
           <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21057</th>
-          <td>486</td>
-          <td>20</td>
-          <td>id</td>
           <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21059</th>
-          <td>487</td>
-          <td>20</td>
-          <td>id</td>
           <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21061</th>
-          <td>488</td>
-          <td>20</td>
-          <td>id</td>
           <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21063</th>
-          <td>489</td>
-          <td>20</td>
-          <td>id</td>
           <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21065</th>
-          <td>490</td>
-          <td>20</td>
-          <td>id</td>
           <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21067</th>
-          <td>491</td>
-          <td>20</td>
-          <td>id</td>
           <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21069</th>
-          <td>492</td>
-          <td>20</td>
-          <td>id</td>
           <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21071</th>
-          <td>493</td>
-          <td>20</td>
-          <td>id</td>
           <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21073</th>
-          <td>494</td>
-          <td>20</td>
-          <td>id</td>
-          <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21075</th>
-          <td>495</td>
-          <td>20</td>
-          <td>id</td>
-          <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21077</th>
-          <td>496</td>
-          <td>20</td>
-          <td>id</td>
-          <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21079</th>
-          <td>497</td>
-          <td>20</td>
-          <td>id</td>
-          <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21081</th>
-          <td>498</td>
-          <td>20</td>
-          <td>id</td>
-          <td>infected</td>
-          <td>str</td>
-        </tr>
-        <tr>
-          <th>21083</th>
-          <td>499</td>
-          <td>20</td>
-          <td>id</td>
-          <td>infected</td>
-          <td>str</td>
         </tr>
       </tbody>
     </table>
-    <p>10500 rows × 5 columns</p>
+    <p>20 rows × 2507 columns</p>
     </div>
 
 
 
-Soil can also process the data for us and return a dataframe with as
-many columns as there are attributes in the environment and the agent
-states:
+Soil can also process the data for us and split the results into
+environment attributes and agent attributes:
 
 .. code:: ipython3
 
-    env, agents = process(df)
+    env, agents = analysis.split_processed(df)
+
+.. code:: ipython3
+
     agents
 
 
@@ -1124,638 +1299,609 @@ states:
 .. raw:: html
 
     <div>
-    <style>
-        .dataframe thead tr:only-child th {
-            text-align: right;
-        }
-    
-        .dataframe thead th {
-            text-align: left;
+    <style scoped>
+        .dataframe tbody tr th:only-of-type {
+            vertical-align: middle;
         }
     
         .dataframe tbody tr th {
             vertical-align: top;
         }
+    
+        .dataframe thead tr th {
+            text-align: left;
+        }
+    
+        .dataframe thead tr:last-of-type th {
+            text-align: right;
+        }
     </style>
     <table border="1" class="dataframe">
       <thead>
-        <tr style="text-align: right;">
-          <th></th>
-          <th></th>
-          <th>id</th>
+        <tr>
+          <th>key</th>
+          <th colspan="10" halign="left">alive</th>
+          <th>...</th>
+          <th colspan="10" halign="left">state_id</th>
+        </tr>
+        <tr>
+          <th>agent_id</th>
+          <th>0</th>
+          <th>1</th>
+          <th>10</th>
+          <th>100</th>
+          <th>101</th>
+          <th>102</th>
+          <th>103</th>
+          <th>104</th>
+          <th>105</th>
+          <th>106</th>
+          <th>...</th>
+          <th>90</th>
+          <th>91</th>
+          <th>92</th>
+          <th>93</th>
+          <th>94</th>
+          <th>95</th>
+          <th>96</th>
+          <th>97</th>
+          <th>98</th>
+          <th>99</th>
         </tr>
         <tr>
           <th>t_step</th>
-          <th>agent_id</th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
           <th></th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <th rowspan="30" valign="top">0</th>
-          <th>0</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>1</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>10</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>100</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>101</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>102</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>103</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>104</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>105</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>106</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>107</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>108</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>109</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>11</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>110</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>111</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>112</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>113</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>114</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>115</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>116</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>117</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>118</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>119</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>12</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>120</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>121</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>122</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>123</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>124</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>...</th>
-          <th>...</th>
+          <th>0.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
           <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
         </tr>
         <tr>
-          <th rowspan="30" valign="top">20</th>
-          <th>72</th>
+          <th>1.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>2.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>3.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>4.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>5.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>6.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>7.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>8.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>9.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>10.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>11.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>73</th>
+          <th>12.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>74</th>
+          <th>13.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>75</th>
+          <th>14.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>76</th>
+          <th>15.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>77</th>
+          <th>16.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>78</th>
+          <th>17.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>79</th>
+          <th>18.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>8</th>
+          <th>19.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
           <td>infected</td>
-        </tr>
-        <tr>
-          <th>80</th>
           <td>infected</td>
-        </tr>
-        <tr>
-          <th>81</th>
           <td>infected</td>
-        </tr>
-        <tr>
-          <th>82</th>
           <td>infected</td>
-        </tr>
-        <tr>
-          <th>83</th>
           <td>infected</td>
-        </tr>
-        <tr>
-          <th>84</th>
           <td>infected</td>
-        </tr>
-        <tr>
-          <th>85</th>
           <td>infected</td>
-        </tr>
-        <tr>
-          <th>86</th>
           <td>infected</td>
-        </tr>
-        <tr>
-          <th>87</th>
           <td>infected</td>
-        </tr>
-        <tr>
-          <th>88</th>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>89</th>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>9</th>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>90</th>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>91</th>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>92</th>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>93</th>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>94</th>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>95</th>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>96</th>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>97</th>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>98</th>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>99</th>
           <td>infected</td>
         </tr>
       </tbody>
     </table>
-    <p>10500 rows × 1 columns</p>
+    <p>20 rows × 2504 columns</p>
     </div>
 
 
 
-The index of the results are the simulation step and the agent\_id.
-Hence, we can access the state of the simulation at a given step:
+The index of the results are the simulation step. Hence, we can access
+the state of the simulation at a given step (e.g., 13):
 
 .. code:: ipython3
 
-    agents.loc[0]
+    agents.loc[13, 'state_id']
 
 
 
 
-.. raw:: html
+.. parsed-literal::
 
-    <div>
-    <style>
-        .dataframe thead tr:only-child th {
-            text-align: right;
-        }
-    
-        .dataframe thead th {
-            text-align: left;
-        }
-    
-        .dataframe tbody tr th {
-            vertical-align: top;
-        }
-    </style>
-    <table border="1" class="dataframe">
-      <thead>
-        <tr style="text-align: right;">
-          <th></th>
-          <th>id</th>
-        </tr>
-        <tr>
-          <th>agent_id</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <th>0</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>1</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>10</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>100</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>101</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>102</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>103</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>104</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>105</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>106</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>107</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>108</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>109</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>11</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>110</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>111</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>112</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>113</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>114</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>115</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>116</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>117</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>118</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>119</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>12</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>120</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>121</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>122</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>123</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>124</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>...</th>
-          <td>...</td>
-        </tr>
-        <tr>
-          <th>72</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>73</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>74</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>75</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>76</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>77</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>78</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>79</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>8</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>80</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>81</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>82</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>83</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>84</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>85</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>86</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>87</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>88</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>89</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>9</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>90</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>91</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>92</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>93</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>94</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>95</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>96</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>97</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>98</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>99</th>
-          <td>neutral</td>
-        </tr>
-      </tbody>
-    </table>
-    <p>500 rows × 1 columns</p>
-    </div>
+    agent_id
+    0      infected
+    1      infected
+    10     infected
+    100    infected
+    101    infected
+             ...   
+    95     infected
+    96     infected
+    97     infected
+    98     infected
+    99     infected
+    Name: 13.0, Length: 500, dtype: object
 
 
 
 Or, we can perform more complex tasks such as showing the agents that
-have changed their state between two simulation steps:
+have changed their state between two simulation steps (2 and 1):
 
 .. code:: ipython3
 
-    changed = agents.loc[1]['id'] != agents.loc[0]['id']
-    agents.loc[0][changed]
+    (agents.loc[2]['state_id'] != agents.loc[1]['state_id']).sum()
 
 
 
 
-.. raw:: html
+.. parsed-literal::
 
-    <div>
-    <style>
-        .dataframe thead tr:only-child th {
-            text-align: right;
-        }
-    
-        .dataframe thead th {
-            text-align: left;
-        }
-    
-        .dataframe tbody tr th {
-            vertical-align: top;
-        }
-    </style>
-    <table border="1" class="dataframe">
-      <thead>
-        <tr style="text-align: right;">
-          <th></th>
-          <th>id</th>
-        </tr>
-        <tr>
-          <th>agent_id</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <th>140</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>164</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>170</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>310</th>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>455</th>
-          <td>neutral</td>
-        </tr>
-      </tbody>
-    </table>
-    </div>
+    2
 
 
 
@@ -1763,11 +1909,7 @@ To focus on specific agents, we can swap the levels of the index:
 
 .. code:: ipython3
 
-    agents1 = agents.swaplevel()
-
-.. code:: ipython3
-
-    agents1.loc['0'].dropna(axis=1)
+    agents.swaplevel(axis=1)
 
 
 
@@ -1775,117 +1917,582 @@ To focus on specific agents, we can swap the levels of the index:
 .. raw:: html
 
     <div>
-    <style>
-        .dataframe thead tr:only-child th {
-            text-align: right;
-        }
-    
-        .dataframe thead th {
-            text-align: left;
+    <style scoped>
+        .dataframe tbody tr th:only-of-type {
+            vertical-align: middle;
         }
     
         .dataframe tbody tr th {
             vertical-align: top;
         }
+    
+        .dataframe thead tr th {
+            text-align: left;
+        }
+    
+        .dataframe thead tr:last-of-type th {
+            text-align: right;
+        }
     </style>
     <table border="1" class="dataframe">
       <thead>
-        <tr style="text-align: right;">
-          <th></th>
-          <th>id</th>
+        <tr>
+          <th>agent_id</th>
+          <th>0</th>
+          <th>1</th>
+          <th>10</th>
+          <th>100</th>
+          <th>101</th>
+          <th>102</th>
+          <th>103</th>
+          <th>104</th>
+          <th>105</th>
+          <th>106</th>
+          <th>...</th>
+          <th>90</th>
+          <th>91</th>
+          <th>92</th>
+          <th>93</th>
+          <th>94</th>
+          <th>95</th>
+          <th>96</th>
+          <th>97</th>
+          <th>98</th>
+          <th>99</th>
+        </tr>
+        <tr>
+          <th>key</th>
+          <th>alive</th>
+          <th>alive</th>
+          <th>alive</th>
+          <th>alive</th>
+          <th>alive</th>
+          <th>alive</th>
+          <th>alive</th>
+          <th>alive</th>
+          <th>alive</th>
+          <th>alive</th>
+          <th>...</th>
+          <th>state_id</th>
+          <th>state_id</th>
+          <th>state_id</th>
+          <th>state_id</th>
+          <th>state_id</th>
+          <th>state_id</th>
+          <th>state_id</th>
+          <th>state_id</th>
+          <th>state_id</th>
+          <th>state_id</th>
         </tr>
         <tr>
           <th>t_step</th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
           <th></th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <th>0</th>
+          <th>0.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
           <td>neutral</td>
         </tr>
         <tr>
-          <th>1</th>
+          <th>1.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
           <td>neutral</td>
         </tr>
         <tr>
-          <th>2</th>
+          <th>2.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
           <td>neutral</td>
         </tr>
         <tr>
-          <th>3</th>
+          <th>3.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
           <td>neutral</td>
         </tr>
         <tr>
-          <th>4</th>
+          <th>4.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
           <td>neutral</td>
         </tr>
         <tr>
-          <th>5</th>
+          <th>5.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
           <td>neutral</td>
         </tr>
         <tr>
-          <th>6</th>
+          <th>6.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
           <td>neutral</td>
         </tr>
         <tr>
-          <th>7</th>
+          <th>7.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
           <td>neutral</td>
         </tr>
         <tr>
-          <th>8</th>
+          <th>8.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
           <td>neutral</td>
         </tr>
         <tr>
-          <th>9</th>
+          <th>9.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
           <td>neutral</td>
         </tr>
         <tr>
-          <th>10</th>
+          <th>10.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
           <td>neutral</td>
         </tr>
         <tr>
-          <th>11</th>
+          <th>11.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>12</th>
+          <th>12.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>13</th>
+          <th>13.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>14</th>
+          <th>14.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>15</th>
+          <th>15.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>16</th>
+          <th>16.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>17</th>
+          <th>17.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>18</th>
+          <th>18.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>19</th>
+          <th>19.0</th>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
           <td>infected</td>
-        </tr>
-        <tr>
-          <th>20</th>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
       </tbody>
     </table>
+    <p>20 rows × 2504 columns</p>
     </div>
 
 
@@ -1893,110 +2500,108 @@ To focus on specific agents, we can swap the levels of the index:
 Plotting data
 ~~~~~~~~~~~~~
 
-If you don't want to work with pandas, you can also use some pre-defined
+If you don’t want to work with pandas, you can also use some pre-defined
 functions from soil to conveniently plot the results:
 
 .. code:: ipython3
 
-    plot_all('soil_output/Spread_barabasi_albert_graph_prob_0.0/', get_count, 'id');
-
-
-
-.. image:: output_54_0.png
-
-
-
-.. image:: output_54_1.png
-
-
-.. code:: ipython3
-
-    plot_all('soil_output/Spread_barabasi*', get_count, 'id');
+    analysis.plot_all('soil_output/Spread_barabasi_albert_graph_prob_0.0/', analysis.get_count, 'state_id');
 
 
 
 .. image:: output_55_0.png
 
 
-
-.. image:: output_55_1.png
-
-
-
-.. image:: output_55_2.png
-
-
-
-.. image:: output_55_3.png
-
-
-
-.. image:: output_55_4.png
-
-
-
-.. image:: output_55_5.png
-
-
-
-.. image:: output_55_6.png
-
-
-
-.. image:: output_55_7.png
-
-
-
-.. image:: output_55_8.png
-
-
-
-.. image:: output_55_9.png
-
-
 .. code:: ipython3
 
-    plot_all('soil_output/Spread_erdos*', get_value, 'prob_tv_spread');
+    analysis.plot_all('soil_output/Spread_barabasi_albert_graph_prob_0.3/', analysis.get_count, 'state_id');
 
 
 
 .. image:: output_56_0.png
 
 
+You can use wildcards in the results path:
 
-.. image:: output_56_1.png
+.. code:: ipython3
 
-
-
-.. image:: output_56_2.png
-
-
-
-.. image:: output_56_3.png
+    analysis.plot_all('soil_output/Spread_barabasi*/', analysis.get_count, 'state_id');
 
 
 
-.. image:: output_56_4.png
+.. image:: output_58_0.png
 
 
 
-.. image:: output_56_5.png
+.. image:: output_58_1.png
 
 
 
-.. image:: output_56_6.png
+.. image:: output_58_2.png
 
 
 
-.. image:: output_56_7.png
+.. image:: output_58_3.png
 
 
 
-.. image:: output_56_8.png
+.. image:: output_58_4.png
+
+
+If we compare these results to those of the other graph model (a
+fully-connected graph), we can see a stark difference:
+
+.. code:: ipython3
+
+    analysis.plot_all('soil_output/Spread_erdos*', analysis.get_count, 'state_id');
 
 
 
-.. image:: output_56_9.png
+.. image:: output_60_0.png
+
+
+
+.. image:: output_60_1.png
+
+
+
+.. image:: output_60_2.png
+
+
+
+.. image:: output_60_3.png
+
+
+
+.. image:: output_60_4.png
+
+
+The previous cells were using the ``count_value`` function for
+aggregation. There’s another function to plot numeral values:
+
+.. code:: ipython3
+
+    analysis.plot_all('soil_output/Spread_erdos*', analysis.get_value, 'prob_tv_spread');
+
+
+
+.. image:: output_62_0.png
+
+
+
+.. image:: output_62_1.png
+
+
+
+.. image:: output_62_2.png
+
+
+
+.. image:: output_62_3.png
+
+
+
+.. image:: output_62_4.png
 
 
 Manually plotting with pandas
@@ -2022,45 +2627,22 @@ canonical form into a dataframe with a column per attribute.
 
 .. code:: ipython3
 
-    p = read_sql('soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0_trial_0.db.sqlite')
-    env, agents = split_df(p);
-
-Let's look at the evolution of agent parameters in the simulation
-
-.. code:: ipython3
-
-    res = agents.groupby(by=['t_step', 'key', 'value']).size().unstack(level=[1,2]).fillna(0)
-    res.plot();
-
-
-
-.. image:: output_61_0.png
-
-
-As we can see, ``event_time`` is cluttering our results,
-
-.. code:: ipython3
-
-    del res['event_time']
-    res.plot()
-
-
+    !ls soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0*
 
 
 .. parsed-literal::
 
-    <matplotlib.axes._subplots.AxesSubplot at 0x7fd795b17b38>
-
-
-
-
-.. image:: output_63_1.png
+    soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0.dumped.yml
+    soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0.sqlite
+    soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0_trial_0.csv
+    soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0_trial_0.sqlite
+    soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0_trial_0.stats.csv
 
 
 .. code:: ipython3
 
-    processed = process_one(agents);
-    processed
+    df = analysis.read_sql('soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0_trial_0.sqlite')
+    df
 
 
 
@@ -2068,31 +2650,76 @@ As we can see, ``event_time`` is cluttering our results,
 .. raw:: html
 
     <div>
-    <style>
-        .dataframe thead tr:only-child th {
-            text-align: right;
-        }
-    
-        .dataframe thead th {
-            text-align: left;
+    <style scoped>
+        .dataframe tbody tr th:only-of-type {
+            vertical-align: middle;
         }
     
         .dataframe tbody tr th {
             vertical-align: top;
         }
+    
+        .dataframe thead tr th {
+            text-align: left;
+        }
+    
+        .dataframe thead tr:last-of-type th {
+            text-align: right;
+        }
     </style>
     <table border="1" class="dataframe">
       <thead>
-        <tr style="text-align: right;">
-          <th></th>
-          <th></th>
-          <th>event_time</th>
-          <th>has_tv</th>
-          <th>id</th>
+        <tr>
+          <th>key</th>
+          <th>SEED</th>
+          <th colspan="9" halign="left">alive</th>
+          <th>...</th>
+          <th colspan="10" halign="left">state_id</th>
+        </tr>
+        <tr>
+          <th>dict_id</th>
+          <th>env</th>
+          <th>0</th>
+          <th>1</th>
+          <th>10</th>
+          <th>100</th>
+          <th>101</th>
+          <th>102</th>
+          <th>103</th>
+          <th>104</th>
+          <th>105</th>
+          <th>...</th>
+          <th>90</th>
+          <th>91</th>
+          <th>92</th>
+          <th>93</th>
+          <th>94</th>
+          <th>95</th>
+          <th>96</th>
+          <th>97</th>
+          <th>98</th>
+          <th>99</th>
         </tr>
         <tr>
           <th>t_step</th>
-          <th>agent_id</th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
           <th></th>
           <th></th>
           <th></th>
@@ -2100,415 +2727,543 @@ As we can see, ``event_time`` is cluttering our results,
       </thead>
       <tbody>
         <tr>
-          <th rowspan="30" valign="top">0</th>
-          <th>0</th>
-          <td>0</td>
+          <th>0.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
           <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>1</th>
-          <td>0</td>
-          <td>False</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>10</th>
-          <td>0</td>
           <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>100</th>
-          <td>0</td>
           <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>101</th>
-          <td>0</td>
           <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>102</th>
-          <td>0</td>
-          <td>False</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>103</th>
-          <td>0</td>
           <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>104</th>
-          <td>0</td>
           <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>105</th>
-          <td>0</td>
-          <td>False</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>106</th>
-          <td>0</td>
-          <td>False</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>107</th>
-          <td>0</td>
           <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>108</th>
-          <td>0</td>
           <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>109</th>
-          <td>0</td>
-          <td>False</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>11</th>
-          <td>0</td>
           <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>110</th>
-          <td>0</td>
-          <td>False</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>111</th>
-          <td>0</td>
-          <td>False</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>112</th>
-          <td>0</td>
-          <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>113</th>
-          <td>0</td>
-          <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>114</th>
-          <td>0</td>
-          <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>115</th>
-          <td>0</td>
-          <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>116</th>
-          <td>0</td>
-          <td>False</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>117</th>
-          <td>0</td>
-          <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>118</th>
-          <td>0</td>
-          <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>119</th>
-          <td>0</td>
-          <td>False</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>12</th>
-          <td>0</td>
-          <td>False</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>120</th>
-          <td>0</td>
-          <td>False</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>121</th>
-          <td>0</td>
-          <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>122</th>
-          <td>0</td>
-          <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>123</th>
-          <td>0</td>
-          <td>True</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>124</th>
-          <td>0</td>
-          <td>False</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>...</th>
-          <th>...</th>
           <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>1.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
           <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>2.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
           <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
         </tr>
         <tr>
-          <th rowspan="30" valign="top">20</th>
-          <th>73</th>
-          <td>0</td>
+          <th>3.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>74</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>75</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>76</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>77</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>78</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>79</th>
-          <td>0</td>
-          <td>False</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>8</th>
-          <td>0</td>
-          <td>False</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>80</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>81</th>
-          <td>0</td>
-          <td>False</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>82</th>
-          <td>0</td>
-          <td>False</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>83</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>84</th>
-          <td>0</td>
-          <td>False</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>85</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
         </tr>
         <tr>
-          <th>86</th>
-          <td>0</td>
+          <th>4.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>87</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>88</th>
-          <td>0</td>
-          <td>False</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>89</th>
-          <td>0</td>
-          <td>False</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>9</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>90</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>91</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>92</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>93</th>
-          <td>0</td>
-          <td>False</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>94</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>95</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>96</th>
-          <td>0</td>
           <td>True</td>
-          <td>infected</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
         </tr>
         <tr>
-          <th>97</th>
-          <td>0</td>
+          <th>5.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
           <td>True</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>98</th>
-          <td>0</td>
-          <td>False</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>99</th>
-          <td>0</td>
           <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>6.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>7.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>8.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>9.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>10.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>11.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>neutral</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
           <td>infected</td>
         </tr>
         <tr>
-          <th>NewsEnvironmentAgent</th>
-          <td>10</td>
-          <td>False</td>
-          <td>0</td>
+          <th>12.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+        </tr>
+        <tr>
+          <th>13.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+        </tr>
+        <tr>
+          <th>14.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+        </tr>
+        <tr>
+          <th>15.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+        </tr>
+        <tr>
+          <th>16.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+        </tr>
+        <tr>
+          <th>17.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+        </tr>
+        <tr>
+          <th>18.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+        </tr>
+        <tr>
+          <th>19.0</th>
+          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>True</td>
+          <td>...</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
+          <td>infected</td>
         </tr>
       </tbody>
     </table>
-    <p>10521 rows × 3 columns</p>
+    <p>20 rows × 3008 columns</p>
     </div>
 
 
 
-Which is equivalent to:
+Let’s look at the evolution of agent parameters in the simulation
 
 .. code:: ipython3
 
-    get_count(agents, 'id', 'has_tv').plot()
+    df.plot()
 
 
 
 
 .. parsed-literal::
 
-    <matplotlib.axes._subplots.AxesSubplot at 0x7fd799c15748>
+    <Axes: xlabel='t_step'>
 
 
 
 
-.. image:: output_66_1.png
+.. image:: output_68_1.png
 
+
+As we can see, ``event_time`` and ``interval`` are cluttering our
+results,
 
 .. code:: ipython3
 
-    get_value(agents, 'event_time').plot()
+    del df['interval']
+    del df['event_time']
+    df.plot()
 
 
 
 
 .. parsed-literal::
 
-    <matplotlib.axes._subplots.AxesSubplot at 0x7fd79a228c88>
+    <Axes: xlabel='t_step'>
 
 
 
 
-.. image:: output_67_1.png
+.. image:: output_70_1.png
+
+
+The ``soil.analysis`` module also provides convenient functions to count
+the number of agents in a given state:
+
+.. code:: ipython3
+
+    analysis.get_count(agents, 'state_id').plot();
+
+
+
+.. image:: output_72_0.png
 
 
 Dealing with bigger data
@@ -2525,7 +3280,7 @@ Dealing with bigger data
 
 .. parsed-literal::
 
-    267M	../rabbits/soil_output/rabbits_example/
+    1.1M	../rabbits/soil_output/rabbits_example/
 
 
 If we tried to load the entire history, we would probably run out of
@@ -2534,42 +3289,396 @@ you are interested in.
 
 .. code:: ipython3
 
-    p = analysis.plot_all('../rabbits/soil_output/rabbits_example/', analysis.get_count, 'id')
+    p = analysis.plot_all('../rabbits/soil_output/rabbits_example/', analysis.get_count, 'state_id')
 
 
 
-.. image:: output_72_0.png
-
-
-
-.. image:: output_72_1.png
+.. image:: output_77_0.png
 
 
 .. code:: ipython3
 
-    df = analysis.read_sql('../rabbits/soil_output/rabbits_example/rabbits_example_trial_0.db.sqlite', keys=['id', 'rabbits_alive'])
-
-.. code:: ipython3
-
-    states = analysis.get_count(df, 'id')
-    states.plot()
-
-
+    !ls ../rabbits/soil_output/rabbits_example
 
 
 .. parsed-literal::
 
-    <matplotlib.axes._subplots.AxesSubplot at 0x7fd799b5b2b0>
-
-
-
-
-.. image:: output_74_1.png
+    backup			    rabbits_example.sqlite
+    rabbits_example.dumped.yml  rabbits_example_trial_0.sqlite
 
 
 .. code:: ipython3
 
-    alive = analysis.get_value(df, 'rabbits_alive', 'rabbits_alive', aggfunc='sum').apply(pd.to_numeric)
+    df = analysis.read_sql('../rabbits/soil_output/rabbits_example/rabbits_example_trial_0.sqlite', keys=['state_id', 'rabbits_alive'])
+
+.. code:: ipython3
+
+    df
+
+
+
+
+.. raw:: html
+
+    <div>
+    <style scoped>
+        .dataframe tbody tr th:only-of-type {
+            vertical-align: middle;
+        }
+    
+        .dataframe tbody tr th {
+            vertical-align: top;
+        }
+    
+        .dataframe thead tr th {
+            text-align: left;
+        }
+    
+        .dataframe thead tr:last-of-type th {
+            text-align: right;
+        }
+    </style>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr>
+          <th>key</th>
+          <th>rabbits_alive</th>
+          <th colspan="20" halign="left">state_id</th>
+        </tr>
+        <tr>
+          <th>dict_id</th>
+          <th>env</th>
+          <th>0</th>
+          <th>1</th>
+          <th>10</th>
+          <th>100</th>
+          <th>101</th>
+          <th>102</th>
+          <th>103</th>
+          <th>104</th>
+          <th>105</th>
+          <th>...</th>
+          <th>90</th>
+          <th>91</th>
+          <th>92</th>
+          <th>93</th>
+          <th>94</th>
+          <th>95</th>
+          <th>96</th>
+          <th>97</th>
+          <th>98</th>
+          <th>99</th>
+        </tr>
+        <tr>
+          <th>t_step</th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0.0</th>
+          <td>0</td>
+          <td>newborn</td>
+          <td>newborn</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>...</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+        </tr>
+        <tr>
+          <th>2.0</th>
+          <td>0</td>
+          <td>fertile</td>
+          <td>fertile</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>...</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+        </tr>
+        <tr>
+          <th>16.0</th>
+          <td>0</td>
+          <td>pregnant</td>
+          <td>fertile</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>...</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+        </tr>
+        <tr>
+          <th>49.0</th>
+          <td>8</td>
+          <td>fertile</td>
+          <td>fertile</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>...</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+        </tr>
+        <tr>
+          <th>51.0</th>
+          <td>8</td>
+          <td>fertile</td>
+          <td>fertile</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>...</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+          <td>nan</td>
+        </tr>
+        <tr>
+          <th>...</th>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+          <td>...</td>
+        </tr>
+        <tr>
+          <th>739.0</th>
+          <td>15</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>...</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+        </tr>
+        <tr>
+          <th>742.0</th>
+          <td>14</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>...</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+        </tr>
+        <tr>
+          <th>743.0</th>
+          <td>12</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>...</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+        </tr>
+        <tr>
+          <th>744.0</th>
+          <td>10</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>...</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+        </tr>
+        <tr>
+          <th>751.0</th>
+          <td>9</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>...</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>fertile</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+          <td>dead</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>326 rows × 349 columns</p>
+    </div>
+
+
+
+.. code:: ipython3
+
+    states = analysis.get_count(df, 'state_id')
+    states.plot();
+
+
+
+.. image:: output_81_0.png
+
+
+.. code:: ipython3
+
+    alive = analysis.get_value(df, 'rabbits_alive', aggfunc='sum').apply(pd.to_numeric)
     alive.plot()
 
 
@@ -2577,30 +3686,20 @@ you are interested in.
 
 .. parsed-literal::
 
-    <matplotlib.axes._subplots.AxesSubplot at 0x7fd796161cf8>
+    <Axes: xlabel='t_step'>
 
 
 
 
-.. image:: output_75_1.png
+.. image:: output_82_1.png
 
 
 .. code:: ipython3
 
-    h = alive.join(states);
+    h = pd.concat([alive, states]);
     h.plot();
 
 
-.. parsed-literal::
 
-    /home/jfernando/.local/lib/python3.6/site-packages/pandas/core/reshape/merge.py:551: UserWarning: merging between different levels can give an unintended result (1 levels on the left, 2 on the right)
-      warnings.warn(msg, UserWarning)
+.. image:: output_83_0.png
 
-
-
-.. image:: output_76_1.png
-
-
-.. code:: ipython3
-
-    states[[('id','newborn'),('id','fertile'),('id', 'pregnant')]].sum(axis=1).sub(alive['rabbits_alive'], fill_value=0)

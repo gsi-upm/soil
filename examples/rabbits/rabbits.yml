@@ -1,7 +1,7 @@
 ---
 load_module: rabbit_agents
 name: rabbits_example
-max_time: 100
+max_time: 1000
 interval: 1
 seed: MySeed
 agent_type: rabbit_agents.RabbitModel

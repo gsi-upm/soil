@@ -1,5 +1,7 @@
 **/soil_output
 .*
+**/.*
 **/__pycache__
 __pycache__
 *.pyc
+**/backup
