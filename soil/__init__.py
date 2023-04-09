@@ -24,6 +24,7 @@ from .datacollection import SoilCollector
 from . import serialization
 from .utils import logger
 from .time import *
+from .decorators import *
 
 
 def main(
@@ -184,7 +185,7 @@ def main(
                 return
 
             sims = list(
-                simulation.iter_from_config(
+                simulation.iter_from_file(
                     args.file,
                     dry_run=args.dry_run,
                     exporters=exporters,

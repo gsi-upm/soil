@@ -2,7 +2,7 @@
 Example of setting a 
 Example of a fully programmatic simulation, without definition files.
 """
-from soil import Simulation, agents
+from soil import Simulation, agents, Environment
 from soil.time import Delta
 
 
@@ -29,11 +29,15 @@ class MyAgent(agents.FSM):
         return None, Delta(self.random.expovariate(1 / 16))
 
 
+class RandomEnv(Environment):
+
+    def init(self):
+        self.add_agent(agent_class=MyAgent)
+
+
 s = Simulation(
     name="Programmatic",
-    model_params={
-        'agents': [{'agent_class': MyAgent}],
-    },
+    model=RandomEnv,
     num_trials=1,
     max_time=100,
     dry_run=True,

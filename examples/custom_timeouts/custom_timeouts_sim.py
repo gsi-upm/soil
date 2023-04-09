@@ -4,8 +4,7 @@ from soil.time import Delta
 
 class Fibonacci(FSM):
     """Agent that only executes in t_steps that are Fibonacci numbers"""
-
-    defaults = {"prev": 1}
+    prev = 1
 
     @default_state
     @state
@@ -25,23 +24,18 @@ class Odds(FSM):
         return None, Delta(1 + self.now % 2)
 
 
-from soil import Simulation
+from soil import Environment, Simulation
+from networkx import complete_graph
 
-simulation = Simulation(
-    model_params={
-        'agents':[
-            {'agent_class': Fibonacci, 'node_id': 0},
-            {'agent_class': Odds, 'node_id': 1}
-        ],
-        'topology': {
-            'params': {
-                'generator': 'complete_graph',
-                'n': 2
-            }
-        },
-    },
-    max_time=100,
-)
+
+class TimeoutsEnv(Environment):
+    def init(self):
+        self.init_network(generator=complete_graph, n=2)
+        self.add_agent(agent_class=Fibonacci, node_id=0)
+        self.add_agent(agent_class=Odds, node_id=1)
+
+
+sim = Simulation(model=TimeoutsEnv, max_steps=10, interval=1)
 
 if __name__ == "__main__":
-    simulation.run(dry_run=True)
+    sim.run(dry_run=True)

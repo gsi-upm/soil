@@ -3,7 +3,7 @@ import os
 from os.path import join
 from glob import glob
 
-from soil import  simulation, config
+from soil import  simulation, config, do_not_run
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
 EXAMPLES = join(ROOT, "..", "examples")
@@ -12,6 +12,7 @@ FORCE_TESTS = os.environ.get("FORCE_TESTS", "")
 
 
 class TestExamples(TestCase):
+    """Empty class that will be populated with auto-discovery tests for every example"""
     pass
 
 
@@ -45,7 +46,7 @@ def add_example_tests():
             continue
         for sim in simulation.iter_from_config(path):
             sim_paths.append((sim, path))
-    for path in glob(join(EXAMPLES, '**', '*.py')):
+    for path in glob(join(EXAMPLES, '**', '*_sim.py')):
         for sim in simulation.iter_from_py(path):
             sim_paths.append((sim, path))
 

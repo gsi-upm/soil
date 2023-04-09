@@ -6,6 +6,7 @@ import sqlite3
 
 from unittest import TestCase
 from soil import exporters
+from soil import environment
 from soil import simulation
 from soil import agents
 
@@ -38,15 +39,14 @@ class Exporters(TestCase):
     def test_basic(self):
         # We need to add at least one agent to make sure the scheduler
         # ticks every step
+        class SimpleEnv(environment.Environment):
+            def init(self):
+                self.add_agent(agent_class=agents.BaseAgent)
+        
+
         num_trials = 5
         max_time = 2
-        config = {
-            "name": "exporter_sim",
-            "model_params": {"agents": [{"agent_class": agents.BaseAgent}]},
-            "max_time": max_time,
-            "num_trials": num_trials,
-        }
-        s = simulation.from_config(config)
+        s = simulation.Simulation(num_trials=num_trials, max_time=max_time, name="exporter_sim", dry_run=True, model=SimpleEnv)
 
         for env in s.run_simulation(exporters=[Dummy], dry_run=True):
             assert len(env.agents) == 1
@@ -64,12 +64,14 @@ class Exporters(TestCase):
         n_trials = 5
         config = {
             "name": "exporter_sim",
-            "network_params": {"generator": "complete_graph", "n": 4},
-            "agent_class": "CounterModel",
+            "model_params": {
+                "network_generator": "complete_graph",
+                "network_params": {"n": 4},
+                "agent_class": "CounterModel",
+            },
             "max_time": 2,
             "num_trials": n_trials,
             "dry_run": False,
-            "environment_params": {},
         }
         output = io.StringIO()
         s = simulation.from_config(config)

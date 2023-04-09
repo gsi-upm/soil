@@ -106,7 +106,7 @@ class TestAgents(TestCase):
         """
 
         # There are two agents, they try to send pings
-        # This is arguably a very contrived example. In practice, the or
+        # This is arguably a very contrived example.
         # There should be a delay of one step between agent 0 and 1
         # On the first step:
         #   Agent 0 sends a PING, but blocks before a PONG

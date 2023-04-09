@@ -232,12 +232,10 @@ class Passenger(Evented, FSM):
         self.die()
 
 
-simulation = Simulation(
-    name="RideHailing",
-    model_class=City,
-    model_params={"n_passengers": 2},
-    seed="carsSeed",
-)
+simulation = Simulation(name="RideHailing",
+                        model=City,
+                        seed="carsSeed",
+                        model_params=dict(n_passengers=2))
 
 if __name__ == "__main__":
     simulation.run()

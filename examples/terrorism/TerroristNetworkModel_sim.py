@@ -1,6 +1,43 @@
 import networkx as nx
-from soil.agents import Geo, NetworkAgent, FSM, state, default_state
-from soil import Environment
+from soil.agents import Geo, NetworkAgent, FSM, custom, state, default_state
+from soil import Environment, Simulation
+from soil.parameters import *
+
+
+class TerroristEnvironment(Environment):
+    generator: function = nx.random_geometric_graph
+    n: Integer = 100
+    radius: Float = 0.2
+
+    information_spread_intensity: probability = 0.7
+    terrorist_additional_influence: probability = 0.03
+    terrorist_additional_influence: probability = 0.035
+    max_vulnerability: probability = 0.7
+    prob_interaction: probability = 0.5
+
+    # TrainingAreaModel and HavenModel
+    training_influence: probability = 0.20
+    haven_influence: probability = 0.20
+
+    # TerroristNetworkModel
+    vision_range: Float = 0.30
+    sphere_influence: Integer = 2
+    weight_social_distance: Float = 0.035
+    weight_link_distance: Float = 0.035
+
+    ratio_civil: probability = 0.8
+    ratio_leader: probability = 0.1
+    ratio_training: probability = 0.05
+    ratio_haven: probability = 0.05
+
+    def init(self):
+        self.create_network(generator=self.generator, n=self.n, radius=self.radius)
+        self.populate_network([
+            TerroristNetworkModel.w(state_id='civilian'),
+            TerroristNetworkModel.w(state_id='leader'),
+            TrainingAreaModel,
+            HavenModel
+        ], [self.ratio_civil, self.ratio_leader, self.ratio_trainig, self.ratio_heaven])
 
 
 class TerroristSpreadModel(FSM, Geo):
@@ -17,36 +54,21 @@ class TerroristSpreadModel(FSM, Geo):
         prob_interaction
     """
 
-    def __init__(self, model=None, unique_id=0, state=()):
-        super().__init__(model=model, unique_id=unique_id, state=state)
-
-        self.information_spread_intensity = model.environment_params[
-            "information_spread_intensity"
-        ]
-        self.terrorist_additional_influence = model.environment_params[
-            "terrorist_additional_influence"
-        ]
-        self.prob_interaction = model.environment_params["prob_interaction"]
-
-        if self["id"] == self.civilian.id:  # Civilian
-            self.mean_belief = self.random.uniform(0.00, 0.5)
-        elif self["id"] == self.terrorist.id:  # Terrorist
+    def init(self):
+        if self.state_id == self.civilian.id:  # Civilian
+            self.mean_belief = self.model.random.uniform(0.00, 0.5)
+        elif self.state_id == self.terrorist.id:  # Terrorist
             self.mean_belief = self.random.uniform(0.8, 1.00)
-        elif self["id"] == self.leader.id:  # Leader
+        elif self.state_id == self.leader.id:  # Leader
             self.mean_belief = 1.00
         else:
             raise Exception("Invalid state id: {}".format(self["id"]))
 
-        if "min_vulnerability" in model.environment_params:
-            self.vulnerability = self.random.uniform(
-                model.environment_params["min_vulnerability"],
-                model.environment_params["max_vulnerability"],
-            )
-        else:
-            self.vulnerability = self.random.uniform(
-                0, model.environment_params["max_vulnerability"]
-            )
+        self.vulnerability = self.random.uniform(
+            self.get("min_vulnerability", 0), self.get("max_vulnerability", 1)
+        )
 
+    @default_state
     @state
     def civilian(self):
         neighbours = list(self.get_neighbors(agent_class=TerroristSpreadModel))
@@ -287,3 +309,32 @@ class TerroristNetworkModel(TerroristSpreadModel):
             return nx.shortest_path_length(self.G, self.id, target)
         except nx.NetworkXNoPath:
             return float("inf")
+
+
+sim = Simulation(
+    model=TerroristEnvironment,
+    num_trials=1,
+    name="TerroristNetworkModel_sim",
+    max_steps=150,
+    skip_test=True,
+    dry_run=True,
+)
+
+# TODO: integrate visualization
+# visualization_params:
+#   # Icons downloaded from https://www.iconfinder.com/
+#   shape_property: agent
+#   shapes:
+#     TrainingAreaModel: target
+#     HavenModel: home
+#     TerroristNetworkModel: person
+#   colors:
+#     - attr_id: civilian
+#       color: '#40de40'
+#     - attr_id: terrorist
+#       color: red
+#     - attr_id: leader
+#       color: '#c16a6a'
+#   background_image: 'map_4800x2860.jpg'
+#   background_opacity: '0.9'
+#   background_filter_color: 'blue'

@@ -38,8 +38,9 @@ class NetworkAgent(BaseAgent):
         if limit_neighbors:
             neighbor_ids = set()
             for node_id in self.G.neighbors(self.node_id):
-                if self.G.nodes[node_id].get("agent") is not None:
-                    neighbor_ids.add(node_id)
+                agent = self.G.nodes[node_id].get("agent")
+                if agent is not None:
+                    neighbor_ids.add(agent.id)
             if unique_ids:
                 unique_ids = unique_ids & neighbor_ids
             else:

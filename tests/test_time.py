@@ -46,7 +46,8 @@ class TestMain(TestCase):
                         break
                 done.append(self.now)
 
-        env = environment.Environment(agents=[{"agent_class": CondAgent}])
+        env = environment.Environment()
+        env.add_agent(CondAgent)
 
         while env.schedule.time < 11:
             times.append(env.now)

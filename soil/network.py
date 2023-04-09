@@ -10,47 +10,47 @@ import networkx as nx
 from . import config, serialization, basestring
 
 
-def from_config(cfg: config.NetConfig, dir_path: str = None):
-    if not isinstance(cfg, config.NetConfig):
-        cfg = config.NetConfig(**cfg)
+def from_topology(topology, dir_path: str = None):
+    if topology is None:
+        return nx.Graph()
+    if isinstance(topology, nx.Graph):
+        return topology
 
-    if cfg.path:
-        path = cfg.path
-        if dir_path and not os.path.isabs(path):
-            path = os.path.join(dir_path, path)
-        extension = os.path.splitext(path)[1][1:]
-        kwargs = {}
-        if extension == "gexf":
-            kwargs["version"] = "1.2draft"
-            kwargs["node_type"] = int
+    # If it's a dict, assume it's a node-link graph
+    if isinstance(topology, dict):
         try:
-            method = getattr(nx.readwrite, "read_" + extension)
-        except AttributeError:
-            raise AttributeError("Unknown format")
-        return method(path, **kwargs)
+            return nx.json_graph.node_link_graph(topology)
+        except Exception as ex:
+            raise ValueError("Unknown topology format")
+    
+    # Otherwise, treat like a path
+    path = topology
+    if dir_path and not os.path.isabs(path):
+        path = os.path.join(dir_path, path)
+    extension = os.path.splitext(path)[1][1:]
+    kwargs = {}
+    if extension == "gexf":
+        kwargs["version"] = "1.2draft"
+        kwargs["node_type"] = int
+    try:
+        method = getattr(nx.readwrite, "read_" + extension)
+    except AttributeError:
+        raise AttributeError("Unknown format")
+    return method(path, **kwargs)
 
-    if cfg.params:
-        net_args = dict(cfg.params)
-        net_gen = net_args.pop("generator")
 
-        if dir_path not in sys.path:
-            sys.path.append(dir_path)
+def from_params(generator, dir_path: str = None, **params):
 
-        method = serialization.deserializer(
-            net_gen,
-            known_modules=[
-                "networkx.generators",
-            ],
-        )
-        return method(**net_args)
+    if dir_path not in sys.path:
+        sys.path.append(dir_path)
 
-    if isinstance(cfg.fixed, config.Topology):
-        cfg = cfg.fixed.dict()
-
-    if isinstance(cfg, str) or isinstance(cfg, dict):
-        return nx.json_graph.node_link_graph(cfg)
-
-    return nx.Graph()
+    method = serialization.deserializer(
+        generator,
+        known_modules=[
+            "networkx.generators",
+        ],
+    )
+    return method(**params)
 
 
 def find_unassigned(G, shuffle=False, random=random):

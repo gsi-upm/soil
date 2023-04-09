@@ -14,10 +14,10 @@ import networkx as nx
 
 from typing import Any
 
-from mesa import Agent as MesaAgent
+from mesa import Agent as MesaAgent, Model
 from typing import Dict, List
 
-from .. import serialization, utils, time, config
+from .. import serialization, network, utils, time, config
 
 
 IGNORED_FIELDS = ("model", "logger")
@@ -123,10 +123,18 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
     def prob(self, probability):
         return prob(probability, self.model.random)
 
+    @classmethod
+    def w(cls, **kwargs):
+        return custom(cls, **kwargs)
+
     # TODO: refactor to clean up mesa compatibility
     @property
     def id(self):
         return self.unique_id
+    
+    @id.setter
+    def id(self, value):
+        self.unique_id = value
 
     @classmethod
     def from_dict(cls, model, attrs, warn_extra=True):
@@ -175,7 +183,11 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
         return it
 
     def get(self, key, default=None):
-        return self[key] if key in self else default
+        if key in self:
+            return self[key]
+        elif key in self.model:
+            return self.model[key]
+        return default
 
     @property
     def now(self):
@@ -621,10 +633,14 @@ def _from_distro(
 from .network_agents import *
 from .fsm import *
 from .evented import *
+from typing import Optional
 
 
 class Agent(NetworkAgent, FSM, EventedAgent):
     """Default agent class, has both network and event capabilities"""
+
+
+from ..environment import NetworkEnvironment
 
 
 from .BassModel import *
@@ -640,3 +656,8 @@ except ImportError:
     import sys
 
     print("Could not load the Geo Agent, scipy is not installed", file=sys.stderr)
+
+
+def custom(cls, **kwargs):
+    """Create a new class from a template class and keyword arguments"""
+    return type(cls.__name__, (cls,), kwargs)

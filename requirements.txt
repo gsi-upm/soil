@@ -5,6 +5,8 @@ pyyaml>=5.1
 pandas>=1
 SALib>=1.3
 Jinja2
-Mesa>=1.1
+Mesa>=1.2
 pydantic>=1.9
 sqlalchemy>=1.4
+typing-extensions>=4.4
+annotated-types>=0.4

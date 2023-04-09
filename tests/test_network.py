@@ -19,13 +19,11 @@ class TestNetwork(TestCase):
         Load a graph from file if the extension is known.
         Raise an exception otherwise.
         """
-        config = {"network_params": {"path": join(ROOT, "test.gexf")}}
-        G = network.from_config(config["network_params"])
+        G = network.from_topology(join(ROOT, "test.gexf"))
         assert G
         assert len(G) == 2
         with self.assertRaises(AttributeError):
-            config = {"network_params": {"path": join(ROOT, "unknown.extension")}}
-            G = network.from_config(config["network_params"])
+            G = network.from_topology(join(ROOT, "unknown.extension"))
             print(G)
 
     def test_generate_barabasi(self):
@@ -33,12 +31,12 @@ class TestNetwork(TestCase):
         If no path is given, a generator and network parameters
         should be used to generate a network
         """
-        cfg = {"params": {"generator": "barabasi_albert_graph"}}
+        cfg = {"generator": "barabasi_albert_graph"}
         with self.assertRaises(Exception):
-            G = network.from_config(cfg)
-        cfg["params"]["n"] = 100
-        cfg["params"]["m"] = 10
-        G = network.from_config(cfg)
+            G = network.from_params(**cfg)
+        cfg["n"] = 100
+        cfg["m"] = 10
+        G = network.from_params(**cfg)
         assert len(G) == 100
 
     def test_save_geometric(self):
@@ -54,18 +52,8 @@ class TestNetwork(TestCase):
 
     def test_networkenvironment_creation(self):
         """Networkenvironment should accept netconfig as parameters"""
-        model_params = {
-            "topology": {"path": join(ROOT, "test.gexf")},
-            "agents": {
-                "topology": True,
-                "distribution": [
-                    {
-                        "agent_class": CustomAgent,
-                    }
-                ],
-            },
-        }
-        env = environment.Environment(**model_params)
+        env = environment.Environment(topology=join(ROOT, "test.gexf"))
+        env.populate_network(CustomAgent)
         assert env.G
         env.step()
         assert len(env.G) == 2
@@ -76,18 +64,9 @@ class TestNetwork(TestCase):
 
     def test_custom_agent_neighbors(self):
         """Allow for search of neighbors with a certain state_id"""
-        config = {
-            "model_params": {
-                "topology": {"path": join(ROOT, "test.gexf")},
-                "agents": {
-                    "topology": True,
-                    "distribution": [{"weight": 1, "agent_class": CustomAgent}],
-                },
-            },
-            "max_time": 10,
-        }
-        s = simulation.from_config(config)
-        env = s.run_simulation(dry_run=True)[0]
+        env = environment.Environment()
+        env.create_network(join(ROOT, "test.gexf"))
+        env.populate_network(CustomAgent)
         assert env.agents[1].count_agents(state_id="normal") == 2
         assert env.agents[1].count_agents(state_id="normal", limit_neighbors=True) == 1
         assert env.agents[0].count_neighbors() == 1
@@ -97,10 +76,8 @@ class TestNetwork(TestCase):
         G = nx.Graph()
         G.add_node(3)
         G.add_edge(1, 2)
-        distro = agents.calculate_distribution(agent_class=agents.NetworkAgent)
-        aconfig = config.AgentConfig(distribution=distro, topology=True)
-        env = environment.Environment(name="Test", topology=G, agents=aconfig)
-        lst = list(env.network_agents)
+        env = environment.Environment(name="Test", topology=G)
+        env.populate_network(agents.NetworkAgent)
 
         a2 = env.find_one(node_id=2)
         a3 = env.find_one(node_id=3)

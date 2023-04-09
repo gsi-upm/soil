@@ -1,7 +1,7 @@
 """
 Example of a fully programmatic simulation, without definition files.
 """
-from soil import Simulation, agents
+from soil import Simulation, Environment, agents
 from networkx import Graph
 import logging
 
@@ -25,23 +25,18 @@ class MyAgent(agents.FSM):
             self.info("This runs 2/10 times on average")
 
 
+class ProgrammaticEnv(Environment):
+
+    def init(self):
+        self.create_network(generator=mygenerator)
+        self.populate_network(agent_class=MyAgent)
+        self.add_agent_reporter('times_run')
+
+
 simulation = Simulation(
     name="Programmatic",
-    model_params={
-        'topology': {
-            'params': {
-                'generator': mygenerator
-            },
-        },
-        'agents': {
-            'distribution': [{
-                'agent_class': MyAgent,
-                'topology': True,
-            }]
-        }
-    },
+    model=ProgrammaticEnv,
     seed='Program',
-    agent_reporters={'times_run': 'times_run'},
     num_trials=1,
     max_time=100,
     dry_run=True,

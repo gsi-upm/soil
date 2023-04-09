@@ -1,6 +1,7 @@
 from soil.agents import FSM, NetworkAgent, state, default_state
-from soil import Environment
+from soil import Environment, Simulation, parameters
 from itertools import islice
+import networkx as nx
 import logging
 
 
@@ -8,19 +9,23 @@ class CityPubs(Environment):
     """Environment with Pubs"""
 
     level = logging.INFO
-
-    def __init__(self, *args, number_of_pubs=3, pub_capacity=10, **kwargs):
-        super(CityPubs, self).__init__(*args, **kwargs)
+    number_of_pubs: parameters.Integer = 3
+    ratio_extroverted: parameters.probability = 0.1
+    pub_capacity: parameters.Integer = 10
+    
+    def init(self):
         pubs = {}
-        for i in range(number_of_pubs):
+        for i in range(self.number_of_pubs):
             newpub = {
                 "name": "The awesome pub #{}".format(i),
                 "open": True,
-                "capacity": pub_capacity,
+                "capacity": self.pub_capacity,
                 "occupancy": 0,
             }
             pubs[newpub["name"]] = newpub
+        self.add_agent(agent_class=Police, node_id=0)
         self["pubs"] = pubs
+        self.populate_network([{"openness": 0.1}, {"openness": 1}], [self.ratio_extroverted, 1-self.ratio_extroverted], agent_class=Patron)
 
     def enter(self, pub_id, *nodes):
         """Agents will try to enter. The pub checks if it is possible"""
@@ -169,7 +174,20 @@ class Police(FSM):
             self.info("No trash to take out. Too bad.")
 
 
-if __name__ == "__main__":
-    from soil import run_from_config
+sim = Simulation(
+    name="pubcrawl",
+    num_trials=3,
+    max_steps=10,
+    dry_run=True,
+    model_params=dict(
+        generator=nx.empty_graph,
+        network_params={"n": 30},
+        model=CityPubs,
+        altercations=0,
+        number_of_pubs=3,
+    )
+)
 
-    run_from_config("pubcrawl.yml", dry_run=True, dump=None, parallel=False)
+
+if __name__ == "__main__":
+    sim.run(parallel=False)

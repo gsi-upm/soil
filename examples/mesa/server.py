@@ -1,5 +1,5 @@
 from mesa.visualization.ModularVisualization import ModularServer
-from soil.visualization import UserSettableParameter
+from mesa.visualization.UserParam import Slider, Choice
 from mesa.visualization.modules import ChartModule, NetworkModule, CanvasGrid
 from social_wealth import MoneyEnv, graph_generator, SocialMoneyAgent
 import networkx as nx
@@ -64,8 +64,7 @@ chart = ChartModule(
 )
 
 model_params = {
-    "N": UserSettableParameter(
-        "slider",
+    "N": Slider(
         "N",
         5,
         1,
@@ -73,8 +72,7 @@ model_params = {
         1,
         description="Choose how many agents to include in the model",
     ),
-    "height": UserSettableParameter(
-        "slider",
+    "height": Slider(
         "height",
         5,
         5,
@@ -82,8 +80,7 @@ model_params = {
         1,
         description="Grid height",
     ),
-    "width": UserSettableParameter(
-        "slider",
+    "width": Slider(
         "width",
         5,
         5,
@@ -91,8 +88,7 @@ model_params = {
         1,
         description="Grid width",
     ),
-    "agent_class": UserSettableParameter(
-        "choice",
+    "agent_class": Choice(
         "Agent class",
         value="MoneyAgent",
         choices=["MoneyAgent", "SocialMoneyAgent"],

@@ -16,12 +16,23 @@ from typing import Any, Dict, Union, Optional, List
 
 from networkx.readwrite import json_graph
 from functools import partial
+from contextlib import contextmanager
 import pickle
 
 from . import serialization, exporters, utils, basestring, agents
 from .environment import Environment
 from .utils import logger, run_and_return_exceptions
 from .config import Config, convert_old
+
+_AVOID_RUNNING = False
+_QUEUED = []
+
+@contextmanager
+def do_not_run(): 
+    global _AVOID_RUNNING
+    _AVOID_RUNNING = True
+    yield
+    _AVOID_RUNNING = False
 
 
 # TODO: change documentation for simulation
@@ -40,7 +51,7 @@ class Simulation:
     name: str = "Unnamed simulation"
     description: Optional[str] = ""
     group: str = None
-    model_class: Union[str, type] = "soil.Environment"
+    model: Union[str, type] = "soil.Environment"
     model_params: dict = field(default_factory=dict)
     seed: str = field(default_factory=lambda: current_time())
     dir_path: str = field(default_factory=lambda: os.getcwd())
@@ -49,7 +60,6 @@ class Simulation:
     interval: int = 1
     num_trials: int = 1
     num_processes: Optional[int] = 1
-    parallel: Optional[bool] = False
     exporters: Optional[List[str]] = field(default_factory=lambda: [exporters.default])
     model_reporters: Optional[Dict[str, Any]] = field(default_factory=dict)
     agent_reporters: Optional[Dict[str, Any]] = field(default_factory=dict)
@@ -90,6 +100,9 @@ class Simulation:
             )
             + self.to_yaml()
         )
+        if _AVOID_RUNNING:
+            _QUEUED.append((self, args, kwargs))
+            return list()
         return list(self.run_gen(*args, **kwargs))
 
     def run_gen(
@@ -170,7 +183,7 @@ class Simulation:
         tables = self.tables.copy()
         tables.update(deserialize_reporters(params.pop("tables", {})))
 
-        env = serialization.deserialize(self.model_class)
+        env = serialization.deserialize(self.model)
         return env(
             id=f"{self.name}_trial_{trial_id}",
             seed=f"{self.seed}_trial_{trial_id}",
@@ -250,6 +263,14 @@ Model stats:
         return yaml.dump(self.to_dict())
 
 
+def iter_from_file(*files, **kwargs):
+    for f in files:
+        try:
+            yield from iter_from_py(f, **kwargs)
+        except ValueError as ex:
+            yield from iter_from_config(f, **kwargs)
+
+
 def iter_from_config(*cfgs, **kwargs):
     for config in cfgs:
         configs = list(serialization.load_config(config))
@@ -266,18 +287,38 @@ def from_config(conf_or_path):
         raise AttributeError("Provide only one configuration")
     return lst[0]
 
-def iter_from_py(pyfile, module_name='custom_simulation'):
+
+def iter_from_py(pyfile, module_name='custom_simulation', **kwargs):
     """Try to load every Simulation instance in a given Python file"""
     import importlib
     import inspect
-    spec = importlib.util.spec_from_file_location(module_name, pyfile)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    # import pdb;pdb.set_trace()
-    for (_name, sim) in inspect.getmembers(module, lambda x: isinstance(x, Simulation)):
-        yield sim
-    del sys.modules[module_name]
+    added = False
+    with do_not_run():
+        spec = importlib.util.spec_from_file_location(module_name, pyfile)
+        folder = os.path.dirname(pyfile)
+        if folder not in sys.path:
+            added = True
+            sys.path.append(folder)
+        if not spec:
+            raise ValueError(f"{pyfile} does not seem to be a Python module")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        # import pdb;pdb.set_trace()
+        loaded = False
+        sims = []
+        for (_name, sim) in inspect.getmembers(module, lambda x: isinstance(x, Simulation)):
+            loaded = True
+            sims.append(sim)
+        for (_name, sim) in inspect.getmembers(module, lambda x: inspect.isclass(x) and issubclass(x, Simulation)):
+            loaded = True
+            sims.append(sim(**kwargs))
+        if not loaded:
+            raise AttributeError(f"No valid configurations found in {pyfile}")
+        del sys.modules[module_name]
+    if added:
+        sys.path.remove(folder)
+    yield from sims
 
 
 def from_py(pyfile):
@@ -285,7 +326,7 @@ def from_py(pyfile):
 
 
 
-def run_from_config(*configs, **kwargs):
-    for sim in iter_from_config(*configs):
+def run_from_file(*files, **kwargs):
+    for sim in iter_from_file(*files):
         logger.info(f"Using config(s): {sim.name}")
         sim.run_simulation(**kwargs)

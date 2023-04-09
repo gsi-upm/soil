@@ -1,4 +1,4 @@
-from unittest import TestCase
+from unittest import TestCase, skip
 import os
 import yaml
 import copy
@@ -23,6 +23,7 @@ def isequal(a, b):
     assert a == b
 
 
+@skip("new versions of soil do not rely on configuration files")
 class TestConfig(TestCase):
     def test_conversion(self):
         expected = serialization.load_file(join(ROOT, "complete_converted.yml"))[0]
@@ -59,16 +60,16 @@ class TestConfig(TestCase):
         """
         cfg = {
             "name": "CounterAgent",
-            "network_params": {"path": join(ROOT, "test.gexf")},
-            "agent_class": "CounterModel",
+            "model_params": {
+                "topology": join(ROOT, "test.gexf"),
+                "agent_class": "CounterModel",
+            },
             # 'states': [{'times': 10}, {'times': 20}],
             "max_time": 2,
             "dry_run": True,
             "num_trials": 1,
-            "environment_params": {},
         }
-        conf = config.convert_old(cfg)
-        s = simulation.from_config(conf)
+        s = simulation.from_config(cfg)
 
         env = s.get_env()
         assert len(env.G.nodes) == 2

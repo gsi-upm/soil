@@ -29,8 +29,8 @@ class TestMain(TestCase):
         """A simulation with a base behaviour should do nothing"""
         config = {
             "model_params": {
-                "network_params": {"path": join(ROOT, "test.gexf")},
-                "agent_class": "BaseAgent",
+                "topology": join(ROOT, "test.gexf"),
+                "agent_class": "NetworkAgent",
             }
         }
         s = simulation.from_config(config)
@@ -62,27 +62,13 @@ class TestMain(TestCase):
         """
         The initial states should be applied to the agent and the
         agent should be able to update its state."""
-        config = {
-            "version": "2",
-            "name": "CounterAgent",
-            "dry_run": True,
-            "num_trials": 1,
-            "max_time": 2,
-            "model_params": {
-                "topology": {"path": join(ROOT, "test.gexf")},
-                "agents": {
-                    "agent_class": "CounterModel",
-                    "topology": True,
-                    "fixed": [{"state": {"times": 10}}, {"state": {"times": 20}}],
-                },
-            },
-        }
-        s = simulation.from_config(config)
-        env = s.get_env()
-        assert isinstance(env.agents[0], agents.CounterModel)
-        assert env.agents[0].G == env.G
+        env = Environment()
+        env.add_agent(agents.Ticker, times=10)
+        env.add_agent(agents.Ticker, times=20)
+
+        assert isinstance(env.agents[0], agents.Ticker)
         assert env.agents[0]["times"] == 10
-        assert env.agents[0]["times"] == 10
+        assert env.agents[1]["times"] == 20
         env.step()
         assert env.agents[0]["times"] == 11
         assert env.agents[1]["times"] == 21
@@ -90,18 +76,8 @@ class TestMain(TestCase):
     def test_init_and_count_agents(self):
         """Agents should be properly initialized and counting should filter them properly"""
         # TODO: separate this test into two or more test cases
-        config = {
-            "max_time": 10,
-            "model_params": {
-                "agents": [
-                    {"agent_class": CustomAgent, "weight": 1, "topology": True},
-                    {"agent_class": CustomAgent, "weight": 3, "topology": True},
-                ],
-                "topology": {"path": join(ROOT, "test.gexf")},
-            },
-        }
-        s = simulation.from_config(config)
-        env = s.run_simulation(dry_run=True)[0]
+        env = Environment(topology=join(ROOT, "test.gexf"))
+        env.populate_network([CustomAgent.w(weight=1), CustomAgent.w(weight=3)])
         assert env.agents[0].weight == 1
         assert env.count_agents() == 2
         assert env.count_agents(weight=1) == 1
@@ -110,26 +86,28 @@ class TestMain(TestCase):
 
     def test_torvalds_example(self):
         """A complete example from a documentation should work."""
-        config = serialization.load_file(join(EXAMPLES, "torvalds.yml"))[0]
-        config["model_params"]["network_params"]["path"] = join(
-            EXAMPLES, config["model_params"]["network_params"]["path"]
-        )
-        s = simulation.from_config(config)
-        env = s.run_simulation(dry_run=True)[0]
-        for a in env.network_agents:
-            skill_level = a.state["skill_level"]
-            if a.id == "Torvalds":
-                assert skill_level == "God"
-                assert a.state["total"] == 3
-                assert a.state["neighbors"] == 2
-            elif a.id == "balkian":
-                assert skill_level == "developer"
-                assert a.state["total"] == 3
-                assert a.state["neighbors"] == 1
-            else:
-                assert skill_level == "beginner"
-                assert a.state["total"] == 3
-                assert a.state["neighbors"] == 1
+        owd = os.getcwd()
+        pyfile = join(EXAMPLES, "torvalds_sim.py")
+        try:
+            os.chdir(os.path.dirname(pyfile))
+            s = simulation.from_py(pyfile)
+            env = s.run_simulation(dry_run=True)[0]
+            for a in env.network_agents:
+                skill_level = a["skill_level"]
+                if a.node_id == "Torvalds":
+                    assert skill_level == "God"
+                    assert a["total"] == 3
+                    assert a["neighbors"] == 2
+                elif a.node_id == "balkian":
+                    assert skill_level == "developer"
+                    assert a["total"] == 3
+                    assert a["neighbors"] == 1
+                else:
+                    assert skill_level == "beginner"
+                    assert a["total"] == 3
+                    assert a["neighbors"] == 1
+        finally:
+            os.chdir(owd)
 
     def test_serialize_class(self):
         ser, name = serialization.serialize(agents.BaseAgent, known_modules=[])
@@ -166,11 +144,6 @@ class TestMain(TestCase):
         assert ser == "BaseAgent"
         pickle.dumps(ser)
 
-    def test_templates(self):
-        """Loading a template should result in several configs"""
-        configs = serialization.load_file(join(EXAMPLES, "template.yml"))
-        assert len(configs) > 0
-
     def test_until(self):
         n_runs = 0
 
@@ -183,7 +156,7 @@ class TestMain(TestCase):
         n_trials = 50
         max_time = 2
         s = simulation.Simulation(
-            model_params={"agents": [{"agent_class": CheckRun}]},
+            model_params=dict(agents=dict(agent_classes=[CheckRun], k=1)),
             num_trials=n_trials,
             max_time=max_time,
         )

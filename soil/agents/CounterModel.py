@@ -1,5 +1,11 @@
-from . import NetworkAgent
+from . import BaseAgent, NetworkAgent
 
+
+class Ticker(BaseAgent):
+    times = 0
+
+    def step(self):
+        self.times += 1
 
 class CounterModel(NetworkAgent):
     """
