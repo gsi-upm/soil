@@ -249,10 +249,10 @@ class TerroristNetworkModel(TerroristSpreadModel):
         weight_link_distance
     """
 
-    sphere_influence: float
-    vision_range: float
-    weight_social_distance: float
-    weight_link_distance: float
+    sphere_influence: float = 1
+    vision_range: float = 1
+    weight_social_distance: float = 0.5
+    weight_link_distance: float = 0.2
 
     @state
     def terrorist(self):
