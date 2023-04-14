@@ -1,20 +1,19 @@
 # [SOIL](https://github.com/gsi-upm/soil)
 
+**Note**: Mesa 0.30 introduced many fundamental changes. Check the [documention on how to update your simulations to work with newer versions](docs/notes_v0.30.rst)
+
 Soil is an extensible and user-friendly Agent-based Social Simulator for Social Networks.
 Learn how to run your own simulations with our [documentation](http://soilsim.readthedocs.io).
 
 Follow our [tutorial](examples/tutorial/soil_tutorial.ipynb) to develop your own agent models.
 
-**Note**: Mesa 0.30 introduced many fundamental changes. Check the [documention on how to update your simulations to work with newer versions](docs/migration_0.30.rst)
 
-## SOIL vs MESA
+## Features
 
-SOIL is a batteries-included platform that builds on top of MESA and provides the following out of the box:
-
-* Integration with (social) networks
-* The ability to more easily assign agents to your model (and optionally to its network):
-  * Assigning agents to nodes, and vice versa
-  * Using a description (e.g., 2 agents of type `Foo`, 10% of the network should be agents of type `Bar`)
+* Integration with (social) networks (through `networkx`)
+* Convenience functions and methods to easily assign agents to your model (and optionally to its network):
+  * Following a given distribution (e.g., 2 agents of type `Foo`, 10% of the network should be agents of type `Bar`)
+  * Based on the topology of the network
 * **Several types of abstractions for agents**:
   * Finite state machine, where methods can be turned into a state
   * Network agents, which have convenience methods to access the model's topology
@@ -36,12 +35,15 @@ SOIL is a batteries-included platform that builds on top of MESA and provides th
 * A command line interface (`soil`), to run multiple
 * An integrated debugger (`soil --debug`) with custom functions to print agent states and break at specific states
 
-Nevertheless, most features in SOIL have been designed to integrate with plain Mesa.
+
+## Mesa compatibility
+
+SOIL has been redesigned to integrate well with [Mesa](https://github.com/projectmesa/mesa).
 For instance, it should be possible to run a `mesa.Model` models using a `soil.Simulation` and the `soil` CLI, or to integrate the `soil.TimedActivation` scheduler on a `mesa.Model`.
 
-Note that some combinations of `mesa` and `soil` components, while technically possible, are much less useful or even wrong.
-For instance, you may add any `soil.agent` agent (except for the `soil.NetworkAgent`, as it needs a topology) on a regular `mesa.Model` with a vanilla scheduler from `mesa.time`.
-But in that case the agents will not get any of the advanced event-based scheduling, and most agent behaviors that depend on that will greatly vary. 
+Note that some combinations of `mesa` and `soil` components, while technically possible, are much less useful or might yield surprising results.
+For instance, you may add any `soil.agent` agent on a regular `mesa.Model` with a vanilla scheduler from `mesa.time`.
+But in that case the agents will not get any of the advanced event-based scheduling, and most agent behaviors that depend on that may not work. 
 
 
 ## Changes in version 0.3
