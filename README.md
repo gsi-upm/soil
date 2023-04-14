@@ -1,12 +1,13 @@
 # [SOIL](https://github.com/gsi-upm/soil)
 
-**Note**: Mesa 0.30 introduced many fundamental changes. Check the [documention on how to update your simulations to work with newer versions](docs/notes_v0.30.rst)
 
 Soil is an extensible and user-friendly Agent-based Social Simulator for Social Networks.
 Learn how to run your own simulations with our [documentation](http://soilsim.readthedocs.io).
 
 Follow our [tutorial](examples/tutorial/soil_tutorial.ipynb) to develop your own agent models.
 
+> **Warning**
+> Mesa 0.30 introduced many fundamental changes. Check the [documention on how to update your simulations to work with newer versions](docs/notes_v0.30.rst)
 
 ## Features
 
@@ -32,7 +33,7 @@ Follow our [tutorial](examples/tutorial/soil_tutorial.ipynb) to develop your own
   * Run models in parallel
   * Save results to different formats
 * Simulation configuration files 
-* A command line interface (`soil`), to run multiple
+* A command line interface (`soil`), to quickly run simulations with different parameters
 * An integrated debugger (`soil --debug`) with custom functions to print agent states and break at specific states
 
 
