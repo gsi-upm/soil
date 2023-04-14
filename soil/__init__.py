@@ -33,7 +33,6 @@ def main(
     num_processes=1,
     output="soil_output",
     *,
-    do_run=False,
     debug=False,
     pdb=False,
     **kwargs,
@@ -234,10 +233,7 @@ def main(
             if args.only_convert:
                 print(sim.to_yaml())
                 continue
-            if do_run:
-                res.append(sim.run(until=args.until))
-            else:
-                res.append(sim)
+            res.append(sim.run(until=args.until))
 
     except Exception as ex:
         if args.pdb:
@@ -258,7 +254,7 @@ def main(
 @contextmanager
 def easy(cfg, pdb=False, debug=False, **kwargs):
     try:
-        yield main(cfg, debug=debug, pdb=pdb, **kwargs)[0]
+        return main(cfg, debug=debug, pdb=pdb, **kwargs)[0]
     except Exception as e:
         if os.environ.get("SOIL_POSTMORTEM"):
             from .debugging import post_mortem
@@ -269,4 +265,4 @@ def easy(cfg, pdb=False, debug=False, **kwargs):
 
 
 if __name__ == "__main__":
-    main(do_run=True)
+    main()

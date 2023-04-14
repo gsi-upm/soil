@@ -223,4 +223,4 @@ simulation = Simulation(name="RideHailing",
                         model_params=dict(n_passengers=2))
 
 if __name__ == "__main__":
-    simulation.run()
+    easy(simulation)

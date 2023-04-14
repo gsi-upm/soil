@@ -137,7 +137,7 @@ class TimedActivation(BaseScheduler):
         if not self.model.running or self.time == INFINITY:
             return
 
-        self.logger.debug("Queue length: {ql}", ql=len(self._queue))
+        self.logger.debug(f"Queue length: %s", len(self._queue))
 
         while self._queue:
             ((when, _id, cond), agent) = self._queue[0]
@@ -157,7 +157,7 @@ class TimedActivation(BaseScheduler):
                 agent._last_return = None
                 agent._last_except = None
 
-            self.logger.debug("Stepping agent {agent}", agent=agent)
+            self.logger.debug("Stepping agent %s", agent)
             self._next.pop(agent.unique_id, None)
 
             try:
