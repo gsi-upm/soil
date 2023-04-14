@@ -20,7 +20,7 @@ docker:
 test:
   tags:
     - docker
-  image: python:3.7
+  image: python:3.8
   stage: test
   script:
     - pip install -r requirements.txt -r test-requirements.txt
@@ -31,7 +31,7 @@ push_pypi:
     - tags
   tags:
     - docker
-  image: python:3.7
+  image: python:3.8
   stage: publish
   script:
     - echo $CI_COMMIT_TAG > soil/VERSION
@@ -44,7 +44,7 @@ check_pypi:
     - tags
   tags:
     - docker
-  image: python:3.7
+  image: python:3.8
   stage: check_published
   script:
     - pip install soil==$CI_COMMIT_TAG
