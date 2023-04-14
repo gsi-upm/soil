@@ -56,41 +56,25 @@ class City(EventedEnvironment):
     :param int height: Height of the internal grid
     :param int width: Width of the internal grid
     """
+    n_cars = 1
+    n_passengers = 10
+    height = 100
+    width = 100
 
-    def __init__(
-        self,
-        *args,
-        n_cars=1,
-        n_passengers=10,
-        height=100,
-        width=100,
-        agents=None,
-        model_reporters=None,
-        **kwargs,
-    ):
-        self.grid = MultiGrid(width=width, height=height, torus=False)
-        if agents is None:
-            agents = []
-            for i in range(n_cars):
-                agents.append({"agent_class": Driver})
-            for i in range(n_passengers):
-                agents.append({"agent_class": Passenger})
-        model_reporters = model_reporters or {
-            "earnings": "total_earnings",
-            "n_passengers": "number_passengers",
-        }
-        print("REPORTERS", model_reporters)
-        super().__init__(
-            *args, agents=agents, model_reporters=model_reporters, **kwargs
-        )
+    def init(self):
+        self.grid = MultiGrid(width=self.width, height=self.height, torus=False)
+        if not self.agents:
+            self.add_agents(Driver, k=self.n_cars)
+            self.add_agents(Passenger, k=self.n_passengers)
+
         for agent in self.agents:
             self.grid.place_agent(agent, (0, 0))
             self.grid.move_to_empty(agent)
+        
+        self.total_earnings = 0
+        self.add_model_reporter("total_earnings")
 
-    @property
-    def total_earnings(self):
-        return sum(d.earnings for d in self.agents(agent_class=Driver))
-
+    @report
     @property
     def number_passengers(self):
         return self.count_agents(agent_class=Passenger)
@@ -150,6 +134,7 @@ class Driver(Evented, FSM):
         while self.move_towards(self.journey.destination, with_passenger=True):
             yield
         self.earnings += self.journey.tip
+        self.model.total_earnings += self.journey.tip
         self.check_passengers()
         return self.wandering
 
@@ -228,13 +213,13 @@ class Passenger(Evented, FSM):
             except events.TimedOut:
                 pass
 
-        self.info("Got home safe!")
-        self.die()
+        self.die("Got home safe!")
 
 
 simulation = Simulation(name="RideHailing",
                         model=City,
                         seed="carsSeed",
+                        max_time=1000,
                         model_params=dict(n_passengers=2))
 
 if __name__ == "__main__":

@@ -53,7 +53,7 @@ class MoneyAgent(MesaAgent):
             self.give_money()
 
 
-class SocialMoneyAgent(NetworkAgent, MoneyAgent):
+class SocialMoneyAgent(MoneyAgent, NetworkAgent):
     wealth = 1
 
     def give_money(self):

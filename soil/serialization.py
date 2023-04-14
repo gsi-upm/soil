@@ -4,13 +4,14 @@ import ast
 import sys
 import re
 import importlib
+import importlib.machinery, importlib.util
 from glob import glob
 from itertools import product, chain
 
-from .config import Config
-
 import yaml
 import networkx as nx
+
+from . import config
 
 from jinja2 import Template
 
@@ -90,24 +91,56 @@ def load_files(*patterns, **kwargs):
         for i in glob(pattern, **kwargs, recursive=True):
             for cfg in load_file(i):
                 path = os.path.abspath(i)
-                yield Config.from_raw(cfg), path
+                yield cfg, path
 
 
 def load_config(cfg):
-    if isinstance(cfg, Config):
-        yield cfg, os.getcwd()
-    elif isinstance(cfg, dict):
-        yield Config.from_raw(cfg), os.getcwd()
+    if isinstance(cfg, dict):
+        yield config.load_config(cfg), os.getcwd()
     else:
         yield from load_files(cfg)
 
 
 builtins = importlib.import_module("builtins")
 
-KNOWN_MODULES = [
-    "soil",
-]
+KNOWN_MODULES = {
+    'soil': None,
 
+}
+
+MODULE_FILES = {}
+
+def add_source_file(file):
+    """Add a file to the list of known modules"""
+    file = os.path.abspath(file)
+    if file in MODULE_FILES:
+        logger.warning(f"File {file} already added as module {MODULE_FILES[file]}. Reloading")
+        remove_source_file(file)
+    modname = f"imported_module_{len(MODULE_FILES)}"
+    loader = importlib.machinery.SourceFileLoader(modname, file)
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    my_module = importlib.util.module_from_spec(spec)
+    loader.exec_module(my_module)
+    MODULE_FILES[file] = modname
+    KNOWN_MODULES[modname] = my_module
+
+def remove_source_file(file):
+    """Remove a file from the list of known modules"""
+    file = os.path.abspath(file)
+    modname = None
+    try:
+        modname = MODULE_FILES.pop(file)
+        KNOWN_MODULES.pop(modname)
+    except KeyError as ex:
+        raise ValueError(f"File {file} had not been added as a module: {ex}")
+
+def get_module(modname):
+    """Get a module from the list of known modules"""
+    if modname not in KNOWN_MODULES or KNOWN_MODULES[modname] is None:
+        module = importlib.import_module(modname)
+        KNOWN_MODULES[modname] = module
+    return KNOWN_MODULES[modname]
+    
 
 def name(value, known_modules=KNOWN_MODULES):
     """Return a name that can be imported, to serialize/deserialize an object"""
@@ -124,9 +157,7 @@ def name(value, known_modules=KNOWN_MODULES):
     if known_modules and modname in known_modules:
         return tname
     for kmod in known_modules:
-        if not kmod:
-            continue
-        module = importlib.import_module(kmod)
+        module = get_module(kmod)
         if hasattr(module, tname):
             return tname
     return "{}.{}".format(modname, tname)
@@ -177,7 +208,7 @@ def deserializer(type_, known_modules=KNOWN_MODULES):
     match = IS_CLASS.match(type_)
     if match:
         modname, tname = match.group(1).rsplit(".", 1)
-        module = importlib.import_module(modname)
+        module = get_module(modname)
         cls = getattr(module, tname)
         return getattr(cls, "deserialize", cls)
 
@@ -195,7 +226,7 @@ def deserializer(type_, known_modules=KNOWN_MODULES):
     errors = []
     for modname, tname in options:
         try:
-            module = importlib.import_module(modname)
+            module = get_module(modname)
             cls = getattr(module, tname)
             return getattr(cls, "deserialize", cls)
         except (ImportError, AttributeError) as ex:

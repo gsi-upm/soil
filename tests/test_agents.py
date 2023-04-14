@@ -22,7 +22,9 @@ class TestAgents(TestCase):
     def test_die_raises_exception(self):
         """A dead agent should raise an exception if it is stepped after death"""
         d = Dead(unique_id=0, model=environment.Environment())
+        assert d.alive
         d.step()
+        assert not d.alive
         with pytest.raises(stime.DeadAgent):
             d.step()
 
@@ -161,3 +163,15 @@ class TestAgents(TestCase):
             assert sum(pings) == sum(range(time)) * 2
             # It is the same as pings, without the leading 0
             assert sum(pongs) == sum(range(time)) * 2
+
+    def test_agent_filter(self):
+        e = environment.Environment()
+        e.add_agent(agent_class=agents.BaseAgent)
+        e.add_agent(agent_class=agents.Evented)
+        base = list(e.agents(agent_class=agents.BaseAgent))
+        assert len(base) == 2
+        ev = list(e.agents(agent_class=agents.Evented))
+        assert len(ev) == 1
+        assert ev[0].unique_id == 1
+        null = list(e.agents(unique_ids=[0, 1], agent_class=agents.NetworkAgent))
+        assert not null

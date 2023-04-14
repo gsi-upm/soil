@@ -79,8 +79,8 @@ class TestNetwork(TestCase):
         env = environment.Environment(name="Test", topology=G)
         env.populate_network(agents.NetworkAgent)
 
-        a2 = env.find_one(node_id=2)
-        a3 = env.find_one(node_id=3)
+        a2 = env.agent(node_id=2)
+        a3 = env.agent(node_id=3)
         assert len(a2.subgraph(limit_neighbors=True)) == 2
         assert len(a3.subgraph(limit_neighbors=True)) == 1
         assert len(a3.subgraph(limit_neighbors=True, center=False)) == 0

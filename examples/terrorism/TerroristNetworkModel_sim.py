@@ -5,7 +5,6 @@ from soil.parameters import *
 
 
 class TerroristEnvironment(Environment):
-    generator: function = nx.random_geometric_graph
     n: Integer = 100
     radius: Float = 0.2
 
@@ -37,8 +36,11 @@ class TerroristEnvironment(Environment):
             TerroristNetworkModel.w(state_id='leader'),
             TrainingAreaModel,
             HavenModel
-        ], [self.ratio_civil, self.ratio_leader, self.ratio_trainig, self.ratio_heaven])
+        ], [self.ratio_civil, self.ratio_leader, self.ratio_training, self.ratio_haven])
 
+    @staticmethod
+    def generator(*args, **kwargs):
+        return nx.random_geometric_graph(*args, **kwargs)
 
 class TerroristSpreadModel(FSM, Geo):
     """
@@ -50,9 +52,12 @@ class TerroristSpreadModel(FSM, Geo):
         min_vulnerability (optional else zero)
 
         max_vulnerability
-
-        prob_interaction
     """
+
+    information_spread_intensity = 0.1
+    terrorist_additional_influence = 0.1
+    min_vulnerability = 0
+    max_vulnerability = 1
 
     def init(self):
         if self.state_id == self.civilian.id:  # Civilian
@@ -75,7 +80,7 @@ class TerroristSpreadModel(FSM, Geo):
         if len(neighbours) > 0:
             # Only interact with some of the neighbors
             interactions = list(
-                n for n in neighbours if self.random.random() <= self.prob_interaction
+                n for n in neighbours if self.random.random() <= self.model.prob_interaction
             )
             influence = sum(self.degree(i) for i in interactions)
             mean_belief = sum(
@@ -121,7 +126,7 @@ class TerroristSpreadModel(FSM, Geo):
             )
 
         # Check if there are any leaders in the group
-        leaders = list(filter(lambda x: x.state.id == self.leader.id, neighbours))
+        leaders = list(filter(lambda x: x.state_id == self.leader.id, neighbours))
         if not leaders:
             # Check if this is the potential leader
             # Stop once it's found. Otherwise, set self as leader
@@ -132,12 +137,11 @@ class TerroristSpreadModel(FSM, Geo):
 
     def ego_search(self, steps=1, center=False, agent=None, **kwargs):
         """Get a list of nodes in the ego network of *node* of radius *steps*"""
-        node = agent.node
+        node = agent.node_id
         G = self.subgraph(**kwargs)
         return nx.ego_graph(G, node, center=center, radius=steps).nodes()
 
     def degree(self, agent, force=False):
-        node = agent.node
         if (
             force
             or (not hasattr(self.model, "_degree"))
@@ -145,10 +149,9 @@ class TerroristSpreadModel(FSM, Geo):
         ):
             self.model._degree = nx.degree_centrality(self.G)
             self.model._last_step = self.now
-        return self.model._degree[node]
+        return self.model._degree[agent.node_id]
 
     def betweenness(self, agent, force=False):
-        node = agent.node
         if (
             force
             or (not hasattr(self.model, "_betweenness"))
@@ -156,7 +159,7 @@ class TerroristSpreadModel(FSM, Geo):
         ):
             self.model._betweenness = nx.betweenness_centrality(self.G)
             self.model._last_step = self.now
-        return self.model._betweenness[node]
+        return self.model._betweenness[agent.node_id]
 
 
 class TrainingAreaModel(FSM, Geo):
@@ -169,13 +172,12 @@ class TrainingAreaModel(FSM, Geo):
     Requires TerroristSpreadModel.
     """
 
-    def __init__(self, model=None, unique_id=0, state=()):
-        super().__init__(model=model, unique_id=unique_id, state=state)
-        self.training_influence = model.environment_params["training_influence"]
-        if "min_vulnerability" in model.environment_params:
-            self.min_vulnerability = model.environment_params["min_vulnerability"]
-        else:
-            self.min_vulnerability = 0
+    training_influence = 0.1
+    min_vulnerability = 0
+
+    def init(self):
+        self.mean_believe = 1
+        self.vulnerability = 0
 
     @default_state
     @state
@@ -199,18 +201,19 @@ class HavenModel(FSM, Geo):
     Requires TerroristSpreadModel.
     """
 
-    def __init__(self, model=None, unique_id=0, state=()):
-        super().__init__(model=model, unique_id=unique_id, state=state)
-        self.haven_influence = model.environment_params["haven_influence"]
-        if "min_vulnerability" in model.environment_params:
-            self.min_vulnerability = model.environment_params["min_vulnerability"]
-        else:
-            self.min_vulnerability = 0
-        self.max_vulnerability = model.environment_params["max_vulnerability"]
+    min_vulnerability = 0
+    haven_influence = 0.1
+    max_vulnerability = 0.5
+
+    def init(self):
+        self.mean_believe = 0
+        self.vulnerability = 0
 
     def get_occupants(self, **kwargs):
-        return self.get_neighbors(agent_class=TerroristSpreadModel, **kwargs)
+        return self.get_neighbors(agent_class=TerroristSpreadModel,
+                                  **kwargs)
 
+    @default_state
     @state
     def civilian(self):
         civilians = self.get_occupants(state_id=self.civilian.id)
@@ -246,13 +249,10 @@ class TerroristNetworkModel(TerroristSpreadModel):
         weight_link_distance
     """
 
-    def __init__(self, model=None, unique_id=0, state=()):
-        super().__init__(model=model, unique_id=unique_id, state=state)
-
-        self.vision_range = model.environment_params["vision_range"]
-        self.sphere_influence = model.environment_params["sphere_influence"]
-        self.weight_social_distance = model.environment_params["weight_social_distance"]
-        self.weight_link_distance = model.environment_params["weight_link_distance"]
+    sphere_influence: float
+    vision_range: float
+    weight_social_distance: float
+    weight_link_distance: float
 
     @state
     def terrorist(self):
@@ -316,8 +316,8 @@ sim = Simulation(
     num_trials=1,
     name="TerroristNetworkModel_sim",
     max_steps=150,
-    skip_test=True,
-    dry_run=True,
+    skip_test=False,
+    dump=False,
 )
 
 # TODO: integrate visualization

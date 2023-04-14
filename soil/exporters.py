@@ -38,7 +38,7 @@ class DryRunner(BytesIO):
         except UnicodeDecodeError:
             pass
         logger.info(
-            "**Not** written to {} (dry run mode):\n\n{}\n\n".format(
+            "**Not** written to {} (no_dump mode):\n\n{}\n\n".format(
                 self.__fname, content
             )
         )
@@ -51,12 +51,12 @@ class Exporter:
     if you don't plan to implement all the methods.
     """
 
-    def __init__(self, simulation, outdir=None, dry_run=None, copy_to=None):
+    def __init__(self, simulation, outdir=None, dump=True, copy_to=None):
         self.simulation = simulation
         outdir = outdir or os.path.join(os.getcwd(), "soil_output")
         self.outdir = os.path.join(outdir, simulation.group or "", simulation.name)
-        self.dry_run = dry_run
-        if copy_to is None and dry_run:
+        self.dump = dump
+        if copy_to is None and not dump:
             copy_to = sys.stdout
         self.copy_to = copy_to
 
@@ -77,7 +77,7 @@ class Exporter:
         pass
 
     def output(self, f, mode="w", **kwargs):
-        if self.dry_run:
+        if not self.dump:
             f = DryRunner(f, copy_to=self.copy_to)
         else:
             try:
@@ -108,16 +108,16 @@ class SQLite(Exporter):
     """Writes sqlite results"""
 
     def sim_start(self):
-        if self.dry_run:
-            logger.info("NOT dumping results")
+        if not self.dump:
+            logger.debug("NOT dumping results")
             return
         self.dbpath = os.path.join(self.outdir, f"{self.simulation.name}.sqlite")
         logger.info("Dumping results to %s", self.dbpath)
         try_backup(self.dbpath, remove=True)
 
     def trial_end(self, env):
-        if self.dry_run:
-            logger.info("Running in DRY_RUN mode, the database will NOT be created")
+        if not self.dump:
+            logger.info("Running in NO DUMP mode, the database will NOT be created")
             return
 
         with timer(
@@ -147,8 +147,8 @@ class csv(Exporter):
 # TODO: reimplement GEXF exporting without history
 class gexf(Exporter):
     def trial_end(self, env):
-        if self.dry_run:
-            logger.info("Not dumping GEXF in dry_run mode")
+        if not self.dump:
+            logger.info("Not dumping GEXF (NO_DUMP mode)")
             return
 
         with timer(
@@ -224,8 +224,8 @@ class YAML(Exporter):
     """Writes the configuration of the simulation to a YAML file"""
 
     def sim_start(self):
-        if self.dry_run:
-            logger.info("NOT dumping results")
+        if not self.dump:
+            logger.debug("NOT dumping results")
             return
         with self.output(self.simulation.name + ".dumped.yml") as f:
             logger.info(f"Dumping simulation configuration to {self.outdir}")
@@ -235,7 +235,7 @@ class default(Exporter):
     """Default exporter. Writes sqlite results, as well as the simulation YAML"""
 
     def __init__(self, *args, exporter_cls=[], **kwargs):
-        exporter_cls = exporter_cls or [YAML, SQLite, summary]
+        exporter_cls = exporter_cls or [YAML, SQLite]
         self.inner = [cls(*args, **kwargs) for cls in exporter_cls]
 
     def sim_start(self):

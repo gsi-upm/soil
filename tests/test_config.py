@@ -23,86 +23,18 @@ def isequal(a, b):
     assert a == b
 
 
-@skip("new versions of soil do not rely on configuration files")
+# @skip("new versions of soil do not rely on configuration files")
 class TestConfig(TestCase):
-    def test_conversion(self):
-        expected = serialization.load_file(join(ROOT, "complete_converted.yml"))[0]
-        old = serialization.load_file(join(ROOT, "old_complete.yml"))[0]
-        converted_defaults = config.convert_old(old, strict=False)
-        converted = converted_defaults.dict(exclude_unset=True)
 
-        isequal(converted, expected)
-
-    def test_configuration_changes(self):
-        """
-        The configuration should not change after running
-         the simulation.
-        """
-        config = serialization.load_file(join(EXAMPLES, "complete.yml"))[0]
-        s = simulation.from_config(config)
-        init_config = copy.copy(s.to_dict())
-
-        s.run_simulation(dry_run=True)
-        nconfig = s.to_dict()
-        # del nconfig['to
-        isequal(init_config, nconfig)
-
-    def test_topology_config(self):
-        netconfig = config.NetConfig(**{"path": join(ROOT, "test.gexf")})
-        net = network.from_config(netconfig, dir_path=ROOT)
-        assert len(net.nodes) == 2
-        assert len(net.edges) == 1
-
-    def test_env_from_config(self):
-        """
-        Simple configuration that tests that the graph is loaded, and that
-        network agents are initialized properly.
-        """
-        cfg = {
-            "name": "CounterAgent",
-            "model_params": {
-                "topology": join(ROOT, "test.gexf"),
-                "agent_class": "CounterModel",
-            },
-            # 'states': [{'times': 10}, {'times': 20}],
-            "max_time": 2,
-            "dry_run": True,
-            "num_trials": 1,
-        }
-        s = simulation.from_config(cfg)
-
-        env = s.get_env()
-        assert len(env.G.nodes) == 2
-        assert len(env.G.edges) == 1
-        assert len(env.agents) == 2
-        assert env.agents[0].G == env.G
-
-    def test_agents_from_config(self):
-        """We test that the known complete configuration produces
-        the right agents in the right groups"""
-        cfg = serialization.load_file(join(ROOT, "complete_converted.yml"))[0]
-        s = simulation.from_config(cfg)
-        env = s.get_env()
-        assert len(env.G.nodes) == 4
-        assert len(env.agents(group="network")) == 4
-        assert len(env.agents(group="environment")) == 1
-
-    def test_yaml(self):
-        """
-        The YAML version of a newly created configuration should be equivalent
-        to the configuration file used.
-        Values not present in the original config file should have reasonable
-        defaults.
-        """
-        with utils.timer("loading"):
-            config = serialization.load_file(join(EXAMPLES, "complete.yml"))[0]
-            s = simulation.from_config(config)
-        with utils.timer("serializing"):
-            serial = s.to_yaml()
-        with utils.timer("recovering"):
-            recovered = yaml.load(serial, Loader=yaml.FullLoader)
-        for (k, v) in config.items():
-            assert recovered[k] == v
+    def test_torvalds_config(self):
+        sim = simulation.from_config(os.path.join(ROOT, "test_config.yml"))
+        assert sim.interval == 2
+        envs = sim.run()
+        assert len(envs) == 1
+        env = envs[0]
+        assert env.interval == 2
+        assert env.count_agents() == 3
+        assert env.now == 20
 
 
 def make_example_test(path, cfg):
@@ -116,7 +48,7 @@ def make_example_test(path, cfg):
             s.num_trials = 1
         if cfg.skip_test and not FORCE_TESTS:
             self.skipTest('Example ignored.')
-        envs = s.run_simulation(dry_run=True)
+        envs = s.run_simulation(dump=False)
         assert envs
         for env in envs:
             assert env

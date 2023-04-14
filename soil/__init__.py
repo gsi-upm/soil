@@ -30,7 +30,7 @@ from .decorators import *
 def main(
     cfg="simulation.yml",
     exporters=None,
-    parallel=None,
+    num_processes=1,
     output="soil_output",
     *,
     do_run=False,
@@ -69,6 +69,11 @@ def main(
         "--dry-run",
         "--dry",
         action="store_true",
+        help="Do not run the simulation",
+    )
+    parser.add_argument(
+        "--no-dump",
+        action="store_true",
         help="Do not store the results of the simulation to disk, show in terminal instead.",
     )
     parser.add_argument(
@@ -98,12 +103,11 @@ def main(
         default=output or "soil_output",
         help="folder to write results to. It defaults to the current directory.",
     )
-    if parallel is None:
-        parser.add_argument(
-            "--synchronous",
-            action="store_true",
-            help="Run trials serially and synchronously instead of in parallel. Defaults to false.",
-        )
+    parser.add_argument(
+        "--num-processes",
+        default=num_processes,
+        help="Number of processes to use for parallel execution. Defaults to 1.",
+    )
 
     parser.add_argument(
         "-e",
@@ -111,6 +115,17 @@ def main(
         action="append",
         default=[],
         help="Export environment and/or simulations using this exporter",
+    )
+    parser.add_argument(
+        "--until",
+        default="",
+        help="Set maximum time for the simulation to run. ",
+    )
+
+    parser.add_argument(
+        "--seed",
+        default=None,
+        help="Manually set a seed for the simulation.",
     )
 
     parser.add_argument(
@@ -137,9 +152,6 @@ def main(
 
     if args.version:
         return
-
-    if parallel is None:
-        parallel = not args.synchronous
 
     exporters = exporters or [
         "default",
@@ -168,42 +180,46 @@ def main(
     res = []
     try:
         exp_params = {}
+        opts = dict(
+                    dry_run=args.dry_run,
+                    dump=not args.no_dump,
+                    debug=debug,
+                    exporters=exporters,
+                    num_processes=args.num_processes,
+                    outdir=output,
+                    exporter_params=exp_params,
+                    **kwargs)
+        if args.seed is not None:
+            opts["seed"] = args.seed
 
         if sim:
             logger.info("Loading simulation instance")
-            sim.dry_run = args.dry_run
-            sim.exporters = exporters
-            sim.parallel = parallel
-            sim.outdir = output
-            sims = [
-                sim,
-            ]
+            for (k, v) in opts.items():
+                setattr(sim, k, v)
+            sims = [sim]
         else:
             logger.info("Loading config file: {}".format(args.file))
             if not os.path.exists(args.file):
                 logger.error("Please, input a valid file")
                 return
 
+            assert opts["debug"] == debug
             sims = list(
                 simulation.iter_from_file(
                     args.file,
-                    dry_run=args.dry_run,
-                    exporters=exporters,
-                    parallel=parallel,
-                    outdir=output,
-                    exporter_params=exp_params,
-                    **kwargs,
+                    **opts,
                 )
             )
 
         for sim in sims:
+            assert sim.debug == debug
 
             if args.set:
                 for s in args.set:
                     k, v = s.split("=", 1)[:2]
                     v = eval(v)
                     tail, *head = k.rsplit(".", 1)[::-1]
-                    target = sim
+                    target = sim.model_params
                     if head:
                         for part in head[0].split("."):
                             try:
@@ -219,9 +235,8 @@ def main(
                 print(sim.to_yaml())
                 continue
             if do_run:
-                res.append(sim.run())
+                res.append(sim.run(until=args.until))
             else:
-                print("not running")
                 res.append(sim)
 
     except Exception as ex:

@@ -6,15 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [0.30 UNRELEASED]
 ### Added
 * Simple debugging capabilities in `soil.debugging`, with a custom `pdb.Debugger` subclass that exposes commands to list agents and their status and set breakpoints on states (for FSM agents). Try it with `soil --debug <simulation file>`
-* Ability to run 
-* Ability to 
+* Ability to run mesa simulations
 * The `soil.exporters` module to export the results of datacollectors (model.datacollector) into files at the end of trials/simulations
 * A modular set of classes for environments/models. Now the ability to configure the agents through an agent definition and a topology through a network configuration is split into two classes (`soil.agents.BaseEnvironment` for agents, `soil.agents.NetworkEnvironment` to add topology).
 * FSM agents can now have generators as states. They work similar to normal states, with one caveat. Only `time` values can be yielded, not a state. This is because the state will not change, it will be resumed after the yield, at the appropriate time. The return value *can* be a state, or a `(state, time)` tuple, just like in normal states.
 ### Changed
-* Configuration schema is very different now. Check `soil.config` for more information. We are also using Pydantic for (de)serialization.
-* There may be more than one topology/network in the simulation
-* Ability
+* Configuration schema is very simplified
 ### Removed
 * Any `tsih` and `History` integration in the main classes. To record the state of environments/agents, just use a datacollector. In some cases this may be slower or consume more memory than the previous system. However, few cases actually used the full potential of the history, and it came at the cost of unnecessary complexity and worse performance for the majority of cases.
 

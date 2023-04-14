@@ -40,7 +40,7 @@ s = Simulation(
     model=RandomEnv,
     num_trials=1,
     max_time=100,
-    dry_run=True,
+    dump=False,
 )
 
 

@@ -1,4 +1,5 @@
 from . import MetaAgent, BaseAgent
+from ..time import Delta
 
 from functools import partial, wraps
 import inspect
@@ -85,8 +86,8 @@ class MetaFSM(MetaAgent):
 
 
 class FSM(BaseAgent, metaclass=MetaFSM):
-    def __init__(self, **kwargs):
-        super(FSM, self).__init__(**kwargs)
+    def __init__(self, init=True, **kwargs):
+        super().__init__(**kwargs, init=False)
         if not hasattr(self, "state_id"):
             if not self._default_state:
                 raise ValueError(
@@ -95,12 +96,15 @@ class FSM(BaseAgent, metaclass=MetaFSM):
             self.state_id = self._default_state.id
 
         self._coroutine = None
+        self.default_interval = Delta(self.model.interval)
         self._set_state(self.state_id)
+        if init:
+            self.init()
 
     def step(self):
         self.debug(f"Agent {self.unique_id} @ state {self.state_id}")
-        default_interval = super().step()
 
+        self._check_alive()
         next_state = self._states[self.state_id](self)
 
         when = None
@@ -120,7 +124,7 @@ class FSM(BaseAgent, metaclass=MetaFSM):
         if next_state is not None:
             self._set_state(next_state)
 
-        return when or default_interval
+        return when or self.default_interval
 
     def _set_state(self, state, when=None):
         if hasattr(state, "id"):
@@ -132,8 +136,8 @@ class FSM(BaseAgent, metaclass=MetaFSM):
             self.model.schedule.add(self, when=when)
         return state
 
-    def die(self):
-        return self.dead, super().die()
+    def die(self, *args, **kwargs):
+        return self.dead, super().die(*args, **kwargs)
 
     @state
     def dead(self):

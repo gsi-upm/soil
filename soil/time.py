@@ -97,7 +97,8 @@ class TimedActivation(BaseScheduler):
         self._next = {}
         self._queue = []
         self._shuffle = shuffle
-        self.step_interval = 1
+        # self.step_interval = getattr(self.model, "interval", 1)
+        self.step_interval = self.model.interval
         self.logger = logger.getChild(f"time_{ self.model }")
 
     def add(self, agent: MesaAgent, when=None):

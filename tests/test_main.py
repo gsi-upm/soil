@@ -6,8 +6,10 @@ import networkx as nx
 from functools import partial
 
 from os.path import join
-from soil import simulation, Environment, agents, network, serialization, utils, config
+from soil import simulation, Environment, agents, network, serialization, utils, config, from_file
 from soil.time import Delta
+
+from mesa import Agent as MesaAgent
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
 EXAMPLES = join(ROOT, "..", "examples")
@@ -30,11 +32,12 @@ class TestMain(TestCase):
         config = {
             "model_params": {
                 "topology": join(ROOT, "test.gexf"),
-                "agent_class": "NetworkAgent",
-            }
+                "agent_class": MesaAgent,
+            },
+            "max_time": 1
         }
         s = simulation.from_config(config)
-        s.run_simulation(dry_run=True)
+        s.run_simulation(dump=False)
 
     def test_network_agent(self):
         """
@@ -75,7 +78,6 @@ class TestMain(TestCase):
 
     def test_init_and_count_agents(self):
         """Agents should be properly initialized and counting should filter them properly"""
-        # TODO: separate this test into two or more test cases
         env = Environment(topology=join(ROOT, "test.gexf"))
         env.populate_network([CustomAgent.w(weight=1), CustomAgent.w(weight=3)])
         assert env.agents[0].weight == 1
@@ -91,7 +93,7 @@ class TestMain(TestCase):
         try:
             os.chdir(os.path.dirname(pyfile))
             s = simulation.from_py(pyfile)
-            env = s.run_simulation(dry_run=True)[0]
+            env = s.run_simulation(dump=False)[0]
             for a in env.network_agents:
                 skill_level = a["skill_level"]
                 if a.node_id == "Torvalds":
@@ -151,7 +153,6 @@ class TestMain(TestCase):
             def step(self):
                 nonlocal n_runs
                 n_runs += 1
-                return super().step()
 
         n_trials = 50
         max_time = 2
@@ -160,7 +161,7 @@ class TestMain(TestCase):
             num_trials=n_trials,
             max_time=max_time,
         )
-        runs = list(s.run_simulation(dry_run=True))
+        runs = list(s.run_simulation(dump=False))
         over = list(x.now for x in runs if x.now > 2)
         assert len(runs) == n_trials
         assert len(over) == 0
@@ -203,3 +204,21 @@ class TestMain(TestCase):
         assert when == 2
         when = a.step()
         assert when == Delta(a.interval)
+
+    def test_load_sim(self):
+        """Make sure at least one of the examples can be loaded"""
+        sims = from_file(os.path.join(EXAMPLES, "newsspread", "newsspread_sim.py"))
+        assert len(sims) == 3*3*2
+        for sim in sims:
+            assert sim
+            assert sim.name == "newspread_sim"
+            assert sim.num_trials == 5
+            assert sim.max_steps == 300
+            assert not sim.dump
+            assert sim.model_params
+            assert "ratio_dumb" in sim.model_params
+            assert "ratio_herd" in sim.model_params
+            assert "ratio_wise" in sim.model_params
+            assert "network_generator" in sim.model_params
+            assert "network_params" in sim.model_params
+            assert "prob_neighbor_spread" in sim.model_params

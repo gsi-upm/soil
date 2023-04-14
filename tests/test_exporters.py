@@ -10,6 +10,8 @@ from soil import environment
 from soil import simulation
 from soil import agents
 
+from mesa import Agent as MesaAgent
+
 
 class Dummy(exporters.Exporter):
     started = False
@@ -41,14 +43,15 @@ class Exporters(TestCase):
         # ticks every step
         class SimpleEnv(environment.Environment):
             def init(self):
-                self.add_agent(agent_class=agents.BaseAgent)
+                self.add_agent(agent_class=MesaAgent)
         
 
         num_trials = 5
         max_time = 2
-        s = simulation.Simulation(num_trials=num_trials, max_time=max_time, name="exporter_sim", dry_run=True, model=SimpleEnv)
+        s = simulation.Simulation(num_trials=num_trials, max_time=max_time, name="exporter_sim",
+                                  dump=False, model=SimpleEnv)
 
-        for env in s.run_simulation(exporters=[Dummy], dry_run=True):
+        for env in s.run_simulation(exporters=[Dummy], dump=False):
             assert len(env.agents) == 1
 
         assert Dummy.started
@@ -60,18 +63,20 @@ class Exporters(TestCase):
         assert Dummy.total_time == max_time * num_trials
 
     def test_writing(self):
-        """Try to write CSV, sqlite and YAML (without dry_run)"""
+        """Try to write CSV, sqlite and YAML (without no_dump)"""
         n_trials = 5
+        n_nodes = 4
+        max_time = 2
         config = {
             "name": "exporter_sim",
             "model_params": {
                 "network_generator": "complete_graph",
-                "network_params": {"n": 4},
+                "network_params": {"n": n_nodes},
                 "agent_class": "CounterModel",
             },
-            "max_time": 2,
+            "max_time": max_time,
             "num_trials": n_trials,
-            "dry_run": False,
+            "dump": True,
         }
         output = io.StringIO()
         s = simulation.from_config(config)
@@ -87,7 +92,7 @@ class Exporters(TestCase):
                     "constant": lambda x: 1,
                 },
             },
-            dry_run=False,
+            dump=True,
             outdir=tmpdir,
             exporter_params={"copy_to": output},
         )
@@ -100,12 +105,13 @@ class Exporters(TestCase):
 
         try:
             for e in envs:
-                db = sqlite3.connect(os.path.join(simdir, f"{s.name}.sqlite"))
+                dbpath = os.path.join(simdir, f"{s.name}.sqlite")
+                db = sqlite3.connect(dbpath)
                 cur = db.cursor()
-                agent_entries = cur.execute("SELECT * from agents").fetchall()
-                env_entries = cur.execute("SELECT * from env").fetchall()
-                assert len(agent_entries) > 0
-                assert len(env_entries) > 0
+                agent_entries = cur.execute("SELECT times FROM agents WHERE times > 0").fetchall()
+                env_entries = cur.execute("SELECT constant from env WHERE constant == 1").fetchall()
+                assert len(agent_entries) == n_nodes * n_trials * max_time
+                assert len(env_entries) == n_trials * max_time
 
                 with open(os.path.join(simdir, "{}.env.csv".format(e.id))) as f:
                     result = f.read()

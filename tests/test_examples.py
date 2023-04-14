@@ -1,9 +1,12 @@
 from unittest import TestCase
+from unittest.case import SkipTest
+
 import os
 from os.path import join
 from glob import glob
 
-from soil import  simulation, config, do_not_run
+
+from soil import  simulation
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
 EXAMPLES = join(ROOT, "..", "examples")
@@ -16,44 +19,54 @@ class TestExamples(TestCase):
     pass
 
 
-def get_test_for_sim(sim, path):
+def get_test_for_sims(sims, path):
     root = os.getcwd()
-    iterations = sim.max_steps * sim.num_trials
-    if iterations < 0 or iterations > 1000:
-        sim.max_steps = 100
-        sim.num_trials = 1
 
     def wrapped(self):
-        envs = sim.run_simulation(dry_run=True)
-        assert envs
-        for env in envs:
-            assert env
-            try:
-                n = sim.model_params["network_params"]["n"]
-                assert len(list(env.network_agents)) == n
-            except KeyError:
-                pass
-            assert env.schedule.steps > 0  # It has run
-            assert env.schedule.steps <= sim.max_steps  # But not further than allowed
+        run = False
+        for sim in sims:
+            if sim.skip_test and not FORCE_TESTS:
+                continue
+            run = True
+            iterations = sim.max_steps * sim.num_trials
+            if iterations < 0 or iterations > 1000:
+                sim.max_steps = 100
+                sim.num_trials = 1
+            envs = sim.run_simulation(dump=False)
+            assert envs
+            for env in envs:
+                assert env
+                assert env.now > 0
+                try:
+                    n = sim.model_params["network_params"]["n"]
+                    assert len(list(env.network_agents)) == n
+                except KeyError:
+                    pass
+                assert env.schedule.steps > 0  # It has run
+                assert env.schedule.steps <= sim.max_steps  # But not further than allowed
+        if not run:
+            raise SkipTest("Example ignored because all simulations are set up to be skipped.")
 
     return wrapped
 
 
 def add_example_tests():
-    sim_paths = []
+    sim_paths = {}
     for path in glob(join(EXAMPLES, '**', '*.yml')):
         if "soil_output" in path:
             continue
+        if path not in sim_paths:
+            sim_paths[path] = []
         for sim in simulation.iter_from_config(path):
-            sim_paths.append((sim, path))
+            sim_paths[path].append(sim)
     for path in glob(join(EXAMPLES, '**', '*_sim.py')):
+        if path not in sim_paths:
+            sim_paths[path] = []
         for sim in simulation.iter_from_py(path):
-            sim_paths.append((sim, path))
+            sim_paths[path].append(sim)
 
-    for (sim, path) in sim_paths:
-        if sim.skip_test and not FORCE_TESTS:
-            continue
-        test_case = get_test_for_sim(sim, path)
+    for (path, sims) in sim_paths.items():
+        test_case = get_test_for_sims(sims, path)
         fname = os.path.basename(path)
         test_case.__name__ = "test_example_file_%s" % fname
         test_case.__doc__ = "%s should be a valid configuration" % fname

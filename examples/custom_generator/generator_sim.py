@@ -26,14 +26,14 @@ def mygenerator(n=5, n_edges=5):
 class GeneratorEnv(Environment):
     """Using a custom generator for the network"""
 
-    generator: parameters.function = mygenerator
+    generator: parameters.function = staticmethod(mygenerator)
 
     def init(self):
-        self.create_network(network_generator=self.generator, n=10, n_edges=5)
-        self.init_agents(CounterModel)
+        self.create_network(generator=self.generator, n=10, n_edges=5)
+        self.add_agents(CounterModel)
 
 
 sim = Simulation(model=GeneratorEnv, max_steps=10, interval=1)
 
 if __name__ == '__main__':
-    sim.run(dry_run=True)
+    sim.run(dump=False)

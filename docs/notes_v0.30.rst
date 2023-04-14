@@ -1,5 +1,3 @@
-
-
 What are the main changes between version 0.3 and 0.2?
 ######################################################
 
@@ -22,22 +20,12 @@ It aims to provide more modular and convenient functions, most of which can be u
 How are agents assigned to nodes in the network
 ###############################################
 
-In principle, the generation of the network topology and the assignment of agents to nodes are two separate processes.
-There is a mechanism to initialize the agents, a mechanism to initialize the topology, and a mechanism to assign agents to nodes.
-
-However, there are a myriad of ways to do this, and it is not clear which is the best way to do it.
-Earlier versions of Soil approached it by providing a fairly complex method of agent and node generation.
-The result was a very complex and difficult to understand system, which is was also prone to bugs and changes between versions.
-
-Starting with version 0.3, the approach is to provide a simplified yet flexible system for generating the network topology and assigning agents to nodes.
-This is based on these methods:
-
-- `create_network`
-- `add_agents` (and `add_agent`)
-- `populate_network`
-
-The default implementation of `soil.Environment` accepts some parameters that will automatically do these steps for the most common case.
-All other cases can be handled by overriding the `init(self)` method and explicitly using these methods.
+The constructor of the `NetworkAgent` class has two arguments: `node_id` and `topology`.
+If `topology` is not provided, it will default to `self.model.topology`.
+This assignment might err if the model does not have a `topology` attribute, but most Soil environments derive from `NetworkEnvironment`, so they include a topology by default.
+If `node_id` is not provided, a random node will be selected from the topology, until a node with no agent is found.
+Then, the `node_id` of that node is assigned to the agent.
+If no node with no agent is found, a new node is automatically added to the topology.
 
 
 Can Soil environments include more than one network / topology?

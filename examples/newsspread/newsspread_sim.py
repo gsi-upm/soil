@@ -91,10 +91,11 @@ class NewsSpread(Environment):
     prob_neighbor_cure: probability = 0.05,
 
     def init(self):
-        self.populate_network([DumbViewer, HerdViewer, WiseViewer], [self.ratio_dumb, self.ratio_herd, self.ratio_wise])
+        self.populate_network([DumbViewer, HerdViewer, WiseViewer],
+                              [self.ratio_dumb, self.ratio_herd, self.ratio_wise])
 
 
-from itertools import permutations
+from itertools import product
 from soil import Simulation
 
 
@@ -103,27 +104,31 @@ from soil import Simulation
 # Because the effect of these agents might also depend on the network structure, we will run our simulations on two different networks:
 # one with a small-world structure and one with a connected structure.
 
-for [r1, r2, r3] in permutations([0, 0.5, 1.0], 3):
+counter = 0
+for [r1, r2] in product([0, 0.5, 1.0], repeat=2):
     for (generator, netparams) in {
         "barabasi_albert_graph": {"m": 5},
         "erdos_renyi_graph": {"p": 0.1},
     }.items():
-        print(r1, r2, r3, generator)
+        print(r1, r2, 1-r1-r2, generator)
         # Create new simulation
         netparams["n"] = 500
-        sim = Simulation(
+        Simulation(
+            name='newspread_sim',
             model=NewsSpread,
-            model_params={
-                "ratio_dumb": r1,
-                "ratio_herd": r2,
-                "ratio_wise": r3,
-                "network_generator": generator,
-                "network_params": netparams,
-                "prob_neighbor_spread": 0,
-            },
-            num_trials=50,
+            model_params=dict(
+                ratio_dumb=r1,
+                ratio_herd=r2,
+                ratio_wise=1-r1-r2,
+                network_generator=generator,
+                network_params=netparams,
+                prob_neighbor_spread=0,
+            ),
+            num_trials=5,
             max_steps=300,
-            dry_run=True,
-        )
+            dump=False,
+        ).run()
+        counter += 1
         # Run all the necessary instances
-        sim.run()
+ 
+print(f"A total of {counter} simulations were run.")

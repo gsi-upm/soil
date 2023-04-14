@@ -14,7 +14,7 @@ def mygenerator():
     return G
 
 
-class MyAgent(agents.FSM):
+class MyAgent(agents.NetworkAgent, agents.FSM):
     times_run = 0
     @agents.default_state
     @agents.state
@@ -29,6 +29,7 @@ class ProgrammaticEnv(Environment):
 
     def init(self):
         self.create_network(generator=mygenerator)
+        assert len(self.G)
         self.populate_network(agent_class=MyAgent)
         self.add_agent_reporter('times_run')
 
@@ -39,7 +40,7 @@ simulation = Simulation(
     seed='Program',
     num_trials=1,
     max_time=100,
-    dry_run=True,
+    dump=False,
 )
 
 if __name__ == "__main__":

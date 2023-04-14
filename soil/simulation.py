@@ -10,7 +10,7 @@ import networkx as nx
 
 from textwrap import dedent
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, replace
 from typing import Any, Dict, Union, Optional, List
 
 
@@ -22,7 +22,7 @@ import pickle
 from . import serialization, exporters, utils, basestring, agents
 from .environment import Environment
 from .utils import logger, run_and_return_exceptions
-from .config import Config, convert_old
+from .debugging import set_trace
 
 _AVOID_RUNNING = False
 _QUEUED = []
@@ -31,24 +31,50 @@ _QUEUED = []
 def do_not_run(): 
     global _AVOID_RUNNING
     _AVOID_RUNNING = True
-    yield
-    _AVOID_RUNNING = False
+    try:
+        logger.debug("NOT RUNNING")
+        yield
+    finally:
+        logger.debug("RUNNING AGAIN")
+        _AVOID_RUNNING = False
+
+
+def _iter_queued():
+    while _QUEUED:
+        (cls, args, kwargs) = _QUEUED.pop(0)
+        yield replace(cls, **kwargs)
 
 
 # TODO: change documentation for simulation
 @dataclass
 class Simulation:
     """
-    Parameters
-    ---------
-    config (optional): :class:`config.Config`
-        name of the Simulation
+    A simulation is a collection of agents and a model. It is responsible for running the model and agents, and collecting data from them.
 
-    kwargs: parameters to use to initialize a new configuration, if one not been provided.
+    Args:
+        version: The version of the simulation. This is used to determine how to load the simulation.
+        name: The name of the simulation.
+        description: A description of the simulation.
+        group: The group that the simulation belongs to.
+        model: The model to use for the simulation. This can be a string or a class.
+        model_params: The parameters to pass to the model.
+        seed: The seed to use for the simulation.
+        dir_path: The directory path to use for the simulation.
+        max_time: The maximum time to run the simulation.
+        max_steps: The maximum number of steps to run the simulation.
+        interval: The interval to use for the simulation.
+        num_trials: The number of trials (times) to run the simulation.
+        num_processes: The number of processes to use for the simulation. If greater than one, simulations will be performed in parallel. This may make debugging and error handling difficult.
+        tables: The tables to use in the simulation datacollector
+        agent_reporters: The agent reporters to use in the datacollector
+        model_reporters: The model reporters to use in the datacollector
+        dry_run: Whether or not to run the simulation. If True, the simulation will not be run.
+        source_file: Python file to use to find additional classes.
     """
 
     version: str = "2"
-    name: str = "Unnamed simulation"
+    source_file: Optional[str] = None
+    name: Optional[str] = None
     description: Optional[str] = ""
     group: str = None
     model: Union[str, type] = "soil.Environment"
@@ -67,24 +93,17 @@ class Simulation:
     outdir: Optional[str] = None
     exporter_params: Optional[Dict[str, Any]] = field(default_factory=dict)
     dry_run: bool = False
+    dump: bool = False
     extra: Dict[str, Any] = field(default_factory=dict)
     skip_test: Optional[bool] = False
+    debug: Optional[bool] = False
 
-    @classmethod
-    def from_dict(cls, env, **kwargs):
-
-        ignored = {
-            k: v for k, v in env.items() if k not in inspect.signature(cls).parameters
-        }
-
-        d = {k: v for k, v in env.items() if k not in ignored}
-        if ignored:
-            d.setdefault("extra", {}).update(ignored)
-        if ignored:
-            logger.warning(f'Ignoring these parameters (added to "extra"): { ignored }')
-        d.update(kwargs)
-
-        return cls(**d)
+    def __post_init__(self):
+        if self.name is None:
+            if isinstance(self.model, str):
+                self.name = self.model
+            else:
+                self.name = self.model.__class__.__name__
 
     def run_simulation(self, *args, **kwargs):
         return self.run(*args, **kwargs)
@@ -102,13 +121,14 @@ class Simulation:
         )
         if _AVOID_RUNNING:
             _QUEUED.append((self, args, kwargs))
-            return list()
-        return list(self.run_gen(*args, **kwargs))
+            return []
+        return list(self._run_gen(*args, **kwargs))
 
-    def run_gen(
+    def _run_gen(
         self,
         num_processes=1,
         dry_run=None,
+        dump=None,
         exporters=None,
         outdir=None,
         exporter_params={},
@@ -123,6 +143,8 @@ class Simulation:
         logger.info("Output directory: %s", outdir)
         if dry_run is None:
             dry_run = self.dry_run
+        if dump is None:
+            dump = self.dump
         if exporters is None:
             exporters = self.exporters
         if not exporter_params:
@@ -134,33 +156,50 @@ class Simulation:
             known_modules=[
                 "soil.exporters",
             ],
-            dry_run=dry_run,
+            dump=dump and not dry_run,
             outdir=outdir,
             **exporter_params,
         )
 
-        with utils.timer("simulation {}".format(self.name)):
-            for exporter in exporters:
-                exporter.sim_start()
+        if self.source_file:
+            source_file = self.source_file
+            if not os.path.isabs(source_file):
+                source_file = os.path.abspath(os.path.join(self.dir_path, source_file))
+            serialization.add_source_file(source_file)
+        try:
 
-            for env in utils.run_parallel(
-                func=self.run_trial,
-                iterable=range(int(self.num_trials)),
-                num_processes=num_processes,
-                log_level=log_level,
-                **kwargs,
-            ):
+            with utils.timer("simulation {}".format(self.name)):
+                for exporter in exporters:
+                    exporter.sim_start()
+
+                    if dry_run:
+                        def func(*args, **kwargs):
+                            return None
+                    else:
+                        func = self.run_trial
+
+                for env in utils.run_parallel(
+                    func=self.run_trial,
+                    iterable=range(int(self.num_trials)),
+                    num_processes=num_processes,
+                    log_level=log_level,
+                    **kwargs,
+                ):
+                    if env is None and dry_run:
+                        continue
+
+                    for exporter in exporters:
+                        exporter.trial_end(env)
+
+                    yield env
 
                 for exporter in exporters:
-                    exporter.trial_start(env)
-
-                for exporter in exporters:
-                    exporter.trial_end(env)
-
-                yield env
-
-            for exporter in exporters:
-                exporter.sim_end()
+                    exporter.sim_end()
+        finally:
+            pass
+            # TODO: reintroduce
+            # if self.source_file:
+            #     serialization.remove_source_file(self.source_file)
 
     def get_env(self, trial_id=0, model_params=None, **kwargs):
         """Create an environment for a trial of the simulation"""
@@ -188,6 +227,7 @@ class Simulation:
             id=f"{self.name}_trial_{trial_id}",
             seed=f"{self.seed}_trial_{trial_id}",
             dir_path=self.dir_path,
+            interval=self.interval,
             agent_reporters=agent_reporters,
             model_reporters=model_reporters,
             tables=tables,
@@ -223,6 +263,9 @@ class Simulation:
 
             def is_done():
                 return prev() or model.schedule.time >= until
+            
+        if not model.schedule.agents:
+            raise Exception("No agents in model. This is probably a bug. Make sure that the model has agents scheduled after its initialization.")
 
         if self.max_steps and self.max_steps > 0 and hasattr(model.schedule, "steps"):
             prev_steps = is_done
@@ -235,24 +278,21 @@ class Simulation:
             dedent(
                 f"""
 Model stats:
-  Agents (total: { model.schedule.get_agent_count() }):
-      - { (newline + '      - ').join(str(a) for a in model.schedule.agents) }
-
+  Agent count: { model.schedule.get_agent_count() }):
   Topology size: { len(model.G) if hasattr(model, "G") else 0 }
         """
             )
         )
 
+        if self.debug:
+            set_trace()
+
         while not is_done():
             utils.logger.debug(
-                f'Simulation time {model.schedule.time}/{until}. Next: {getattr(model.schedule, "next_time", model.schedule.time + self.interval)}'
+                f'Simulation time {model.schedule.time}/{until}.'
             )
             model.step()
 
-        if (
-            model.schedule.time < until
-        ):  # Simulation ended (no more steps) before the expected time
-            model.schedule.time = until
         return model
 
     def to_dict(self):
@@ -271,14 +311,19 @@ def iter_from_file(*files, **kwargs):
             yield from iter_from_config(f, **kwargs)
 
 
+def from_file(*args, **kwargs):
+    return list(iter_from_file(*args, **kwargs))
+
+
 def iter_from_config(*cfgs, **kwargs):
     for config in cfgs:
         configs = list(serialization.load_config(config))
         for config, path in configs:
             d = dict(config)
+            d.update(kwargs)
             if "dir_path" not in d:
                 d["dir_path"] = os.path.dirname(path)
-            yield Simulation.from_dict(d, **kwargs)
+            yield Simulation(**d)
 
 
 def from_config(conf_or_path):
@@ -293,7 +338,10 @@ def iter_from_py(pyfile, module_name='custom_simulation', **kwargs):
     import importlib
     import inspect
     added = False
+    sims = []
+    assert not _AVOID_RUNNING
     with do_not_run():
+        assert _AVOID_RUNNING
         spec = importlib.util.spec_from_file_location(module_name, pyfile)
         folder = os.path.dirname(pyfile)
         if folder not in sys.path:
@@ -304,26 +352,25 @@ def iter_from_py(pyfile, module_name='custom_simulation', **kwargs):
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
-        # import pdb;pdb.set_trace()
-        loaded = False
-        sims = []
         for (_name, sim) in inspect.getmembers(module, lambda x: isinstance(x, Simulation)):
-            loaded = True
             sims.append(sim)
-        for (_name, sim) in inspect.getmembers(module, lambda x: inspect.isclass(x) and issubclass(x, Simulation)):
-            loaded = True
-            sims.append(sim(**kwargs))
-        if not loaded:
-            raise AttributeError(f"No valid configurations found in {pyfile}")
+        for sim in _iter_queued():
+            sims.append(sim)
+        if not sims:
+            for (_name, sim) in inspect.getmembers(module, lambda x: inspect.isclass(x) and issubclass(x, Simulation)):
+                sims.append(sim(**kwargs))
         del sys.modules[module_name]
+    assert not _AVOID_RUNNING
+    if not sims:
+        raise AttributeError(f"No valid configurations found in {pyfile}")
     if added:
         sys.path.remove(folder)
-    yield from sims
+    for sim in sims:
+        yield replace(sim, **kwargs)
 
 
 def from_py(pyfile):
     return next(iter_from_py(pyfile))
-
 
 
 def run_from_file(*files, **kwargs):

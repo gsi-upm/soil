@@ -30,7 +30,7 @@ from networkx import complete_graph
 
 class TimeoutsEnv(Environment):
     def init(self):
-        self.init_network(generator=complete_graph, n=2)
+        self.create_network(generator=complete_graph, n=2)
         self.add_agent(agent_class=Fibonacci, node_id=0)
         self.add_agent(agent_class=Odds, node_id=1)
 
@@ -38,4 +38,4 @@ class TimeoutsEnv(Environment):
 sim = Simulation(model=TimeoutsEnv, max_steps=10, interval=1)
 
 if __name__ == "__main__":
-    sim.run(dry_run=True)
+    sim.run(dump=False)

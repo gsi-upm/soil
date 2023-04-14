@@ -14,7 +14,7 @@ class CityPubs(Environment):
     pub_capacity: parameters.Integer = 10
     
     def init(self):
-        pubs = {}
+        self.pubs = {}
         for i in range(self.number_of_pubs):
             newpub = {
                 "name": "The awesome pub #{}".format(i),
@@ -22,10 +22,11 @@ class CityPubs(Environment):
                 "capacity": self.pub_capacity,
                 "occupancy": 0,
             }
-            pubs[newpub["name"]] = newpub
-        self.add_agent(agent_class=Police, node_id=0)
-        self["pubs"] = pubs
-        self.populate_network([{"openness": 0.1}, {"openness": 1}], [self.ratio_extroverted, 1-self.ratio_extroverted], agent_class=Patron)
+            self.pubs[newpub["name"]] = newpub
+        self.add_agent(agent_class=Police)
+        self.populate_network([Patron.w(openness=0.1), Patron.w(openness=1)],
+                              [self.ratio_extroverted, 1-self.ratio_extroverted])
+        assert all(["agent" in node and isinstance(node["agent"], Patron) for (_, node) in self.G.nodes(data=True)])
 
     def enter(self, pub_id, *nodes):
         """Agents will try to enter. The pub checks if it is possible"""
@@ -151,10 +152,10 @@ class Patron(FSM, NetworkAgent):
                 continue
             if friend.befriend(self):
                 self.befriend(friend, force=True)
-                self.debug("Hooray! new friend: {}".format(friend.id))
+                self.debug("Hooray! new friend: {}".format(friend.unique_id))
                 befriended = True
             else:
-                self.debug("{} does not want to be friends".format(friend.id))
+                self.debug("{} does not want to be friends".format(friend.unique_id))
         return befriended
 
 
@@ -168,19 +169,20 @@ class Police(FSM):
     def patrol(self):
         drunksters = list(self.get_agents(drunk=True, state_id=Patron.drunk_in_pub.id))
         for drunk in drunksters:
-            self.info("Kicking out the trash: {}".format(drunk.id))
+            self.info("Kicking out the trash: {}".format(drunk.unique_id))
             drunk.kick_out()
         else:
             self.info("No trash to take out. Too bad.")
 
 
 sim = Simulation(
+    model=CityPubs,
     name="pubcrawl",
     num_trials=3,
     max_steps=10,
-    dry_run=True,
+    dump=False,
     model_params=dict(
-        generator=nx.empty_graph,
+        network_generator=nx.empty_graph,
         network_params={"n": 30},
         model=CityPubs,
         altercations=0,

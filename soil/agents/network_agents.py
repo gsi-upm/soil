@@ -2,23 +2,37 @@ from . import BaseAgent
 
 
 class NetworkAgent(BaseAgent):
-    def __init__(self, *args, topology, node_id, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, topology=None, init=True, node_id=None, **kwargs):
+        super().__init__(*args, init=False, **kwargs)
 
-        assert topology is not None
-        assert node_id is not None
-        self.G = topology
+        self.G = topology or self.model.G
         assert self.G
+        if node_id is None:
+            nodes = self.random.choices(list(self.G.nodes), k=len(self.G))
+            for n_id in nodes:
+                if "agent" not in self.G.nodes[n_id] or self.G.nodes[n_id]["agent"] is None:
+                    node_id = n_id
+                    break
+            else:
+                node_id = len(self.G)
+                self.info(f"All nodes ({len(self.G)}) have an agent assigned, adding a new node to the graph for agent {self.unique_id}")
+                self.G.add_node(node_id)
+        assert node_id is not None
+        self.G.nodes[node_id]["agent"] = self
         self.node_id = node_id
+        if init:
+            self.init()
 
     def count_neighbors(self, state_id=None, **kwargs):
         return len(self.get_neighbors(state_id=state_id, **kwargs))
+        if init:
+            self.init()
 
     def iter_neighbors(self, **kwargs):
         return self.iter_agents(limit_neighbors=True, **kwargs)
 
     def get_neighbors(self, **kwargs):
-        return list(self.iter_neighbors())
+        return list(self.iter_neighbors(**kwargs))
 
     @property
     def node(self):
@@ -40,7 +54,7 @@ class NetworkAgent(BaseAgent):
             for node_id in self.G.neighbors(self.node_id):
                 agent = self.G.nodes[node_id].get("agent")
                 if agent is not None:
-                    neighbor_ids.add(agent.id)
+                    neighbor_ids.add(agent.unique_id)
             if unique_ids:
                 unique_ids = unique_ids & neighbor_ids
             else:

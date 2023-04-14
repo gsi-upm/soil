@@ -11,6 +11,8 @@ import inspect
 import types
 import textwrap
 import networkx as nx
+import warnings
+import sys
 
 from typing import Any
 
@@ -90,7 +92,7 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
     Any attribute that is not preceded by an underscore (`_`) will also be added to its state.
     """
 
-    def __init__(self, unique_id, model, name=None, interval=None, **kwargs):
+    def __init__(self, unique_id, model, name=None, init=True, interval=None, **kwargs):
         assert isinstance(unique_id, int)
         super().__init__(unique_id=unique_id, model=model)
 
@@ -116,6 +118,11 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
         for (k, v) in kwargs.items():
 
             setattr(self, k, v)
+        if init:
+            self.init()
+
+    def init(self):
+        pass
 
     def __hash__(self):
         return hash(self.unique_id)
@@ -130,11 +137,10 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
     # TODO: refactor to clean up mesa compatibility
     @property
     def id(self):
+        msg = "This attribute is deprecated. Use `unique_id` instead"
+        warnings.warn(msg, DeprecationWarning)
+        print(msg, file=sys.stderr)
         return self.unique_id
-    
-    @id.setter
-    def id(self, value):
-        self.unique_id = value
 
     @classmethod
     def from_dict(cls, model, attrs, warn_extra=True):
@@ -197,8 +203,10 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
             # No environment
             return None
 
-    def die(self):
-        self.info(f"agent dying")
+    def die(self, msg=None):
+        if msg:
+            self.info("Agent dying:", msg)
+        self.debug(f"agent dying")
         self.alive = False
         try:
             self.model.schedule.remove(self)
@@ -207,15 +215,16 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
         return time.NEVER
 
     def step(self):
+        raise NotImplementedError("Agent must implement step method")
+    
+    def _check_alive(self):
         if not self.alive:
             raise time.DeadAgent(self.unique_id)
-        super().step()
-        return time.Delta(self.interval)
-
-    def log(self, message, *args, level=logging.INFO, **kwargs):
+    
+    def log(self, *message, level=logging.INFO, **kwargs):
         if not self.logger.isEnabledFor(level):
             return
-        message = message + " ".join(str(i) for i in args)
+        message = " ".join(str(i) for i in message)
         message = "[@{:>4}]\t{:>10}: {}".format(self.now, repr(self), message)
         for k, v in kwargs:
             message += " {k}={v} ".format(k, v)
@@ -388,7 +397,7 @@ class AgentView(Mapping, Set):
 
 
 def filter_agents(
-    agents,
+    agents: dict,
     *id_args,
     unique_id=None,
     state_id=None,

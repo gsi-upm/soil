@@ -8,6 +8,7 @@ from textwrap import indent
 from functools import wraps
 
 from .agents import FSM, MetaFSM
+from mesa import Model, Agent
 
 
 def wrapcmd(func):
@@ -15,14 +16,22 @@ def wrapcmd(func):
     def wrapper(self, arg: str, temporary=False):
         sys.settrace(self.trace_dispatch)
 
+        lastself = self
         known = globals()
         known.update(self.curframe.f_globals)
         known.update(self.curframe.f_locals)
-        known["agent"] = known.get("self", None)
-        known["model"] = known.get("self", {}).get("model")
         known["attrs"] = arg.strip().split()
 
-        exec(func.__code__, known, known)
+        this = known.get("self", None)
+
+        if isinstance(this, Model):
+            known["model"] = this
+        elif isinstance(this, Agent):
+            known["agent"] = this
+            known["model"] = this.model
+
+        known["self"] = lastself
+        return exec(func.__code__, known, known)
 
     return wrapper
 
@@ -57,6 +66,7 @@ class Debug(pdb.Pdb):
     do_sl = do_soil_list
 
     def do_continue_state(self, arg):
+        """Continue until next time this state is reached"""
         self.do_break_state(arg, temporary=True)
         return self.do_continue("")
 
@@ -79,6 +89,49 @@ class Debug(pdb.Pdb):
         print(agent.to_str(pretty=True, keys=keys))
 
     do_aa = do_soil_agent
+
+    def do_break_step(self, arg: str):
+        """
+        Break before the next step.
+        """
+        try:
+            known = globals()
+            known.update(self.curframe.f_globals)
+            known.update(self.curframe.f_locals)
+            func = getattr(known["model"], "step")
+        except AttributeError as ex:
+            self.error(f"The model does not have a step function: {ex}")
+            return
+        if hasattr(func, "__func__"):
+            func = func.__func__
+
+        code = func.__code__
+        # use co_name to identify the bkpt (function names
+        # could be aliased, but co_name is invariant)
+        funcname = code.co_name
+        lineno = code.co_firstlineno
+        filename = code.co_filename
+
+        # Check for reasonable breakpoint
+        line = self.checkline(filename, lineno)
+        if not line:
+            raise ValueError("no line found")
+            # now set the break point
+
+        existing = self.get_breaks(filename, line)
+        if existing:
+            self.message("Breakpoint already exists at %s:%d" % (filename, line))
+            return
+        cond = f"self.schedule.steps > {model.schedule.steps}"
+        err = self.set_break(filename, line, True, cond, funcname)
+        if err:
+            self.error(err)
+        else:
+            bp = self.get_breaks(filename, line)[-1]
+            self.message("Breakpoint %d at %s:%d" % (bp.number, bp.file, bp.line))
+            return self.do_continue("")
+    
+    do_bstep = do_break_step
 
     def do_break_state(self, arg: str, instances=None, temporary=False):
         """
