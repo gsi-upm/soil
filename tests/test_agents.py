@@ -54,8 +54,7 @@ class TestAgents(TestCase):
         class MyAgent(agents.FSM):
             run = 0
 
-            @agents.default_state
-            @agents.state("original")
+            @agents.state("original", default=True)
             def root(self):
                 self.run += 1
                 return self.other
@@ -65,10 +64,11 @@ class TestAgents(TestCase):
                 self.run += 1
 
         e = environment.Environment()
-        a = MyAgent(model=e, unique_id=e.next_id())
-        a.step()
+        a = e.add_agent(MyAgent)
+        e.step()
         assert a.run == 1
         a.step()
+        print("DONE")
 
     def test_broadcast(self):
         """

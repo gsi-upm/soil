@@ -28,13 +28,16 @@ class TestConfig(TestCase):
 
     def test_torvalds_config(self):
         sim = simulation.from_config(os.path.join(ROOT, "test_config.yml"))
-        assert sim.interval == 2
+        MAX_STEPS = 10
+        INTERVAL = 2
+        assert sim.interval == INTERVAL
+        assert sim.max_steps == MAX_STEPS
         envs = sim.run()
         assert len(envs) == 1
         env = envs[0]
         assert env.interval == 2
         assert env.count_agents() == 3
-        assert env.now == 20
+        assert env.now == INTERVAL * MAX_STEPS 
 
 
 def make_example_test(path, cfg):
@@ -42,10 +45,10 @@ def make_example_test(path, cfg):
         root = os.getcwd()
         print(path)
         s = simulation.from_config(cfg)
-        iterations = s.max_time * s.num_trials
+        iterations = s.max_time * s.iterations
         if iterations > 1000:
             s.max_time = 100
-            s.num_trials = 1
+            s.iterations = 1
         if cfg.skip_test and not FORCE_TESTS:
             self.skipTest('Example ignored.')
         envs = s.run_simulation(dump=False)
@@ -53,7 +56,7 @@ def make_example_test(path, cfg):
         for env in envs:
             assert env
             try:
-                n = cfg.model_params['topology']['params']['n']
+                n = cfg.parameters['topology']['params']['n']
                 assert len(list(env.network_agents)) == n
                 assert env.now > 0  # It has run
                 assert env.now <= cfg.max_time  # But not further than allowed

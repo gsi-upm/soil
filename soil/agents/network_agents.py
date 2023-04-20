@@ -40,14 +40,11 @@ class NetworkAgent(BaseAgent):
 
     def iter_agents(self, unique_id=None, *, limit_neighbors=False, **kwargs):
         unique_ids = None
-        if isinstance(unique_id, list):
-            unique_ids = set(unique_id)
-        elif unique_id is not None:
-            unique_ids = set(
-                [
-                    unique_id,
-                ]
-            )
+        if unique_ids is not None:
+            try:
+                unique_ids = set(unique_id)
+            except TypeError:
+                unique_ids = set([unique_id])
 
         if limit_neighbors:
             neighbor_ids = set()

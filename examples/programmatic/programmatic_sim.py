@@ -38,7 +38,7 @@ simulation = Simulation(
     name="Programmatic",
     model=ProgrammaticEnv,
     seed='Program',
-    num_trials=1,
+    iterations=1,
     max_time=100,
     dump=False,
 )

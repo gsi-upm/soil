@@ -63,7 +63,7 @@ chart = ChartModule(
     [{"Label": "Gini", "Color": "Black"}], data_collector_name="datacollector"
 )
 
-model_params = {
+parameters = {
     "N": Slider(
         "N",
         5,
@@ -98,12 +98,12 @@ model_params = {
 
 
 canvas_element = CanvasGrid(
-    gridPortrayal, model_params["width"].value, model_params["height"].value, 500, 500
+    gridPortrayal, parameters["width"].value, parameters["height"].value, 500, 500
 )
 
 
 server = ModularServer(
-    MoneyEnv, [grid, chart, canvas_element], "Money Model", model_params
+    MoneyEnv, [grid, chart, canvas_element], "Money Model", parameters
 )
 server.port = 8521
 

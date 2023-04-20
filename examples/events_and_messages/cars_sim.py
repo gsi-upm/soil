@@ -94,9 +94,9 @@ class Driver(Evented, FSM):
     def check_passengers(self):
         """If there are no more passengers, stop forever"""
         c = self.count_agents(agent_class=Passenger)
-        self.info(f"Passengers left {c}")
+        self.debug(f"Passengers left {c}")
         if not c:
-            self.die()
+            self.die("No more passengers")
 
     @default_state
     @state
@@ -129,10 +129,13 @@ class Driver(Evented, FSM):
     @state
     def driving(self):
         """The journey has been accepted. Pick them up and take them to their destination"""
+        self.info(f"Driving towards Passenger {self.journey.passenger.unique_id}")
         while self.move_towards(self.journey.origin):
             yield
+        self.info(f"Driving {self.journey.passenger.unique_id} from {self.journey.origin} to {self.journey.destination}")
         while self.move_towards(self.journey.destination, with_passenger=True):
             yield
+        self.info("Arrived at destination")
         self.earnings += self.journey.tip
         self.model.total_earnings += self.journey.tip
         self.check_passengers()
@@ -140,7 +143,7 @@ class Driver(Evented, FSM):
 
     def move_towards(self, target, with_passenger=False):
         """Move one cell at a time towards a target"""
-        self.info(f"Moving { self.pos } -> { target }")
+        self.debug(f"Moving { self.pos } -> { target }")
         if target[0] == self.pos[0] and target[1] == self.pos[1]:
             return False
 
@@ -174,8 +177,8 @@ class Passenger(Evented, FSM):
     @state
     def asking(self):
         destination = (
-            self.random.randint(0, self.model.grid.height),
-            self.random.randint(0, self.model.grid.width),
+            self.random.randint(0, self.model.grid.height-1),
+            self.random.randint(0, self.model.grid.width-1),
         )
         self.journey = None
         journey = Journey(
@@ -187,19 +190,21 @@ class Passenger(Evented, FSM):
 
         timeout = 60
         expiration = self.now + timeout
+        self.info(f"Asking for journey at: { self.pos }")
         self.model.broadcast(journey, ttl=timeout, sender=self, agent_class=Driver)
         while not self.journey:
-            self.info(f"Passenger at: { self.pos }. Checking for responses.")
+            self.debug(f"Waiting for responses at: { self.pos }")
             try:
                 # This will call check_messages behind the scenes, and the agent's status will be updated
                 # If you want to avoid that, you can call it with: check=False
                 yield self.received(expiration=expiration)
             except events.TimedOut:
-                self.info(f"Passenger at: { self.pos }. Asking for journey.")
+                self.info(f"Still no response. Waiting at: { self.pos }")
                 self.model.broadcast(
                     journey, ttl=timeout, sender=self, agent_class=Driver
                 )
                 expiration = self.now + timeout
+        self.info(f"Got a response! Waiting for driver")
         return self.driving_home
 
     @state
@@ -220,7 +225,7 @@ simulation = Simulation(name="RideHailing",
                         model=City,
                         seed="carsSeed",
                         max_time=1000,
-                        model_params=dict(n_passengers=2))
+                        parameters=dict(n_passengers=2))
 
 if __name__ == "__main__":
     easy(simulation)

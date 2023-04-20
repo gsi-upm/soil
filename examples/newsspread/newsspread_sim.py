@@ -116,7 +116,7 @@ for [r1, r2] in product([0, 0.5, 1.0], repeat=2):
         Simulation(
             name='newspread_sim',
             model=NewsSpread,
-            model_params=dict(
+            parameters=dict(
                 ratio_dumb=r1,
                 ratio_herd=r2,
                 ratio_wise=1-r1-r2,
@@ -124,7 +124,7 @@ for [r1, r2] in product([0, 0.5, 1.0], repeat=2):
                 network_params=netparams,
                 prob_neighbor_spread=0,
             ),
-            num_trials=5,
+            iterations=5,
             max_steps=300,
             dump=False,
         ).run()

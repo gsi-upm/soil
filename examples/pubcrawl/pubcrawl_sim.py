@@ -178,10 +178,10 @@ class Police(FSM):
 sim = Simulation(
     model=CityPubs,
     name="pubcrawl",
-    num_trials=3,
+    iterations=3,
     max_steps=10,
     dump=False,
-    model_params=dict(
+    parameters=dict(
         network_generator=nx.empty_graph,
         network_params={"n": 30},
         model=CityPubs,

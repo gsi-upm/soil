@@ -2,6 +2,7 @@ import networkx as nx
 from soil.agents import Geo, NetworkAgent, FSM, custom, state, default_state
 from soil import Environment, Simulation
 from soil.parameters import *
+from soil.utils import int_seed
 
 
 class TerroristEnvironment(Environment):
@@ -38,9 +39,8 @@ class TerroristEnvironment(Environment):
             HavenModel
         ], [self.ratio_civil, self.ratio_leader, self.ratio_training, self.ratio_haven])
 
-    @staticmethod
-    def generator(*args, **kwargs):
-        return nx.random_geometric_graph(*args, **kwargs)
+    def generator(self, *args, **kwargs):
+        return nx.random_geometric_graph(*args, **kwargs, seed=int_seed(self._seed))
 
 class TerroristSpreadModel(FSM, Geo):
     """
@@ -137,7 +137,7 @@ class TerroristSpreadModel(FSM, Geo):
 
     def ego_search(self, steps=1, center=False, agent=None, **kwargs):
         """Get a list of nodes in the ego network of *node* of radius *steps*"""
-        node = agent.node_id
+        node = agent.node_id if agent else self.node_id
         G = self.subgraph(**kwargs)
         return nx.ego_graph(G, node, center=center, radius=steps).nodes()
 
@@ -279,26 +279,26 @@ class TerroristNetworkModel(TerroristSpreadModel):
                 )
             )
             neighbours = set(
-                agent.id
+                agent.unique_id
                 for agent in self.get_neighbors(agent_class=TerroristNetworkModel)
             )
             search = (close_ups | step_neighbours) - neighbours
             for agent in self.get_agents(search):
-                social_distance = 1 / self.shortest_path_length(agent.id)
-                spatial_proximity = 1 - self.get_distance(agent.id)
+                social_distance = 1 / self.shortest_path_length(agent.unique_id)
+                spatial_proximity = 1 - self.get_distance(agent.unique_id)
                 prob_new_interaction = (
                     self.weight_social_distance * social_distance
                     + self.weight_link_distance * spatial_proximity
                 )
                 if (
-                    agent["id"] == agent.civilian.id
+                    agent.state_id == "civilian"
                     and self.random.random() < prob_new_interaction
                 ):
                     self.add_edge(agent)
                     break
 
     def get_distance(self, target):
-        source_x, source_y = nx.get_node_attributes(self.G, "pos")[self.id]
+        source_x, source_y = nx.get_node_attributes(self.G, "pos")[self.unique_id]
         target_x, target_y = nx.get_node_attributes(self.G, "pos")[target]
         dx = abs(source_x - target_x)
         dy = abs(source_y - target_y)
@@ -306,16 +306,17 @@ class TerroristNetworkModel(TerroristSpreadModel):
 
     def shortest_path_length(self, target):
         try:
-            return nx.shortest_path_length(self.G, self.id, target)
+            return nx.shortest_path_length(self.G, self.unique_id, target)
         except nx.NetworkXNoPath:
             return float("inf")
 
 
 sim = Simulation(
     model=TerroristEnvironment,
-    num_trials=1,
+    iterations=1,
     name="TerroristNetworkModel_sim",
     max_steps=150,
+    seed="default2",
     skip_test=False,
     dump=False,
 )

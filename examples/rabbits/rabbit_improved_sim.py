@@ -147,7 +147,7 @@ class RandomAccident(BaseAgent):
         self.debug("Rabbits alive: {}".format(rabbits_alive))
 
 
-sim = Simulation(model=RabbitsImprovedEnv, max_time=100, seed="MySeed", num_trials=1)
+sim = Simulation(model=RabbitsImprovedEnv, max_time=100, seed="MySeed", iterations=1)
 
 if __name__ == "__main__":
     sim.run()

@@ -6,9 +6,9 @@ from . import NetworkAgent
 class Geo(NetworkAgent):
     """In this type of network, nodes have a "pos" attribute."""
 
-    def geo_search(self, radius, agent=None, center=False, **kwargs):
+    def geo_search(self, radius, center=False, **kwargs):
         """Get a list of nodes whose coordinates are closer than *radius* to *node*."""
-        node = agent.node
+        node = self.node_id
 
         G = self.subgraph(**kwargs)
 

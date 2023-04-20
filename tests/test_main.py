@@ -30,14 +30,14 @@ class TestMain(TestCase):
     def test_empty_simulation(self):
         """A simulation with a base behaviour should do nothing"""
         config = {
-            "model_params": {
+            "parameters": {
                 "topology": join(ROOT, "test.gexf"),
                 "agent_class": MesaAgent,
             },
             "max_time": 1
         }
         s = simulation.from_config(config)
-        s.run_simulation(dump=False)
+        s.run(dump=False)
 
     def test_network_agent(self):
         """
@@ -45,9 +45,9 @@ class TestMain(TestCase):
         agent should be able to update its state."""
         config = {
             "name": "CounterAgent",
-            "num_trials": 1,
+            "iterations": 1,
             "max_time": 2,
-            "model_params": {
+            "parameters": {
                 "network_params": {
                     "generator": nx.complete_graph,
                     "n": 2,
@@ -93,7 +93,7 @@ class TestMain(TestCase):
         try:
             os.chdir(os.path.dirname(pyfile))
             s = simulation.from_py(pyfile)
-            env = s.run_simulation(dump=False)[0]
+            env = s.run(dump=False)[0]
             for a in env.network_agents:
                 skill_level = a["skill_level"]
                 if a.node_id == "Torvalds":
@@ -157,11 +157,11 @@ class TestMain(TestCase):
         n_trials = 50
         max_time = 2
         s = simulation.Simulation(
-            model_params=dict(agents=dict(agent_classes=[CheckRun], k=1)),
-            num_trials=n_trials,
+            parameters=dict(agents=dict(agent_classes=[CheckRun], k=1)),
+            iterations=n_trials,
             max_time=max_time,
         )
-        runs = list(s.run_simulation(dump=False))
+        runs = list(s.run(dump=False))
         over = list(x.now for x in runs if x.now > 2)
         assert len(runs) == n_trials
         assert len(over) == 0
@@ -212,13 +212,24 @@ class TestMain(TestCase):
         for sim in sims:
             assert sim
             assert sim.name == "newspread_sim"
-            assert sim.num_trials == 5
+            assert sim.iterations == 5
             assert sim.max_steps == 300
             assert not sim.dump
-            assert sim.model_params
-            assert "ratio_dumb" in sim.model_params
-            assert "ratio_herd" in sim.model_params
-            assert "ratio_wise" in sim.model_params
-            assert "network_generator" in sim.model_params
-            assert "network_params" in sim.model_params
-            assert "prob_neighbor_spread" in sim.model_params
+            assert sim.parameters
+            assert "ratio_dumb" in sim.parameters
+            assert "ratio_herd" in sim.parameters
+            assert "ratio_wise" in sim.parameters
+            assert "network_generator" in sim.parameters
+            assert "network_params" in sim.parameters
+            assert "prob_neighbor_spread" in sim.parameters
+
+    def test_config_matrix(self):
+        """It should be possible to specify a matrix of parameters"""
+        a = [1, 2]
+        b = [3, 4]
+        sim = simulation.Simulation(matrix=dict(a=a, b=b))
+        configs = sim._collect_params()
+        assert len(configs) == len(a) * len(b)
+        for i in a:
+            for j in b:
+                assert {"a": i, "b": j} in configs

@@ -7,7 +7,7 @@ Learn how to run your own simulations with our [documentation](http://soilsim.re
 Follow our [tutorial](examples/tutorial/soil_tutorial.ipynb) to develop your own agent models.
 
 > **Warning**
-> Mesa 0.30 introduced many fundamental changes. Check the [documention on how to update your simulations to work with newer versions](docs/notes_v0.30.rst)
+> Soil 1.0 introduced many fundamental changes. Check the [documention on how to update your simulations to work with newer versions](docs/notes_v1.0.rst)
 
 ## Features
 

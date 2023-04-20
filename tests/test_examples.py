@@ -28,17 +28,22 @@ def get_test_for_sims(sims, path):
             if sim.skip_test and not FORCE_TESTS:
                 continue
             run = True
-            iterations = sim.max_steps * sim.num_trials
+
+            if sim.max_steps is None:
+                sim.max_steps = 100
+
+            iterations = sim.max_steps * sim.iterations
             if iterations < 0 or iterations > 1000:
                 sim.max_steps = 100
-                sim.num_trials = 1
-            envs = sim.run_simulation(dump=False)
+                sim.iterations = 1
+
+            envs = sim.run(dump=False)
             assert envs
             for env in envs:
                 assert env
                 assert env.now > 0
                 try:
-                    n = sim.model_params["network_params"]["n"]
+                    n = sim.parameters["network_params"]["n"]
                     assert len(list(env.network_agents)) == n
                 except KeyError:
                     pass

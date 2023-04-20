@@ -220,7 +220,7 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
     def _check_alive(self):
         if not self.alive:
             raise time.DeadAgent(self.unique_id)
-    
+
     def log(self, *message, level=logging.INFO, **kwargs):
         if not self.logger.isEnabledFor(level):
             return

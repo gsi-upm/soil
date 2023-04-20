@@ -8,9 +8,10 @@ from textwrap import dedent, indent
 
 import matplotlib.pyplot as plt
 import networkx as nx
+import pandas as pd
 
 
-from .serialization import deserialize
+from .serialization import deserialize, serialize
 from .utils import try_backup, open_or_reuse, logger, timer
 
 
@@ -68,12 +69,12 @@ class Exporter:
         """Method to call when the simulation ends"""
         pass
 
-    def trial_start(self, env):
-        """Method to call when a trial start"""
+    def iteration_start(self, env):
+        """Method to call when a iteration start"""
         pass
 
-    def trial_end(self, env):
-        """Method to call when a trial ends"""
+    def iteration_end(self, env, params, params_id):
+        """Method to call when a iteration ends"""
         pass
 
     def output(self, f, mode="w", **kwargs):
@@ -85,27 +86,39 @@ class Exporter:
                     f = os.path.join(self.outdir, f)
             except TypeError:
                 pass
-        return open_or_reuse(f, mode=mode, **kwargs)
+        return open_or_reuse(f, mode=mode, backup=self.simulation.backup, **kwargs)
 
-    def get_dfs(self, env):
-        yield from get_dc_dfs(env.datacollector, trial_id=env.id)
+    def get_dfs(self, env, **kwargs):
+        yield from get_dc_dfs(env.datacollector,
+                              simulation_id=self.simulation.id,
+                              iteration_id=env.id,
+                              **kwargs)
 
 
-def get_dc_dfs(dc, trial_id=None):
-    dfs = {
-        "env": dc.get_model_vars_dataframe(),
-        "agents": dc.get_agent_vars_dataframe(),
-    }
+def get_dc_dfs(dc, **kwargs):
+    dfs = {}
+    dfe = dc.get_model_vars_dataframe()
+    dfe.index.rename("step", inplace=True)
+    dfs["env"] = dfe
+    try:
+        dfa = dc.get_agent_vars_dataframe() 
+        dfa.index.rename(["step", "agent_id"], inplace=True)
+        dfs["agents"] = dfa
+    except UserWarning:
+        pass
     for table_name in dc.tables:
         dfs[table_name] = dc.get_table_dataframe(table_name)
-    if trial_id:
-        for (name, df) in dfs.items():
-            df["trial_id"] = trial_id
+    for (name, df) in dfs.items():
+        for (k, v) in kwargs.items():
+            df[k] = v
+        df.set_index(["simulation_id", "iteration_id"], append=True, inplace=True)
+    
     yield from dfs.items()
 
 
 class SQLite(Exporter):
     """Writes sqlite results"""
+    sim_started = False
 
     def sim_start(self):
         if not self.dump:
@@ -113,46 +126,64 @@ class SQLite(Exporter):
             return
         self.dbpath = os.path.join(self.outdir, f"{self.simulation.name}.sqlite")
         logger.info("Dumping results to %s", self.dbpath)
-        try_backup(self.dbpath, remove=True)
+        if self.simulation.backup:
+            try_backup(self.dbpath, remove=True)
+        
+        if self.simulation.overwrite:
+            if os.path.exists(self.dbpath):
+                os.remove(self.dbpath)
+        
+        self.engine = create_engine(f"sqlite:///{self.dbpath}", echo=False)
 
-    def trial_end(self, env):
+        sim_dict = {k: serialize(v)[0] for (k,v) in self.simulation.to_dict().items()}
+        sim_dict["simulation_id"] = self.simulation.id
+        df = pd.DataFrame([sim_dict])
+        df.to_sql("configuration", con=self.engine, if_exists="append")
+
+    def iteration_end(self, env, params, params_id, *args, **kwargs):
         if not self.dump:
-            logger.info("Running in NO DUMP mode, the database will NOT be created")
+            logger.info("Running in NO DUMP mode. Results will NOT be saved to a DB.")
             return
 
         with timer(
-            "Dumping simulation {} trial {}".format(self.simulation.name, env.id)
+            "Dumping simulation {} iteration {}".format(self.simulation.name, env.id)
         ):
 
-            engine = create_engine(f"sqlite:///{self.dbpath}", echo=False)
+            pd.DataFrame([{"simulation_id": self.simulation.id,
+                           "params_id": params_id,
+                           "iteration_id": env.id,
+                           "key": k,
+                           "value": serialize(v)[0]} for (k,v) in params.items()]).to_sql("parameters", con=self.engine, if_exists="append")
 
-            for (t, df) in self.get_dfs(env):
-                df.to_sql(t, con=engine, if_exists="append")
+            for (t, df) in self.get_dfs(env, params_id=params_id):
+                df.to_sql(t, con=self.engine, if_exists="append")
 
 class csv(Exporter):
+    """Export the state of each environment (and its agents) a CSV file for the simulation"""
 
-    """Export the state of each environment (and its agents) in a separate CSV file"""
+    def sim_start(self):
+        super().sim_start()
 
-    def trial_end(self, env):
+    def iteration_end(self, env, params, params_id, *args, **kwargs):
         with timer(
-            "[CSV] Dumping simulation {} trial {} @ dir {}".format(
+            "[CSV] Dumping simulation {} iteration {} @ dir {}".format(
                 self.simulation.name, env.id, self.outdir
             )
         ):
-            for (df_name, df) in self.get_dfs(env):
-                with self.output("{}.{}.csv".format(env.id, df_name)) as f:
+            for (df_name, df) in self.get_dfs(env, params_id=params_id):
+                with self.output("{}.{}.csv".format(env.id, df_name), mode="a") as f:
                     df.to_csv(f)
 
 
 # TODO: reimplement GEXF exporting without history
 class gexf(Exporter):
-    def trial_end(self, env):
+    def iteration_end(self, env, *args, **kwargs):
         if not self.dump:
             logger.info("Not dumping GEXF (NO_DUMP mode)")
             return
 
         with timer(
-            "[GEXF] Dumping simulation {} trial {}".format(self.simulation.name, env.id)
+            "[GEXF] Dumping simulation {} iteration {}".format(self.simulation.name, env.id)
         ):
             with self.output("{}.gexf".format(env.id), mode="wb") as f:
                 network.dump_gexf(env.history_to_graph(), f)
@@ -164,13 +195,13 @@ class dummy(Exporter):
         with self.output("dummy", "w") as f:
             f.write("simulation started @ {}\n".format(current_time()))
 
-    def trial_start(self, env):
+    def iteration_start(self, env):
         with self.output("dummy", "w") as f:
-            f.write("trial started@ {}\n".format(current_time()))
+            f.write("iteration started@ {}\n".format(current_time()))
 
-    def trial_end(self, env):
+    def iteration_end(self, env, *args, **kwargs):
         with self.output("dummy", "w") as f:
-            f.write("trial ended@ {}\n".format(current_time()))
+            f.write("iteration ended@ {}\n".format(current_time()))
 
     def sim_end(self):
         with self.output("dummy", "a") as f:
@@ -178,7 +209,7 @@ class dummy(Exporter):
 
 
 class graphdrawing(Exporter):
-    def trial_end(self, env):
+    def iteration_end(self, env, *args, **kwargs):
         # Outside effects
         f = plt.figure()
         nx.draw(
@@ -193,9 +224,9 @@ class graphdrawing(Exporter):
 
 
 class summary(Exporter):
-    """Print a summary of each trial to sys.stdout"""
+    """Print a summary of each iteration to sys.stdout"""
 
-    def trial_end(self, env):
+    def iteration_end(self, env, *args, **kwargs):
         msg = ""
         for (t, df) in self.get_dfs(env):
             if not len(df):
@@ -227,7 +258,7 @@ class YAML(Exporter):
         if not self.dump:
             logger.debug("NOT dumping results")
             return
-        with self.output(self.simulation.name + ".dumped.yml") as f:
+        with self.output(self.simulation.id + ".dumped.yml") as f:
             logger.info(f"Dumping simulation configuration to {self.outdir}")
             f.write(self.simulation.to_yaml())
 
@@ -238,19 +269,14 @@ class default(Exporter):
         exporter_cls = exporter_cls or [YAML, SQLite]
         self.inner = [cls(*args, **kwargs) for cls in exporter_cls]
 
-    def sim_start(self):
+    def sim_start(self, *args, **kwargs):
         for exporter in self.inner:
-            exporter.sim_start()
+            exporter.sim_start(*args, **kwargs)
 
-    def sim_end(self):
+    def sim_end(self, *args, **kwargs):
         for exporter in self.inner:
-            exporter.sim_end()
+            exporter.sim_end(*args, **kwargs)
 
-    def trial_start(self, env):
+    def iteration_end(self, *args, **kwargs):
         for exporter in self.inner:
-            exporter.trial_start(env)
-
-
-    def trial_end(self, env):
-        for exporter in self.inner:
-            exporter.trial_end(env)
+            exporter.iteration_end(*args, **kwargs)

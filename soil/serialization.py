@@ -140,7 +140,7 @@ def get_module(modname):
         module = importlib.import_module(modname)
         KNOWN_MODULES[modname] = module
     return KNOWN_MODULES[modname]
-    
+
 
 def name(value, known_modules=KNOWN_MODULES):
     """Return a name that can be imported, to serialize/deserialize an object"""
@@ -181,7 +181,7 @@ def serialize_dict(d, known_modules=KNOWN_MODULES):
         d = dict(d)
     except (ValueError, TypeError) as ex:
         return serialize(d)[0]
-    for (k, v) in d.items():
+    for (k, v) in reversed(list(d.items())):
         if isinstance(v, dict):
             d[k] = serialize_dict(v, known_modules=known_modules)
         elif isinstance(v, list):

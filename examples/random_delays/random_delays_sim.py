@@ -38,7 +38,7 @@ class RandomEnv(Environment):
 s = Simulation(
     name="Programmatic",
     model=RandomEnv,
-    num_trials=1,
+    iterations=1,
     max_time=100,
     dump=False,
 )

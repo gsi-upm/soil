@@ -1,6 +1,6 @@
 from mesa.time import BaseScheduler
 from queue import Empty
-from heapq import heappush, heappop
+from heapq import heappush, heappop, heapreplace
 import math
 
 from inspect import getsource
@@ -99,7 +99,8 @@ class TimedActivation(BaseScheduler):
         self._shuffle = shuffle
         # self.step_interval = getattr(self.model, "interval", 1)
         self.step_interval = self.model.interval
-        self.logger = logger.getChild(f"time_{ self.model }")
+        self.logger = getattr(self.model, "logger", logger).getChild(f"time_{ self.model }")
+        self.next_time = self.time
 
     def add(self, agent: MesaAgent, when=None):
         if when is None:
@@ -110,7 +111,7 @@ class TimedActivation(BaseScheduler):
         self._schedule(agent, None, when)
         super().add(agent)
 
-    def _schedule(self, agent, condition=None, when=None):
+    def _schedule(self, agent, condition=None, when=None, replace=False):
         if condition:
             if not when:
                 when, condition = condition.schedule_next(
@@ -125,7 +126,10 @@ class TimedActivation(BaseScheduler):
         else:
             key = (when, agent.unique_id, condition)
         self._next[agent.unique_id] = key
-        heappush(self._queue, (key, agent))
+        if replace:
+            heapreplace(self._queue, (key, agent))
+        else:
+            heappush(self._queue, (key, agent))
 
     def step(self) -> None:
         """
@@ -144,10 +148,9 @@ class TimedActivation(BaseScheduler):
             if when > self.time:
                 break
 
-            heappop(self._queue)
             if cond:
                 if not cond.ready(agent, self.time):
-                    self._schedule(agent, cond)
+                    self._schedule(agent, cond, replace=True)
                     continue
                 try:
                     agent._last_return = cond.return_value(agent)
@@ -164,36 +167,38 @@ class TimedActivation(BaseScheduler):
                 returned = agent.step()
             except DeadAgent:
                 agent.alive = False
+                heappop(self._queue)
                 continue
 
             # Check status for MESA agents
             if not getattr(agent, "alive", True):
+                heappop(self._queue)
                 continue
 
             if returned:
                 next_check = returned.schedule_next(
                     self.time, self.step_interval, first=True
                 )
-                self._schedule(agent, when=next_check[0], condition=next_check[1])
+                self._schedule(agent, when=next_check[0], condition=next_check[1], replace=True)
             else:
                 next_check = (self.time + self.step_interval, None)
 
-                self._schedule(agent)
+                self._schedule(agent, replace=True)
 
         self.steps += 1
 
         if not self._queue:
-            self.time = INFINITY
             self.model.running = False
-            return self.time
+            self.time = INFINITY
+            return
 
         next_time = self._queue[0][0][0]
-        
+
         if next_time < self.time:
             raise Exception(
                 f"An agent has been scheduled for a time in the past, there is probably an error ({when} < {self.time})"
             )
-        self.logger.debug(f"Updating time step: {self.time} -> {next_time}")
+        self.logger.debug("Updating time step: %s -> %s ", self.time, next_time)
 
         self.time = next_time
 

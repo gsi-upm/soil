@@ -10,3 +10,4 @@ pydantic>=1.9
 sqlalchemy>=1.4
 typing-extensions>=4.4
 annotated-types>=0.4
+tqdm>=4.64

@@ -16,6 +16,7 @@ except NameError:
     basestring = str
 
 from pathlib import Path
+from .analysis import *
 from .agents import *
 from . import agents
 from .simulation import *
@@ -87,7 +88,7 @@ def main(
         "--graph",
         "-g",
         action="store_true",
-        help="Dump each trial's network topology as a GEXF graph. Defaults to false.",
+        help="Dump each iteration's network topology as a GEXF graph. Defaults to false.",
     )
     parser.add_argument(
         "--csv",
@@ -116,9 +117,21 @@ def main(
         help="Export environment and/or simulations using this exporter",
     )
     parser.add_argument(
-        "--until",
-        default="",
+        "--max_time",
+        default="-1",
         help="Set maximum time for the simulation to run. ",
+    )
+
+    parser.add_argument(
+        "--max_steps",
+        default="-1",
+        help="Set maximum number of steps for the simulation to run.",
+    )
+
+    parser.add_argument(
+        "--iterations",
+        default="",
+        help="Set maximum number of iterations (runs) for the simulation.",
     )
 
     parser.add_argument(
@@ -147,7 +160,8 @@ def main(
     )
 
     args = parser.parse_args()
-    logger.setLevel(getattr(logging, (args.level or "INFO").upper()))
+    level = getattr(logging, (args.level or "INFO").upper())
+    logger.setLevel(level)
 
     if args.version:
         return
@@ -185,11 +199,14 @@ def main(
                     debug=debug,
                     exporters=exporters,
                     num_processes=args.num_processes,
+                    level=level,
                     outdir=output,
                     exporter_params=exp_params,
                     **kwargs)
         if args.seed is not None:
             opts["seed"] = args.seed
+        if args.iterations:
+            opts["iterations"] =int(args.iterations)
 
         if sim:
             logger.info("Loading simulation instance")
@@ -218,7 +235,7 @@ def main(
                     k, v = s.split("=", 1)[:2]
                     v = eval(v)
                     tail, *head = k.rsplit(".", 1)[::-1]
-                    target = sim.model_params
+                    target = sim.parameters
                     if head:
                         for part in head[0].split("."):
                             try:
@@ -233,7 +250,9 @@ def main(
             if args.only_convert:
                 print(sim.to_yaml())
                 continue
-            res.append(sim.run(until=args.until))
+            max_time = float(args.max_time) if args.max_time != "-1" else None
+            max_steps = float(args.max_steps) if args.max_steps != "-1" else None
+            res.append(sim.run(max_time=max_time, max_steps=max_steps))
 
     except Exception as ex:
         if args.pdb:

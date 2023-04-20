@@ -10,7 +10,7 @@ from multiprocessing import Pool, cpu_count
 from contextlib import contextmanager
 
 logger = logging.getLogger("soil")
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.WARNING)
 
 timeformat = "%H:%M:%S"
 
@@ -24,7 +24,7 @@ consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     handlers=[
         consoleHandler,
     ],
@@ -60,7 +60,7 @@ def try_backup(path, remove=False):
     if not os.path.exists(backup_dir):
         os.makedirs(backup_dir)
     newpath = os.path.join(backup_dir, "{}@{}".format(os.path.basename(path), stamp))
-    if move:
+    if remove:
         move(path, newpath)
     else:
         copyfile(path, newpath)
@@ -126,7 +126,7 @@ def unflatten_dict(d):
 
 def run_and_return_exceptions(func, *args, **kwargs):
     """
-    A wrapper for run_trial that catches exceptions and returns them.
+    A wrapper for a function that catches exceptions and returns them.
     It is meant for async simulations.
     """
     try:
@@ -154,3 +154,7 @@ def run_parallel(func, iterable, num_processes=1, **kwargs):
     else:
         for i in iterable:
             yield func(i, **kwargs)
+
+
+def int_seed(seed: str):
+    return int.from_bytes(seed.encode(), "little")

@@ -5,7 +5,7 @@ from functools import partial, wraps
 import inspect
 
 
-def state(name=None):
+def state(name=None, default=False):
     def decorator(func, name=None):
         """
         A state function should return either a state id, or a tuple (state_id, when)
@@ -40,7 +40,7 @@ def state(name=None):
                         self._last_except = None
 
         func.id = name or func.__name__
-        func.is_default = False
+        func.is_default = default
         return func
 
     if callable(name):
@@ -100,6 +100,10 @@ class FSM(BaseAgent, metaclass=MetaFSM):
         self._set_state(self.state_id)
         if init:
             self.init()
+
+    @classmethod
+    def states(cls):
+        return list(cls._states.keys())
 
     def step(self):
         self.debug(f"Agent {self.unique_id} @ state {self.state_id}")

@@ -1,7 +1,7 @@
-What are the main changes between version 0.3 and 0.2?
-######################################################
+What are the main changes in version 1.0?
+#########################################
 
-Version 0.3 is a major rewrite of the Soil system, focused on simplifying the API, aligning it with Mesa, and making it easier to use.
+Version 1.0 is a major rewrite of the Soil system, focused on simplifying the API, aligning it with Mesa, and making it easier to use.
 Unfortunately, this comes at the cost of backwards compatibility.
 
 We drew several lessons from the previous version of Soil, and tried to address them in this version.
