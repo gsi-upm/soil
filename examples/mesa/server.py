@@ -1,7 +1,8 @@
 from mesa.visualization.ModularVisualization import ModularServer
-from soil.visualization import UserSettableParameter
+from mesa.visualization.UserParam import Slider, Choice
 from mesa.visualization.modules import ChartModule, NetworkModule, CanvasGrid
 from social_wealth import MoneyEnv, graph_generator, SocialMoneyAgent
+import networkx as nx
 
 
 class MyNetwork(NetworkModule):
@@ -13,22 +14,24 @@ def network_portrayal(env):
     # The model ensures there is 0 or 1 agent per node
 
     portrayal = dict()
+    wealths = {
+        node_id: data["agent"].wealth for (node_id, data) in env.G.nodes(data=True)
+    }
     portrayal["nodes"] = [
         {
-            "id": agent_id,
-            "size": env.get_agent(agent_id).wealth,
-            # "color": "#CC0000" if not agents or agents[0].wealth == 0 else "#007959",
-            "color": "#CC0000",
-            "label": f"{agent_id}: {env.get_agent(agent_id).wealth}",
+            "id": node_id,
+            "size": 2 * (wealth + 1),
+            "color": "#CC0000" if wealth == 0 else "#007959",
+            # "color": "#CC0000",
+            "label": f"{node_id}: {wealth}",
         }
-        for (agent_id) in env.G.nodes
+        for (node_id, wealth) in wealths.items()
     ]
 
     portrayal["edges"] = [
         {"id": edge_id, "source": source, "target": target, "color": "#000000"}
         for edge_id, (source, target) in enumerate(env.G.edges)
     ]
-
 
     return portrayal
 
@@ -40,7 +43,7 @@ def gridPortrayal(agent):
     :param agent:  the agent in the simulation
     :return: the portrayal dictionary
     """
-    color = max(10, min(agent.wealth*10, 100))
+    color = max(10, min(agent.wealth * 10, 100))
     return {
         "Shape": "rect",
         "w": 1,
@@ -51,18 +54,17 @@ def gridPortrayal(agent):
         "Text": agent.unique_id,
         "x": agent.pos[0],
         "y": agent.pos[1],
-        "Color": f"rgba(31, 10, 255, 0.{color})"
+        "Color": f"rgba(31, 10, 255, 0.{color})",
     }
 
 
-grid = MyNetwork(network_portrayal, 500, 500, library="sigma")
+grid = MyNetwork(network_portrayal, 500, 500)
 chart = ChartModule(
     [{"Label": "Gini", "Color": "Black"}], data_collector_name="datacollector"
 )
 
-model_params = {
-    "N": UserSettableParameter(
-        "slider",
+parameters = {
+    "N": Slider(
         "N",
         5,
         1,
@@ -70,36 +72,40 @@ model_params = {
         1,
         description="Choose how many agents to include in the model",
     ),
-    "network_agents": [{"agent_type": SocialMoneyAgent}],
-    "height": UserSettableParameter(
-        "slider",
+    "height": Slider(
         "height",
         5,
         5,
         10,
         1,
         description="Grid height",
-        ),
-    "width": UserSettableParameter(
-        "slider",
+    ),
+    "width": Slider(
         "width",
         5,
         5,
         10,
         1,
         description="Grid width",
-        ),
-    "network_params": {
-        'generator': graph_generator
-    },
+    ),
+    "agent_class": Choice(
+        "Agent class",
+        value="MoneyAgent",
+        choices=["MoneyAgent", "SocialMoneyAgent"],
+    ),
+    "generator": graph_generator,
 }
 
-canvas_element = CanvasGrid(gridPortrayal, model_params["width"].value, model_params["height"].value, 500, 500)
+
+canvas_element = CanvasGrid(
+    gridPortrayal, parameters["width"].value, parameters["height"].value, 500, 500
+)
 
 
 server = ModularServer(
-    MoneyEnv, [grid, chart, canvas_element], "Money Model", model_params
+    MoneyEnv, [grid, chart, canvas_element], "Money Model", parameters
 )
 server.port = 8521
 
-server.launch(open_browser=False)
+if __name__ == '__main__':
+    server.launch(open_browser=False)

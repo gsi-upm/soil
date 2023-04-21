@@ -1,26 +1,19 @@
 from mesa import DataCollector as MDC
 
-class SoilDataCollector(MDC):
 
+class SoilCollector(MDC):
+    def __init__(self, model_reporters=None, agent_reporters=None, tables=None, **kwargs):
+        model_reporters = model_reporters or {}
+        agent_reporters = agent_reporters or {}
+        tables = tables or {}
+        if 'agent_count' not in model_reporters:
+            model_reporters['agent_count'] = lambda m: m.schedule.get_agent_count()
+        if 'time' not in model_reporters:
+            model_reporters['time'] = lambda m: m.now
+        # if 'state_id' not in agent_reporters:
+        #     agent_reporters['state_id'] = lambda agent: getattr(agent, 'state_id', None)
 
-    def __init__(self, environment, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Populate model and env reporters so they have a key per 
-        # So they can be shown in the web interface
-        self.environment = environment
-
-
-    @property
-    def model_vars(self):
-        pass
-
-    @model_vars.setter
-    def model_vars(self, value):
-        pass
-
-    @property
-    def agent_reporters(self):
-        self.model._history._
-
-        pass
-
+        super().__init__(model_reporters=model_reporters,
+                         agent_reporters=agent_reporters,
+                         tables=tables,
+                         **kwargs)

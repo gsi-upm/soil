@@ -1,4 +1,9 @@
-from . import main
+from . import main as init_main
 
-if __name__ == '__main__':
-    main()
+
+def main():
+    init_main()
+
+
+if __name__ == "__main__":
+    init_main()

@@ -3,33 +3,38 @@ name: MyExampleSimulation
 max_time: 50
 num_trials: 3
 interval: 2
-network_params:
-    generator: barabasi_albert_graph
-    n: 100
-    m: 2
-network_agents:
-    - agent_type: SISaModel
-      weight: 1
+model_params:
+  topology:
+    params:
+      generator: barabasi_albert_graph
+      n: 100
+      m: 2
+  agents:
+    distribution:
+    - agent_class: SISaModel
+      topology: True
+      ratio: 0.1
       state:
-        id: content
-    - agent_type: SISaModel
-      weight: 1
+        state_id: content
+    - agent_class: SISaModel
+      topology: True
+      ratio: .1
       state:
-        id: discontent
-    - agent_type: SISaModel
-      weight: 8
+        state_id: discontent
+    - agent_class: SISaModel
+      topology: True
+      ratio: 0.8
       state:
-        id: neutral
-environment_params:
-    prob_infect: 0.075
-    neutral_discontent_spon_prob: 0.1
-    neutral_discontent_infected_prob: 0.3
-    neutral_content_spon_prob: 0.3
-    neutral_content_infected_prob: 0.4
-    discontent_neutral: 0.5
-    discontent_content: 0.5
-    variance_d_c: 0.2
-    content_discontent: 0.2
-    variance_c_d: 0.2
-    content_neutral: 0.2
-    standard_variance: 1
+        state_id: neutral
+  prob_infect: 0.075
+  neutral_discontent_spon_prob: 0.1
+  neutral_discontent_infected_prob: 0.3
+  neutral_content_spon_prob: 0.3
+  neutral_content_infected_prob: 0.4
+  discontent_neutral: 0.5
+  discontent_content: 0.5
+  variance_d_c: 0.2
+  content_discontent: 0.2
+  variance_c_d: 0.2
+  content_neutral: 0.2
+  standard_variance: 1

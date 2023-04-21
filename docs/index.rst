@@ -1,12 +1,20 @@
-.. Soil documentation master file, created by
-   sphinx-quickstart on Tue Apr 25 12:48:56 2017.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 Welcome to Soil's documentation!
 ================================
 
-Soil is an Agent-based Social Simulator in Python focused on Social Networks.
+Soil is an opinionated Agent-based Social Simulator in Python focused on Social Networks.
+
+.. image:: soil.png
+  :width: 80%
+  :align: center
+
+Soil can be installed through pip (see more details in the :doc:`installation` page):
+
+.. code:: bash
+
+    pip install soil
+
+
+To get started developing your own simulations and agent behaviors, check out our :doc:`Tutorial <soil_tutorial>` and the `examples on GitHub <https://github.com/gsi-upm/soil/tree/master/examples>.
 
 If you use Soil in your research, do not forget to cite this paper:
 
@@ -38,8 +46,6 @@ If you use Soil in your research, do not forget to cite this paper:
    :caption: Learn more about soil:
 
    installation
-   quickstart
-   configuration
    Tutorial <soil_tutorial>
 
 ..

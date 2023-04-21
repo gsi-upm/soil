@@ -6,11 +6,11 @@ network_params:
   n: 100
   m: 2
 network_agents:
-  - agent_type: ControlModelM2
+  - agent_class: ControlModelM2
     weight: 0.1
     state:
       id: 1
-  - agent_type: ControlModelM2
+  - agent_class: ControlModelM2
     weight: 0.9
     state:
       id: 0

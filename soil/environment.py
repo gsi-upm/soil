@@ -1,208 +1,179 @@
+from __future__ import annotations
+
 import os
 import sqlite3
-import csv
 import math
-import random
-import yaml
-import tempfile
 import logging
-import pandas as pd
+import inspect
+
+from typing import Any, Callable, Dict, Optional, Union, List, Type
+from collections import namedtuple
 from time import time as current_time
 from copy import deepcopy
-from networkx.readwrite import json_graph
+
 
 import networkx as nx
 
-from tsih import History, Record, Key, NoHistory
+from mesa import Model, Agent
 
-from mesa import Model
+from . import agents as agentmod, datacollection, serialization, utils, time, network, events
 
-from . import serialization, agents, analysis, utils, time
 
-# These properties will be copied when pickling/unpickling the environment
-_CONFIG_PROPS = [ 'name',
-                  'states',
-                  'default_state',
-                  'interval',
-                 ]
+# TODO: maybe add metaclass to read attributes of a model
 
-class Environment(Model):
+class BaseEnvironment(Model):
     """
-    The environment is key in a simulation. It contains the network topology,
-    a reference to network and environment agents, as well as the environment
-    params, which are used as shared state between agents.
+    The environment is key in a simulation. It controls how agents interact,
+    and what information is available to them.
+
+    This is an opinionated version of `mesa.Model` class, which adds many
+    convenience methods and abstractions.
 
     The environment parameters and the state of every agent can be accessed
-    both by using the environment as a dictionary or with the environment's 
+    both by using the environment as a dictionary and with the environment's
     :meth:`soil.environment.Environment.get` method.
     """
 
-    def __init__(self, name=None,
-                 network_agents=None,
-                 environment_agents=None,
-                 states=None,
-                 default_state=None,
-                 interval=1,
-                 network_params=None,
-                 seed=None,
-                 topology=None,
-                 schedule=None,
-                 initial_time=0,
-                 environment_params=None,
-                 history=True,
-                 dir_path=None,
-                 **kwargs):
+    collector_class = datacollection.SoilCollector
 
+    def __new__(cls,
+                *args: Any,
+                seed="default",
+                dir_path=None,
+                collector_class: type = None,
+                agent_reporters: Optional[Any] = None,
+                model_reporters: Optional[Any] = None,
+                tables: Optional[Any] = None,
+                **kwargs: Any) -> Any:
+        """Create a new model with a default seed value"""
+        self = super().__new__(cls, *args, seed=seed, **kwargs)
+        self.dir_path = dir_path or os.getcwd()
+        collector_class = collector_class or cls.collector_class
+        collector_class = serialization.deserialize(collector_class)
+        self.datacollector = collector_class(
+            model_reporters=model_reporters,
+            agent_reporters=agent_reporters,
+            tables=tables,
+        )
+        for k in dir(cls):
+            v = getattr(cls, k)
+            if isinstance(v, property):
+                v = v.fget
+            if getattr(v, "add_to_report", False):
+                self.add_model_reporter(k, v)
+
+        return self
+
+    def __init__(
+        self,
+        *,
+        id="unnamed_env",
+        seed="default",
+        dir_path=None,
+        schedule_class=time.TimedActivation,
+        interval=1,
+        logger = None,
+        agents: Optional[Dict] = None,
+        collector_class: type = datacollection.SoilCollector,
+        agent_reporters: Optional[Any] = None,
+        model_reporters: Optional[Any] = None,
+        tables: Optional[Any] = None,
+        init: bool = True,
+        **env_params,
+    ):
 
         super().__init__()
 
-        self.schedule = schedule
-        if schedule is None:
-            self.schedule = time.TimedActivation()
 
-        self.name = name or 'UnnamedEnvironment'
-        seed = seed or current_time()
-        random.seed(seed)
-        if isinstance(states, list):
-            states = dict(enumerate(states))
-        self.states = deepcopy(states) if states else {}
-        self.default_state = deepcopy(default_state) or {}
+        self.current_id = -1
 
-        if topology is None:
-            network_params = network_params or {}
-            topology = serialization.load_network(network_params,
-                                                  dir_path=dir_path)
-        if not topology:
-            topology = nx.Graph()
-        self.G = nx.Graph(topology) 
+        self.id = id
 
+        if logger:
+            self.logger = logger
+        else:
+            self.logger = utils.logger.getChild(self.id)
 
-        self.environment_params = environment_params or {}
-        self.environment_params.update(kwargs)
+        if schedule_class is None:
+            schedule_class = time.TimedActivation
+        else:
+            schedule_class = serialization.deserialize(schedule_class)
 
-        self._env_agents = {}
         self.interval = interval
-        if history:
-            history = History
-        else:
-            history = NoHistory
-        self._history = history(name=self.name,
-                                backup=True)
-        self['SEED'] = seed
+        self.schedule = schedule_class(self)
 
-        if network_agents:
-            distro = agents.calculate_distribution(network_agents)
-            self.network_agents = agents._convert_agent_types(distro)
-        else:
-            self.network_agents = []
+        for (k, v) in env_params.items():
+            self[k] = v
 
-        environment_agents = environment_agents or []
-        if environment_agents:
-            distro = agents.calculate_distribution(environment_agents)
-            environment_agents = agents._convert_agent_types(distro)
-        self.environment_agents = environment_agents
+        if agents:
+            self.add_agents(**agents)
+        if init:
+            self.init()
+            self.datacollector.collect(self)
 
-        self.logger = utils.logger.getChild(self.name)
+    def init(self):
+        pass
+
+    @property
+    def agents(self):
+        return agentmod.AgentView(self.schedule._agents)
+
+    def agent(self, *args, **kwargs):
+        return agentmod.AgentView(self.schedule._agents).one(*args, **kwargs)
+
+    def count_agents(self, *args, **kwargs):
+        return sum(1 for i in self.agents(*args, **kwargs))
+    
+    def agent_df(self, steps=False):
+        df = self.datacollector.get_agent_vars_dataframe()
+        if steps:
+            df.index.rename(["step", "agent_id"], inplace=True)
+            return df
+        model_df = self.datacollector.get_model_vars_dataframe()
+        df.index = df.index.set_levels(model_df.time, level=0).rename(["time", "agent_id"])
+        return df
+
+    def model_df(self, steps=False):
+        df = self.datacollector.get_model_vars_dataframe()
+        if steps:
+            return df
+        df.index.rename("step", inplace=True)
+        return df.reset_index().set_index("time")
 
     @property
     def now(self):
         if self.schedule:
             return self.schedule.time
-        raise Exception('The environment has not been scheduled, so it has no sense of time')
+        raise Exception(
+            "The environment has not been scheduled, so it has no sense of time"
+        )
+    def init_agents(self):
+        pass
 
-    @property
-    def agents(self):
-        yield from self.environment_agents
-        yield from self.network_agents
+    def add_agent(self, agent_class, unique_id=None, **agent):
+        if unique_id is None:
+            unique_id = self.next_id()
 
-    @property
-    def environment_agents(self):
-        for ref in self._env_agents.values():
-            yield ref
+        agent["unique_id"] = unique_id
 
-    @environment_agents.setter
-    def environment_agents(self, environment_agents):
-        self._environment_agents = environment_agents
+        agent = dict(**agent)
+        unique_id = agent.pop("unique_id", None)
+        if unique_id is None:
+            unique_id = self.next_id()
 
-        for (ix, agent) in enumerate(self._environment_agents):
-            self.init_agent(len(self.G) + ix, agent_definitions=environment_agents, with_node=False)
+        a = serialization.deserialize(agent_class)(unique_id=unique_id, model=self, **agent)
 
-    @property
-    def network_agents(self):
-        for i in self.G.nodes():
-            node = self.G.nodes[i]
-            if 'agent' in node:
-                yield node['agent']
-
-    @network_agents.setter
-    def network_agents(self, network_agents):
-        self._network_agents = network_agents
-        for ix in self.G.nodes():
-            self.init_agent(ix, agent_definitions=network_agents)
-
-    def init_agent(self, agent_id, agent_definitions, with_node=True):
-        init = False
-
-        state = {}
-        if with_node:
-            node = self.G.nodes[agent_id]
-            state = dict(node)
-        state.update(self.states.get(agent_id, {}))
-
-        agent_type = None
-        if 'agent_type' in state:
-            agent_type = state['agent_type']
-        elif with_node and 'agent_type' in node:
-            agent_type = node['agent_type']
-        elif 'agent_type' in self.default_state:
-            agent_type = self.default_state['agent_type']
-
-        if agent_type:
-            agent_type = agents.deserialize_type(agent_type)
-        elif agent_definitions:
-            agent_type, state = agents._agent_from_definition(agent_definitions, unique_id=agent_id)
-        else:
-            serialization.logger.debug('Skipping agent {}'.format(agent_id))
-            return
-        return self.set_agent(agent_id, agent_type, state, with_node=with_node)
-
-    def set_agent(self, agent_id, agent_type, state=None, with_node=True):
-        defstate = deepcopy(self.default_state) or {}
-        defstate.update(self.states.get(agent_id, {}))
-        if with_node:
-            node = self.G.nodes[agent_id]
-            defstate.update(node.get('state', {}))
-        if state:
-            defstate.update(state)
-        a = None
-        if agent_type:
-            state = defstate
-            a = agent_type(model=self,
-                           unique_id=agent_id
-            )
-
-        for (k, v) in state.items():
-            setattr(a, k, v)
-
-        if with_node:
-            node['agent'] = a
         self.schedule.add(a)
         return a
 
-    def add_node(self, agent_type, state=None):
-        agent_id = int(len(self.G.nodes()))
-        self.G.add_node(agent_id)
-        a = self.set_agent(agent_id, agent_type, state)
-        a['visible'] = True
-        return a
+    def add_agents(self, agent_classes: List[type], k, weights: Optional[List[float]] = None, **kwargs):
+        if isinstance(agent_classes, type):
+            agent_classes = [agent_classes]
+        if weights is None:
+            weights = [1] * len(agent_classes)
 
-    def add_edge(self, agent1, agent2, start=None, **attrs):
-        if hasattr(agent1, 'id'):
-            agent1 = agent1.id
-        if hasattr(agent2, 'id'):
-            agent2 = agent2.id
-        start = start or self.now
-        return self.G.add_edge(agent1, agent2, **attrs)
+        for cls in self.random.choices(agent_classes, weights=weights, k=k):
+            self.add_agent(agent_class=cls, **kwargs)
 
     def log(self, message, *args, level=logging.INFO, **kwargs):
         if not self.logger.isEnabledFor(level):
@@ -212,185 +183,248 @@ class Environment(Model):
         for k, v in kwargs:
             message += " {k}={v} ".format(k, v)
         extra = {}
-        extra['now'] = self.now
-        extra['unique_id'] = self.name
+        extra["now"] = self.now
+        extra["id"] = self.id
         return self.logger.log(level, message, extra=extra)
 
     def step(self):
+        """
+        Advance one step in the simulation, and update the data collection and scheduler appropriately
+        """
         super().step()
         self.schedule.step()
+        self.datacollector.collect(self)
 
-    def run(self, until, *args, **kwargs):
-        self._save_state()
+        if self.logger.isEnabledFor(logging.DEBUG):
+            msg = "Model data:\n"
+            max_width = max(len(k) for k in self.datacollector.model_vars.keys())
+            for (k, v) in self.datacollector.model_vars.items():
+                msg += f"\t{k:<{max_width}}: {v[-1]:>6}\n"
+            self.logger.debug(f"--- Steps: {self.schedule.steps:^5} - Time: {self.now:^5} --- " + msg)
 
-        while self.schedule.next_time < until:
-            self.step()
-            utils.logger.debug(f'Simulation step {self.schedule.time}/{until}. Next: {self.schedule.next_time}')
-        self.schedule.time = until
-        self._history.flush_cache()
+    def add_model_reporter(self, name, func=None):
+        if not func:
+            func = lambda env: getattr(env, name)
+        self.datacollector._new_model_reporter(name, func)
 
-    def _save_state(self, now=None):
-        serialization.logger.debug('Saving state @{}'.format(self.now))
-        self._history.save_records(self.state_to_tuples(now=now))
+    def add_agent_reporter(self, name, agent_type=None):
+        if agent_type:
+            reporter = lambda a: getattr(a, name) if isinstance(a, agent_type) else None
+        else:
+            reporter = lambda a: getattr(a, name, None)
+        self.datacollector._new_agent_reporter(name, reporter)
+
+    @classmethod
+    def run(cls, *,
+            iterations=1,
+            num_processes=1, **kwargs):
+        from .simulation import Simulation
+        return Simulation(name=cls.__name__,
+                          model=cls, iterations=iterations,
+                          num_processes=num_processes, **kwargs).run()
 
     def __getitem__(self, key):
-        if isinstance(key, tuple):
-            self._history.flush_cache()
-            return self._history[key]
+        try:
+            return getattr(self, key)
+        except AttributeError:
+            raise KeyError(f"key {key}  not found in environment")
 
-        return self.environment_params[key]
-
-    def __setitem__(self, key, value):
-        if isinstance(key, tuple):
-            k = Key(*key)
-            self._history.save_record(*k,
-                                      value=value)
-            return
-        self.environment_params[key] = value
-        self._history.save_record(dict_id='env',
-                                  t_step=self.now,
-                                  key=key,
-                                  value=value)
+    def __delitem__(self, key):
+        return delattr(self, key)
 
     def __contains__(self, key):
-        return key in self.environment_params
+        return hasattr(self, key)
+
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
+
+    def __str__(self):
+        return str(dict(self))
+
+    def __len__(self):
+        return sum(1 for n in self.keys())
+
+    def __iter__(self):
+        return iter(self.agents())
 
     def get(self, key, default=None):
-        '''
-        Get the value of an environment attribute in a
-        given point in the simulation (history).
-        If key is an attribute name, this method returns
-        the current value.
-        To get values at other times, use a
-        :meth: `soil.history.Key` tuple.
-        '''
         return self[key] if key in self else default
 
-    def get_agent(self, agent_id):
-        return self.G.nodes[agent_id]['agent']
+    def keys(self):
+        return (k for k in self.__dict__ if k[0] != "_")
 
-    def get_agents(self, nodes=None):
-        if nodes is None:
-            return self.agents
-        return (self.G.nodes[i]['agent'] for i in nodes)
+class NetworkEnvironment(BaseEnvironment):
+    """
+    The NetworkEnvironment is an environment that includes one or more networkx.Graph intances
+    and methods to associate agents to nodes and vice versa.
+    """
 
-    def dump_csv(self, f):
-        with utils.open_or_reuse(f, 'w') as f:
-            cr = csv.writer(f)
-            cr.writerow(('agent_id', 't_step', 'key', 'value'))
-            for i in self.history_to_tuples():
-                cr.writerow(i)
+    def __init__(self,
+                 *args,
+                 topology: Optional[Union[nx.Graph, str]] = None,
+                 agent_class: Optional[Type[agentmod.Agent]] = None,
+                 network_generator: Optional[Callable] = None,
+                 network_params: Optional[Dict] = {},
+                 init=True,
+                 **kwargs):
+        self.topology = topology
+        self.network_generator = network_generator
+        self.network_params = network_params
+        if topology or network_params or network_generator:
+            self.create_network(topology, generator=network_generator, **network_params)
+        else:
+            self.G = nx.Graph()
+        super().__init__(*args, **kwargs, init=False)
 
-    def dump_gexf(self, f):
-        G = self.history_to_graph()
-        # Workaround for geometric models
-        # See soil/soil#4
-        for node in G.nodes():
-            if 'pos' in G.nodes[node]:
-                G.nodes[node]['viz'] = {"position": {"x": G.nodes[node]['pos'][0], "y": G.nodes[node]['pos'][1], "z": 0.0}}
-                del (G.nodes[node]['pos'])
+        self.agent_class = agent_class
+        if agent_class:
+            self.agent_class = serialization.deserialize(agent_class)
+        if self.agent_class:
+            self.populate_network(self.agent_class)
+        self._check_agent_nodes()
+        if init:
+            self.init()
+            self.datacollector.collect(self)
 
-        nx.write_gexf(G, f, version="1.2draft")
+    def add_agent(self, agent_class, *args, node_id=None, topology=None, **kwargs):
+        if node_id is None and topology is None:
+            return super().add_agent(agent_class, *args, **kwargs)
+        try:
+            a = super().add_agent(agent_class, *args, node_id=node_id, **kwargs)
+        except TypeError:
+            self.logger.warning(f"Agent constructor for {agent_class} does not have a node_id attribute. Might be a bug.")
+            a = super().add_agent(agent_class, *args, **kwargs)
+        self.G.nodes[node_id]["agent"] = a
+        return a
 
-    def dump(self, *args, formats=None, **kwargs):
-        if not formats:
-            return
-        functions = {
-            'csv': self.dump_csv,
-            'gexf': self.dump_gexf
-        }
-        for f in formats:
-            if f in functions:
-                functions[f](*args, **kwargs)
-            else:
-                raise ValueError('Unknown format: {}'.format(f))
+    def add_agents(self, *args, k=None, **kwargs):
+        if not k and not self.G:
+            raise ValueError("Cannot add agents to an empty network")
+        super().add_agents(*args, k=k or len(self.G), **kwargs)
 
-    def dump_sqlite(self, f):
-        return self._history.dump(f)
+    def create_network(self, topology=None, generator=None, path=None, **network_params):
+        if topology is not None:
+            topology = network.from_topology(topology, dir_path=self.dir_path)
+        elif path is not None:
+            topology = network.from_topology(path, dir_path=self.dir_path)
+        elif generator is not None:
+            topology = network.from_params(generator=generator, dir_path=self.dir_path, **network_params)
+        else:
+            raise ValueError("topology must be a networkx.Graph or a string, or network_generator must be provided")
+        self.G = topology
 
-    def state_to_tuples(self, now=None):
-        if now is None:
-            now = self.now
-        for k, v in self.environment_params.items():
-            yield Record(dict_id='env',
-                         t_step=now,
-                         key=k,
-                         value=v)
-        for agent in self.agents:
-            for k, v in agent.state.items():
-                yield Record(dict_id=agent.id,
-                             t_step=now,
-                             key=k,
-                             value=v)
+    def init_agents(self, *args, **kwargs):
+        """Initialize the agents from a"""
+        super().init_agents(*args, **kwargs)
 
-    def history_to_tuples(self):
-        return self._history.to_tuples()
+    @property
+    def network_agents(self):
+        """Return agents still alive and assigned to a node in the network."""
+        for (id, data) in self.G.nodes(data=True):
+            if "agent" in data:
+                agent = data["agent"]
+                if getattr(agent, "alive", True):
+                    yield agent
 
-    def history_to_graph(self):
-        G = nx.Graph(self.G)
+    def add_node(self, agent_class, unique_id=None, node_id=None, **kwargs):
+        if unique_id is None:
+            unique_id = self.next_id()
+        if node_id is None:
+            node_id = network.find_unassigned(
+                G=self.G, shuffle=True, random=self.random
+            )
+            if node_id is None:
+                node_id = f"node_for_{unique_id}"
 
-        for agent in self.network_agents:
+        if node_id not in self.G.nodes:
+            self.G.add_node(node_id)
 
-            attributes = {'agent': str(agent.__class__)}
-            lastattributes = {}
-            spells = []
-            lastvisible = False
-            laststep = None
-            history = self[agent.id, None, None]
-            if not history:
+        assert "agent" not in self.G.nodes[node_id]
+
+        a = self.add_agent(
+            unique_id=unique_id,
+            agent_class=agent_class,
+            topology=self.G,
+            node_id=node_id,
+            **kwargs,
+        )
+        a["visible"] = True
+        return a
+
+    def _check_agent_nodes(self):
+        """
+        Detect nodes that have agents assigned to them.
+        """
+        for (id, data) in self.G.nodes(data=True):
+            if "agent_id" in data:
+                agent = self.agents(data["agent_id"])
+                self.G.nodes[id]["agent"] = agent
+                assert not getattr(agent, "node_id", None) or agent.node_id == id
+                agent.node_id = id
+        for agent in self.agents():
+            if hasattr(agent, "node_id"):
+                node_id = agent["node_id"]
+                if node_id not in self.G.nodes:
+                    raise ValueError(f"Agent {agent} is assigned to node {agent.node_id} which is not in the network")
+                node = self.G.nodes[node_id]
+                if node.get("agent") is not None and node["agent"] != agent:
+                    raise ValueError(f"Node {node_id} already has a different agent assigned to it")
+                self.G.nodes[node_id]["agent"] = agent
+
+    def add_agents(self, agent_classes: List[type], k=None, weights: Optional[List[float]] = None, **kwargs):
+        if k is None:
+            k = len(self.G)
+            if not k:
+                raise ValueError("Cannot add agents to an empty network")
+        super().add_agents(agent_classes, k=k, weights=weights, **kwargs)
+
+    def agent_for_node_id(self, node_id):
+        return self.G.nodes[node_id].get("agent")
+
+    def populate_network(self, agent_class: List[Model], weights: List[float] = None, **agent_params):
+        if isinstance(agent_class, type):
+            agent_class = [agent_class]
+        else:
+            agent_class = list(agent_class)
+        if not weights:
+            weights = [1] * len(agent_class)
+        assert len(self.G)
+        classes = self.random.choices(agent_class, weights, k=len(self.G))
+        toadd = []
+        for (cls, (node_id, node)) in zip(classes, self.G.nodes(data=True)):
+            if "agent" in node:
                 continue
-            for t_step, attribute, value in sorted(list(history)):
-                if attribute == 'visible':
-                    nowvisible = value
-                    if nowvisible and not lastvisible:
-                        laststep = t_step
-                    if not nowvisible and lastvisible:
-                        spells.append((laststep, t_step))
-
-                    lastvisible = nowvisible
-                    continue
-                key = 'attr_' + attribute
-                if key not in attributes:
-                    attributes[key] = list()
-                if key not in lastattributes:
-                    lastattributes[key] = (value, t_step)
-                elif lastattributes[key][0] != value:
-                    last_value, laststep = lastattributes[key]
-                    commit_value = (last_value, laststep, t_step)
-                    if key not in attributes:
-                        attributes[key] = list()
-                    attributes[key].append(commit_value)
-                    lastattributes[key] = (value, t_step)
-            for k, v in lastattributes.items():
-                attributes[k].append((v[0], v[1], None))
-            if lastvisible:
-                spells.append((laststep, None))
-            if spells:
-                G.add_node(agent.id, spells=spells, **attributes)
-            else:
-                G.add_node(agent.id, **attributes)
-
-        return G
-
-    def __getstate__(self):
-        state = {}
-        for prop in _CONFIG_PROPS:
-            state[prop] = self.__dict__[prop]
-        state['G'] = json_graph.node_link_data(self.G)
-        state['environment_agents'] = self._env_agents
-        state['history'] = self._history
-        state['schedule'] = self.schedule
-        return state
-
-    def __setstate__(self, state):
-        for prop in _CONFIG_PROPS:
-            self.__dict__[prop] = state[prop]
-        self._env_agents = state['environment_agents']
-        self.G = json_graph.node_link_graph(state['G'])
-        self._history = state['history']
-        # self._env = None
-        self.schedule = state['schedule']
-        self._queue = []
+            node["agent"] = None # Reserve
+            toadd.append(dict(node_id=node_id, topology=self.G,  agent_class=cls, **agent_params))
+        for d in toadd:
+            a = self.add_agent(**d)
+            self.G.nodes[d["node_id"]]["agent"] = a
+        assert all("agent" in node for (_, node) in self.G.nodes(data=True))
+        assert len(list(self.network_agents))
 
 
-SoilEnvironment = Environment
+class EventedEnvironment(BaseEnvironment):
+    def broadcast(self, msg, sender=None, expiration=None, ttl=None, **kwargs):
+        for agent in self.agents(**kwargs):
+            if agent == sender:
+                continue
+            self.logger.debug(f"Telling {repr(agent)}: {msg} ttl={ttl}")
+            try:
+                inbox = agent._inbox
+            except AttributeError:
+                self.logger.info(
+                    f"Agent {agent.unique_id} cannot receive events because it does not have an inbox"
+                )
+                continue
+            # Allow for AttributeError exceptions in this part of the code
+            inbox.append(
+                events.Tell(
+                    payload=msg,
+                    sender=sender,
+                    expiration=expiration if ttl is None else self.now + ttl,
+                )
+            )
+
+
+class Environment(NetworkEnvironment, EventedEnvironment):
+    """Default environment class, has both network and event capabilities"""

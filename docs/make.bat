@@ -12,7 +12,7 @@ set BUILDDIR=_build
 set SPHINXPROJ=Soil
 
 if "%1" == "" goto help
-
+eE
 %SPHINXBUILD% >NUL 2>NUL
 if errorlevel 9009 (
 	echo.

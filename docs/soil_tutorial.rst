@@ -24,114 +24,168 @@ But before that, let’s import the soil module and networkx.
     %load_ext autoreload
     %autoreload 2
     
-    %matplotlib inline
-    # To display plots in the notebooed_
+    import matplotlib.pyplot as plt
 
 Basic concepts
 --------------
 
 There are three main elements in a soil simulation:
 
+-  The environment or model. It assigns agents to nodes in the network,
+   and stores the environment parameters (shared state for all agents).
 -  The network topology. A simulation may use an existing NetworkX
-   topology, or generate one on the fly
--  Agents. There are two types: 1) network agents, which are linked to a
-   node in the topology, and 2) environment agents, which are freely
-   assigned to the environment.
--  The environment. It assigns agents to nodes in the network, and
-   stores the environment parameters (shared state for all agents).
+   topology, or generate one on the fly.
+-  Agents. There are several types of agents, depending on their
+   behavior and their capabilities. Some examples of built-in types of
+   agents are:
 
-Soil is based on ``simpy``, which is an event-based network simulation
-library. Soil provides several abstractions over events to make
-developing agents easier. This means you can use events (timeouts,
-delays) in soil, but for the most part we will assume your models will
-be step-based.
+   -  Network agents, which are linked to a node in the topology. They
+      have additional methods to access their neighbors.
+   -  FSM (Finite state machine) agents. Their behavior is defined in
+      terms of states, and an agent will move from one state to another.
+   -  Evented agents, an actor-based model of agents, which can
+      communicate with one another through message passing.
+   -  For convenience, a general ``soil.Agent`` class is provided, which
+      inherits from Network, FSM and Evented at the same time.
+
+Soil provides several abstractions over events to make developing agents
+easier. This means you can use events (timeouts, delays) in soil, but
+for the most part we will assume your models will be step-based o.
 
 Modeling behaviour
 ------------------
 
 Our first step will be to model how every person in the social network
-reacts when it comes to news. We will follow a very simple model (a
-finite state machine).
+reacts to hearing a piece of disinformation (news). We will follow a
+very simple model based on a finite state machine.
 
-There are two types of people, those who have heard about a newsworthy
-event (infected) or those who have not (neutral). A neutral person may
-heard about the news either on the TV (with probability
-**prob_tv_spread**) or through their friends. Once a person has heard
-the news, they will spread it to their friends (with a probability
-**prob_neighbor_spread**). Some users do not have a TV, so they only
-rely on their friends.
+A person may be in one of two states: **neutral** (the default state)
+and **infected**. A neutral person may hear about a piece of
+disinformation either on the TV (with probability **prob_tv_spread**) or
+through their friends. Once a person has heard the news, they will
+spread it to their friends (with a probability
+**prob_neighbor_spread**). Some users do not have a TV, so they will
+only be infected by their friends.
 
 The spreading probabilities will change over time due to different
-factors. We will represent this variance using an environment agent.
+factors. We will represent this variance using an additional agent which
+will not be a part of the social network.
 
-Network Agents
-~~~~~~~~~~~~~~
+Modelling Agents
+~~~~~~~~~~~~~~~~
 
-A basic network agent in Soil would typically inherit from
-``soil.agents.NetworkAgent``, and define its behaviour in every step of
-the simulation by implementing a ``run(self)`` method. The most
-important attributes of the agent are:
+The following sections will cover the basics of developing agents in
+SOIL.
 
--  ``agent.state``, a dictionary with the state of the agent. This tate
-   will be saved in every step of the simulation. It can be accessed
-   from the agent as well:
+For more advanced patterns, please check the **examples** folder in the
+repository.
 
-.. code:: py
+Basic agents
+^^^^^^^^^^^^
 
-   a = soil.agents.NetworkAgent(env=env)
-   agent.state['hours_of_sleep'] = 10
-   # is the same as
-   a['hours_of_sleep'] = 10
+The most basic agent in Soil is ``soil.BaseAgent``. These agents
+implement their behavior by overriding the ``step`` method, which will
+be run in every simulation step. Only one agent will be running at any
+given time, and it will be doing so until the ``step`` function returns.
 
-The state of the agent is stored in every step of the simulation:
-``py   print(a['hours_of_sleep', 10]) # hours of sleep before step #10   print(a[None, 0]) # whole state of the agent before step #0``
+Agents can access their environment through their ``self.model``
+attribute. This is most commonly used to get access to the environment
+parameters and methods. Here is a simple example of an agent:
 
--  ``agent.env``, a reference to the environment. Most commonly used to
-   get access to the environment parameters and the topology: \```py
-   a.env.G.nodes() # Get all nodes ids in the topology
-   a.env[‘minimum_hours_of_sleep’]
+.. code:: python
 
-   \``\`
+   class ExampleAgent(BaseAgent):
+       def init(self):
+           self.is_infected = False
+           self.steps_neutral = 0
+       
+       def step(self):
+           # Implement agent logic
+           if self.is_infected:
+               ... # Do something, like infecting other agents
+               return self.die("No need to do anything else") # Stop forever
+           else:
+               ... # Do something
+               self.steps_neutral += 1
+               if self.steps_neutral > self.model.max_steps_neutral:
+                   self.is_infected = True
 
-Since our model is a finite state machine, we will be basing it on
-``soil.agents.FSM``.
+Any kind of agent behavior can be implemented with this ``step``
+function. However, it has two main drawbacks: 1) complex behaviors can
+get difficult both write and understand; 2) these behaviors are not
+composable.
 
-Agents that inherit from ``soil.agents.FSM`` do not need to specify a
-``step`` method. Instead, we describe each finite state with a function.
-To change to another state, a function may return the new state, or the
-``id`` of a state. If no state is returned, the state remains unchanged.
+FSM agents
+^^^^^^^^^^
 
-The current state of the agent can be checked with
-``agent.state['id']``. That state id can be used to look for other
-networks in that specific state
+One way to solve both issues is to model agents as `Finite-state
+Machines <https://en.wikipedia.org/wiki/Finite-state_machine>`__ (FSM,
+for short). FSM define a series of possible states for the agent, and
+changes between these states. These states can be modelled and extended
+independently.
 
-Our agent will have of two states, ``neutral`` (default) and
-``infected``.
+This is modelled in Soil through the ``soil.FSM`` class. Agents that
+inherit from ``soil.FSM`` do not need to specify a ``step`` method.
+Instead, we describe each finite state with a function. To change to
+another state, a function may return the new state, or the ``id`` of a
+state. If no state is returned, the state remains unchanged.
 
-Here’s the code:
+The current state of the agent can be checked with ``agent.state_id``.
+That state id can be used to look for other agents in that specific
+state.
 
-.. code:: ipython3
+Our previous example could be expressed like this:
 
-    import random
-    
-    class NewsSpread(soil.agents.FSM):
-        @soil.agents.default_state
-        @soil.agents.state
-        def neutral(self):
-            r = random.random()
-            if self['has_tv'] and r <= self.env['prob_tv_spread']:
-                    return self.infected
-            return
-        
-        @soil.agents.state
-        def infected(self):
-            prob_infect = self.env['prob_neighbor_spread']
-            for neighbor in self.get_neighboring_agents(state_id=self.neutral.id):
-                r = random.random()
-                if r < prob_infect:
-                    neighbor.set_state(self.infected.id)
-            return
-            
+.. code:: python
+
+   class FSMExample(FSM):
+
+       def init(self):
+           self.steps_neutral = 0
+       
+       @state(default=True)
+       def neutral(self):
+           ... # Do something
+           self.steps_neutral += 1
+           if self.steps_neutral > self.model.max_steps_neutral:
+               return self.infected  # Change state
+
+       @state
+       def infected(self):
+           ... # Do something
+           return self.die("No need to do anything else")
+
+Generator-based agents
+^^^^^^^^^^^^^^^^^^^^^^
+
+Another design pattern that can be very useful in some cases is to model
+each step (or a specific state) using generators (the ``yield``
+keyword).
+
+.. code:: python
+
+   class GenExample(BaseAgent):
+       def step(self):
+           for i in range(self.model.max_steps_neutral):
+               ... # Do something
+               yield  # Signal the scheduler that this step is done for now
+           ... # Do something
+           return self.die("No need to do anything else")        
+
+Telling the scheduler when to wake up an agent
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default, every agent will be called in every simulation step, and the
+time elapsed between two steps is controlled by the ``interval``
+attribute in the environment.
+
+But agents may signal the scheduler when they expect to be called again.
+This is especially useful when an agent is going to be dormant for a
+long time. To do so, an agent can return (or ``yield``) from a ``step``
+or a ``state`` a value of type ``soil.When`` (absolute time),
+``soil.Delta`` (relative time) or ``soil.Cond``, telling the scheduler
+when the agent will be ready to run again. If it returns nothing (i.e.,
+``None``), the agent will be ready to run at the next simulation step.
 
 Environment agents
 ~~~~~~~~~~~~~~~~~~
@@ -145,192 +199,478 @@ spreading the rumor.
 
 .. code:: ipython3
 
-    NEIGHBOR_FACTOR = 0.9
-    TV_FACTOR = 0.5
+    import logging
     
-    
-    class NewsEnvironmentAgent(soil.agents.NetworkAgent):
+    class EventGenerator(soil.BaseAgent):
+        level = logging.INFO
+        
         def step(self):
-            if self.now == self['event_time']:
-                self.env['prob_tv_spread'] = 1
-                self.env['prob_neighbor_spread'] = 1
-            elif self.now > self['event_time']:
-                self.env['prob_tv_spread'] = self.env['prob_tv_spread'] * TV_FACTOR
-                self.env['prob_neighbor_spread'] = self.env['prob_neighbor_spread'] * NEIGHBOR_FACTOR
+            # Do nothing until the time of the event
+            yield soil.When(self.model.event_time)
+            self.info("TV event happened")
+            self.model.prob_tv_spread = 0.5
+            self.model.prob_neighbor_spread *= 2
+            self.model.prob_neighbor_spread = min(self.model.prob_neighbor_spread, 1)
+            yield
+            self.model.prob_tv_spread = 0
+    
+            while self.alive:
+                self.model.prob_neighbor_spread = self.model.prob_neighbor_spread * self.model.neighbor_factor
+                if self.model.prob_neighbor_spread < 0.01:
+                    return self.die("neighbors can no longer spread the rumour")
+                yield
 
-Testing the agents
-~~~~~~~~~~~~~~~~~~
+Environment (Model)
+~~~~~~~~~~~~~~~~~~~
 
-Feel free to skip this section if this is your first time with soil.
-
-Testing agents is not easy, and this is not a thorough testing process
-for agents. Rather, this section is aimed to show you how to access
-internal pats of soil so you can test your agents.
-
-First of all, let’s check if our network agent has the states we would
-expect:
+Let’s define a environment model to test our event generator agent. This
+environment will have a single agent (the event generator). We will also
+tell the environment to save the value of ``prob_tv_spread`` after every
+step:
 
 .. code:: ipython3
 
-    NewsSpread.states
+    class NewsEnv(soil.NetworkEnvironment):
+        
+        prob_tv_spread = 0.1
+        prob_neighbor_spread = 0.1
+        event_time = 10
+        tv_factor = 0.5
+        neighbor_factor = 0.9
+    
+        
+        def init(self):
+            self.add_model_reporter("prob_tv_spread")
+            self.add_agent(EventGenerator)
+
+Once the environment has been defined, we can run a simulation
+
+.. code:: ipython3
+
+    it = NewsEnv.run(iterations=1, dump=False, max_time=14)
+    
+    it[0].model_df()
+
+
+
+.. parsed-literal::
+
+    HBox(children=(IntProgress(value=0, description='NewsEnv', max=1, style=ProgressStyle(description_width='initi…
+
+
+
+.. parsed-literal::
+
+    HBox(children=(IntProgress(value=0, max=1), HTML(value='')))
+
+
+.. parsed-literal::
+
+    
+
+
+
+
+.. raw:: html
+
+    <div>
+    <style scoped>
+        .dataframe tbody tr th:only-of-type {
+            vertical-align: middle;
+        }
+    
+        .dataframe tbody tr th {
+            vertical-align: top;
+        }
+    
+        .dataframe thead th {
+            text-align: right;
+        }
+    </style>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>step</th>
+          <th>agent_count</th>
+          <th>prob_tv_spread</th>
+        </tr>
+        <tr>
+          <th>time</th>
+          <th></th>
+          <th></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>0</td>
+          <td>1</td>
+          <td>0.1</td>
+        </tr>
+        <tr>
+          <th>10</th>
+          <td>1</td>
+          <td>1</td>
+          <td>0.1</td>
+        </tr>
+        <tr>
+          <th>11</th>
+          <td>2</td>
+          <td>1</td>
+          <td>0.5</td>
+        </tr>
+        <tr>
+          <th>12</th>
+          <td>3</td>
+          <td>1</td>
+          <td>0.0</td>
+        </tr>
+        <tr>
+          <th>13</th>
+          <td>4</td>
+          <td>1</td>
+          <td>0.0</td>
+        </tr>
+        <tr>
+          <th>14</th>
+          <td>5</td>
+          <td>1</td>
+          <td>0.0</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
+
+As we can see, the event occurred right after ``t=10``, so by ``t=11``
+the value of ``prob_tv_spread`` was already set to ``1.0``.
+
+You may notice nothing happened between ``t=0`` and ``t=1``. That is
+because there aren’t any other agents in the simulation, and our event
+generator explicitly waited until ``t=10``.
+
+Network agents
+~~~~~~~~~~~~~~
+
+In our disinformation scenario, we will model our agents as a FSM with
+two states: ``neutral`` (default) and ``infected``.
+
+Here’s the code:
+
+.. code:: ipython3
+
+    class NewsSpread(soil.Agent):
+        has_tv = False
+        infected_by_friends = False
+        
+        @soil.state(default=True)
+        def neutral(self):
+            if self.infected_by_friends:
+                return self.infected
+            if self.has_tv:
+                if self.prob(self.model.prob_tv_spread):
+                    return self.infected
+                
+        @soil.state
+        def infected(self):
+            for neighbor in self.iter_neighbors(state_id=self.neutral.id):
+                if self.prob(self.model.prob_neighbor_spread):
+                    neighbor.infected_by_friends = True
+
+We can check that our states are well defined, here:
+
+.. code:: ipython3
+
+    NewsSpread.states()
 
 
 
 
 .. parsed-literal::
 
-    {'neutral': <function __main__.NewsSpread.neutral(self)>,
-     'infected': <function __main__.NewsSpread.infected(self)>}
+    ['dead', 'neutral', 'infected']
 
 
 
-Now, let’s run a simulation on a simple network. It is comprised of
-three nodes:
+Environment (Model)
+~~~~~~~~~~~~~~~~~~~
+
+Let’s modify our simple simulation. We will add a network of agents of
+type NewsSpread.
+
+Only one agent (0) will have a TV (in blue).
 
 .. code:: ipython3
 
-    G = nx.Graph()
-    G.add_edge(0, 1)
-    G.add_edge(0, 2)
-    G.add_edge(2, 3)
-    G.add_node(4)
+    def generate_simple():
+        G = nx.Graph()
+        G.add_edge(0, 1)
+        G.add_edge(0, 2)
+        G.add_edge(2, 3)
+        G.add_node(4)
+        return G
+    
+    G = generate_simple()
     pos = nx.spring_layout(G)
     nx.draw_networkx(G, pos, node_color='red')
     nx.draw_networkx(G, pos, nodelist=[0], node_color='blue')
 
 
 
-.. image:: output_21_0.png
+.. image:: output_30_0.png
 
-
-Let’s run a simple simulation that assigns a NewsSpread agent to all the
-nodes in that network. Notice how node 0 is the only one with a TV.
 
 .. code:: ipython3
 
-    import importlib
-    importlib.reload(soil.agents)
+    class NewsEnv(soil.NetworkEnvironment):
+        
+        prob_tv_spread = 0
+        prob_neighbor_spread = 0.1
+        event_time = 10
+        tv_factor = 0.5
+        neighbor_factor = 0.9
+    
+        
+        def init(self):
+            self.add_agent(EventGenerator)
+            self.G = generate_simple()
+            self.populate_network(NewsSpread)
+            self.agent(node_id=0).has_tv = True
+            self.add_model_reporter('prob_tv_spread')
+            self.add_model_reporter('prob_neighbor_spread')
 
+.. code:: ipython3
+
+    it = NewsEnv.run(max_time=20)
+    it[0].model_df()
 
 
 
 .. parsed-literal::
 
-    <module 'soil.agents' from '/mnt/data/home/j/git/lab.gsi/soil/soil/soil/agents/__init__.py'>
+    HBox(children=(IntProgress(value=0, description='NewsEnv', max=1, style=ProgressStyle(description_width='initi…
 
 
 
-.. code:: ipython3
+.. parsed-literal::
 
-    env_params = {
-        'prob_tv_spread': 0,
-        'prob_neighbor_spread': 0
-    }
+    HBox(children=(IntProgress(value=0, max=1), HTML(value='')))
+
+
+.. parsed-literal::
+
     
-    MAX_TIME = 100
-    EVENT_TIME = 10
-    
-    sim = soil.Simulation(topology=G,
-                          num_trials=1,
-                          max_time=MAX_TIME,
-                          environment_agents=[{'agent_type': NewsEnvironmentAgent,
-                                               'state': {
-                                               'event_time': EVENT_TIME
-                                             }}],
-                          network_agents=[{'agent_type': NewsSpread,
-                                          'weight': 1}],
-                          states={0: {'has_tv': True}},
-                          default_state={'has_tv': False},
-                          environment_params=env_params)
-    env = sim.run_simulation(dry_run=True)[0]
 
-Now we can access the results of the simulation and compare them to our
-expected results
 
-.. code:: ipython3
 
-    agents = list(env.network_agents)
-    
-    # Until the event, all agents are neutral
-    for t in range(10):
-        for a in agents:
-            assert a['state_id', t] == a.neutral.id
-            
-    # After the event, the node with a TV is infected, the rest are not
-    assert agents[0]['has_tv']
-    assert agents[0]['state_id', 11] == NewsSpread.infected.id
-    assert not agents[2]['has_tv']
-    assert agents[2]['state_id', 11] == NewsSpread.neutral.id
-    
-    
-    # At the end, the agents connected to the infected one will probably be infected, too.
-    assert agents[1]['state_id', MAX_TIME] == NewsSpread.infected.id
-    assert agents[2]['state_id', MAX_TIME] == NewsSpread.infected.id
-    
-    # But the node with no friends should not be affected
-    assert agents[4]['state_id', MAX_TIME] == NewsSpread.neutral.id
-            
 
-Lastly, let’s see if the probabilities have decreased as expected:
+.. raw:: html
 
-.. code:: ipython3
-
-    assert abs(env.environment_params['prob_neighbor_spread'] - (NEIGHBOR_FACTOR**(MAX_TIME-1-10))) < 10e-4
-    assert abs(env.environment_params['prob_tv_spread'] - (TV_FACTOR**(MAX_TIME-1-10))) < 10e-6
-
-Running the simulation
-----------------------
-
-To run a simulation, we need a configuration. Soil can load
-configurations from python dictionaries as well as JSON and YAML files.
-For this demo, we will use a python dictionary:
-
-.. code:: ipython3
-
-    config = {
-        'name': 'ExampleSimulation',
-        'max_time': 20,
-        'interval': 1,
-        'num_trials': 1,
-        'network_params': {
-           'generator': 'complete_graph',
-            'n': 500,
-        },
-        'network_agents': [
-            {
-                'agent_type': NewsSpread,
-                'weight': 1,
-                'state': {
-                    'has_tv': False
-                }
-            },
-            {
-                'agent_type': NewsSpread,
-                'weight': 2,
-                'state': {
-                    'has_tv': True
-                }
-            }
-        ],
-        'environment_agents':[
-            {'agent_type': NewsEnvironmentAgent,
-             'state': {
-                 'event_time': 10
-             }
-            }
-        ],
-        'states': [ {'has_tv': True} ],
-        'environment_params':{
-            'prob_tv_spread': 0.01,
-            'prob_neighbor_spread': 0.5
+    <div>
+    <style scoped>
+        .dataframe tbody tr th:only-of-type {
+            vertical-align: middle;
         }
-    }
+    
+        .dataframe tbody tr th {
+            vertical-align: top;
+        }
+    
+        .dataframe thead th {
+            text-align: right;
+        }
+    </style>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>step</th>
+          <th>agent_count</th>
+          <th>prob_tv_spread</th>
+          <th>prob_neighbor_spread</th>
+        </tr>
+        <tr>
+          <th>time</th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>0</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.100000</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>1</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.100000</td>
+        </tr>
+        <tr>
+          <th>2</th>
+          <td>2</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.100000</td>
+        </tr>
+        <tr>
+          <th>3</th>
+          <td>3</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.100000</td>
+        </tr>
+        <tr>
+          <th>4</th>
+          <td>4</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.100000</td>
+        </tr>
+        <tr>
+          <th>5</th>
+          <td>5</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.100000</td>
+        </tr>
+        <tr>
+          <th>6</th>
+          <td>6</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.100000</td>
+        </tr>
+        <tr>
+          <th>7</th>
+          <td>7</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.100000</td>
+        </tr>
+        <tr>
+          <th>8</th>
+          <td>8</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.100000</td>
+        </tr>
+        <tr>
+          <th>9</th>
+          <td>9</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.100000</td>
+        </tr>
+        <tr>
+          <th>10</th>
+          <td>10</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.100000</td>
+        </tr>
+        <tr>
+          <th>11</th>
+          <td>11</td>
+          <td>6</td>
+          <td>0.5</td>
+          <td>0.200000</td>
+        </tr>
+        <tr>
+          <th>12</th>
+          <td>12</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.180000</td>
+        </tr>
+        <tr>
+          <th>13</th>
+          <td>13</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.162000</td>
+        </tr>
+        <tr>
+          <th>14</th>
+          <td>14</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.145800</td>
+        </tr>
+        <tr>
+          <th>15</th>
+          <td>15</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.131220</td>
+        </tr>
+        <tr>
+          <th>16</th>
+          <td>16</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.118098</td>
+        </tr>
+        <tr>
+          <th>17</th>
+          <td>17</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.106288</td>
+        </tr>
+        <tr>
+          <th>18</th>
+          <td>18</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.095659</td>
+        </tr>
+        <tr>
+          <th>19</th>
+          <td>19</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.086093</td>
+        </tr>
+        <tr>
+          <th>20</th>
+          <td>20</td>
+          <td>6</td>
+          <td>0.0</td>
+          <td>0.077484</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>20 rows × 2504 columns</p>
+    </div>
 
-Let’s run our simulation:
+
+
+In this case, notice that the inclusion of other agents (which run every
+step) means that the simulation did not skip to ``t=10``.
+
+Now, let’s look at the state of our agents in every step:
 
 .. code:: ipython3
 
-    soil.simulation.run_from_config(config, dry_run=True)
+    soil.analysis.plot(it[0])
+
+
+
+.. image:: output_34_0.png
+
+
+Running in more scenarios
+-------------------------
 
 In real life, you probably want to run several simulations, varying some
 of the parameters so that you can compare and answer your research
@@ -346,32 +686,210 @@ For instance:
 
 .. code:: ipython3
 
-    network_1 = {
-           'generator': 'erdos_renyi_graph',
-            'n': 500,
-            'p': 0.1
-    }
-    network_2 = {
-           'generator': 'barabasi_albert_graph',
-            'n': 500,
-            'm': 2
-    }
+    class NewsEnvComplete(soil.Environment):
+        prob_tv = 0.05
+        prob_tv_spread = 0
+        prob_neighbor_spread = 0
+        event_time = 10
+        tv_factor = 0
+        neighbor_factor = 0.5
+        generator = "erdos_renyi_graph"
+        n = 100
+    
+        def init(self):
+            self.add_agent(EventGenerator)
+            if not self.G:
+                opts = {"n": self.n}
+                if self.generator == "erdos_renyi_graph":
+                    opts["p"] = 0.5
+                elif self.generator == "barabasi_albert_graph":
+                    opts["m"] = 4
+                self.create_network(generator=self.generator, **opts)
+    
+            self.populate_network([NewsSpread,
+                                   NewsSpread.w(has_tv=True)],
+                                  [1-self.prob_tv, self.prob_tv])
+            self.add_model_reporter('prob_tv_spread')
+            self.add_model_reporter('prob_neighbor_spread')
+            self.add_agent_reporter('state_id')
+
+Since we do not care about previous results, we will
+set\ ``overwrite=True``.
+
+.. code:: ipython3
+
+    s = soil.Simulation(model=NewsEnvComplete, iterations=5, max_time=30, dump=True, overwrite=True)
+    N = 100
+    probabilities = [0, 0.25, 0.5, 0.75, 1.0]
+    generators = ["erdos_renyi_graph", "barabasi_albert_graph"]
     
     
-    for net in [network_1, network_2]:
-        for i in range(5):
-            prob = i / 10
-            config['environment_params']['prob_neighbor_spread'] = prob
-            config['network_params'] = net
-            config['name'] = 'Spread_{}_prob_{}'.format(net['generator'], prob)
-            s = soil.simulation.run_from_config(config, exporters=['default', 'csv'])
+    it = s.run(name=f"newspread", matrix=dict(n=[N], generator=generators, prob_neighbor_spread=probabilities))
+
+
+.. parsed-literal::
+
+    [INFO ][17:29:24] Output directory: /mnt/data/home/j/git/lab.gsi/soil/soil/examples/tutorial/soil_output
+
+
+
+.. parsed-literal::
+
+    HBox(children=(IntProgress(value=0, description='newspread', max=10, style=ProgressStyle(description_width='in…
+
+
+.. parsed-literal::
+
+    n = 100
+    generator = erdos_renyi_graph
+    prob_neighbor_spread = 0
+
+
+.. image:: output_58_3.png
+
+.. parsed-literal::
+
+    HBox(children=(IntProgress(value=0, max=5), HTML(value='')))
+
+.. image:: output_58_4.png
+
+.. parsed-literal::
+
+    n = 100
+    generator = erdos_renyi_graph
+    prob_neighbor_spread = 0.25
+
+.. code:: ipython3
+
+    analysis.plot_all('soil_output/Spread_erdos*', analysis.get_count, 'state_id');
+
+.. parsed-literal::
+
+    HBox(children=(IntProgress(value=0, max=5), HTML(value='')))
+
+.. image:: output_60_0.png
+
+.. parsed-literal::
+
+    n = 100
+    generator = erdos_renyi_graph
+    prob_neighbor_spread = 0.5
+
+
+
+.. parsed-literal::
+
+    HBox(children=(IntProgress(value=0, max=5), HTML(value='')))
+
+
+.. parsed-literal::
+
+    n = 100
+    generator = erdos_renyi_graph
+    prob_neighbor_spread = 0.75
+
+
+
+.. parsed-literal::
+
+    HBox(children=(IntProgress(value=0, max=5), HTML(value='')))
+
+The previous cells were using the ``count_value`` function for
+aggregation. There’s another function to plot numeral values:
+
+.. parsed-literal::
+
+    n = 100
+    generator = erdos_renyi_graph
+    prob_neighbor_spread = 1.0
+
+
+
+.. parsed-literal::
+
+    HBox(children=(IntProgress(value=0, max=5), HTML(value='')))
+
+
+.. parsed-literal::
+
+    n = 100
+    generator = barabasi_albert_graph
+    prob_neighbor_spread = 0
+
+
+
+.. parsed-literal::
+
+    HBox(children=(IntProgress(value=0, max=5), HTML(value='')))
+
+
+.. parsed-literal::
+
+    n = 100
+    generator = barabasi_albert_graph
+    prob_neighbor_spread = 0.25
+
+
+
+.. parsed-literal::
+
+    HBox(children=(IntProgress(value=0, max=5), HTML(value='')))
+
+
+.. parsed-literal::
+
+    n = 100
+    generator = barabasi_albert_graph
+    prob_neighbor_spread = 0.5
+
+
+
+.. parsed-literal::
+
+    HBox(children=(IntProgress(value=0, max=5), HTML(value='')))
+
+
+.. parsed-literal::
+
+    n = 100
+    generator = barabasi_albert_graph
+    prob_neighbor_spread = 0.75
+
+
+
+.. parsed-literal::
+
+    HBox(children=(IntProgress(value=0, max=5), HTML(value='')))
+
+
+.. parsed-literal::
+
+    n = 100
+    generator = barabasi_albert_graph
+    prob_neighbor_spread = 1.0
+
+
+
+.. parsed-literal::
+
+    HBox(children=(IntProgress(value=0, max=5), HTML(value='')))
+
+
+.. parsed-literal::
+
+    
+
+
+.. code:: ipython3
+
+    assert len(it) == len(probabilities) * len(generators) * s.iterations
 
 The results are conveniently stored in sqlite (history of agent and
 environment state) and the configuration is saved in a YAML file.
 
 You can also export the results to GEXF format (dynamic network) and CSV
-using .\ ``run_from_config(config, dump=['gexf', 'csv'])`` or the
-command line flags ``--graph --csv``.
+using .\ ``run(dump=['gexf', 'csv'])`` or the command line flags
+``--graph --csv``.
 
 .. code:: ipython3
 
@@ -382,2267 +900,131 @@ command line flags ``--graph --csv``.
 .. parsed-literal::
 
     [01;34msoil_output[00m
-    ├── [01;34mSpread_barabasi_albert_graph_prob_0.0[00m
-    │   ├── [01;34mbackup[00m
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.dumped.yml@2023-03-23_12.57.35
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.dumped.yml@2023-03-23_14.06.30
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.dumped.yml@2023-03-23_14.19.33
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.dumped.yml@2023-03-23_14.30.56
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.sqlite@2023-03-23_12.57.35
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.sqlite@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.sqlite@2023-03-23_14.19.33
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0.sqlite@2023-03-23_14.30.56
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.csv@2023-03-23_12.57.35
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.csv@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.csv@2023-03-23_14.19.33
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.csv@2023-03-23_14.30.56
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.sqlite@2023-03-23_12.57.35
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.sqlite@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.sqlite@2023-03-23_14.19.33
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.sqlite@2023-03-23_14.30.56
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.stats.csv@2023-03-23_12.57.35
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.stats.csv@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.stats.csv@2023-03-23_14.19.33
-    │   │   └── Spread_barabasi_albert_graph_prob_0.0_trial_0.stats.csv@2023-03-23_14.30.56
-    │   ├── Spread_barabasi_albert_graph_prob_0.0.dumped.yml
-    │   ├── Spread_barabasi_albert_graph_prob_0.0.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.csv
-    │   ├── Spread_barabasi_albert_graph_prob_0.0_trial_0.sqlite
-    │   └── Spread_barabasi_albert_graph_prob_0.0_trial_0.stats.csv
-    ├── [01;34mSpread_barabasi_albert_graph_prob_0.1[00m
-    │   ├── [01;34mbackup[00m
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.dumped.yml@2023-03-23_12.57.35
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.dumped.yml@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.dumped.yml@2023-03-23_14.19.34
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.dumped.yml@2023-03-23_14.30.56
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.sqlite@2023-03-23_12.57.35
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.sqlite@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.sqlite@2023-03-23_14.19.34
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1.sqlite@2023-03-23_14.30.56
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.csv@2023-03-23_12.57.35
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.csv@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.csv@2023-03-23_14.19.34
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.csv@2023-03-23_14.30.56
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.sqlite@2023-03-23_12.57.35
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.sqlite@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.sqlite@2023-03-23_14.19.34
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.sqlite@2023-03-23_14.30.56
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.stats.csv@2023-03-23_12.57.35
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.stats.csv@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.stats.csv@2023-03-23_14.19.34
-    │   │   └── Spread_barabasi_albert_graph_prob_0.1_trial_0.stats.csv@2023-03-23_14.30.56
-    │   ├── Spread_barabasi_albert_graph_prob_0.1.dumped.yml
-    │   ├── Spread_barabasi_albert_graph_prob_0.1.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.csv
-    │   ├── Spread_barabasi_albert_graph_prob_0.1_trial_0.sqlite
-    │   └── Spread_barabasi_albert_graph_prob_0.1_trial_0.stats.csv
-    ├── [01;34mSpread_barabasi_albert_graph_prob_0.2[00m
-    │   ├── [01;34mbackup[00m
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.dumped.yml@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.dumped.yml@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.dumped.yml@2023-03-23_14.19.34
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.dumped.yml@2023-03-23_14.30.56
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.sqlite@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.sqlite@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.sqlite@2023-03-23_14.19.34
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2.sqlite@2023-03-23_14.30.57
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.csv@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.csv@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.csv@2023-03-23_14.19.34
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.csv@2023-03-23_14.30.57
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.sqlite@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.sqlite@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.sqlite@2023-03-23_14.19.34
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.sqlite@2023-03-23_14.30.57
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.stats.csv@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.stats.csv@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.stats.csv@2023-03-23_14.19.34
-    │   │   └── Spread_barabasi_albert_graph_prob_0.2_trial_0.stats.csv@2023-03-23_14.30.57
-    │   ├── Spread_barabasi_albert_graph_prob_0.2.dumped.yml
-    │   ├── Spread_barabasi_albert_graph_prob_0.2.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.csv
-    │   ├── Spread_barabasi_albert_graph_prob_0.2_trial_0.sqlite
-    │   └── Spread_barabasi_albert_graph_prob_0.2_trial_0.stats.csv
-    ├── [01;34mSpread_barabasi_albert_graph_prob_0.3[00m
-    │   ├── [01;34mbackup[00m
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.dumped.yml@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.dumped.yml@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.dumped.yml@2023-03-23_14.19.34
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.dumped.yml@2023-03-23_14.30.57
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.sqlite@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.sqlite@2023-03-23_14.06.32
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.sqlite@2023-03-23_14.19.34
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3.sqlite@2023-03-23_14.30.57
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.csv@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.csv@2023-03-23_14.06.32
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.csv@2023-03-23_14.19.34
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.csv@2023-03-23_14.30.57
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.sqlite@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.sqlite@2023-03-23_14.06.31
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.sqlite@2023-03-23_14.19.34
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.sqlite@2023-03-23_14.30.57
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.stats.csv@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.stats.csv@2023-03-23_14.06.32
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.stats.csv@2023-03-23_14.19.34
-    │   │   └── Spread_barabasi_albert_graph_prob_0.3_trial_0.stats.csv@2023-03-23_14.30.57
-    │   ├── Spread_barabasi_albert_graph_prob_0.3.dumped.yml
-    │   ├── Spread_barabasi_albert_graph_prob_0.3.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.csv
-    │   ├── Spread_barabasi_albert_graph_prob_0.3_trial_0.sqlite
-    │   └── Spread_barabasi_albert_graph_prob_0.3_trial_0.stats.csv
-    ├── [01;34mSpread_barabasi_albert_graph_prob_0.4[00m
-    │   ├── [01;34mbackup[00m
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.dumped.yml@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.dumped.yml@2023-03-23_14.06.32
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.dumped.yml@2023-03-23_14.19.35
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.dumped.yml@2023-03-23_14.30.57
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.sqlite@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.sqlite@2023-03-23_14.06.32
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.sqlite@2023-03-23_14.19.35
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4.sqlite@2023-03-23_14.30.57
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.csv@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.csv@2023-03-23_14.06.32
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.csv@2023-03-23_14.19.35
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.csv@2023-03-23_14.30.57
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.sqlite@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.sqlite@2023-03-23_14.06.32
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.sqlite@2023-03-23_14.19.35
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.sqlite@2023-03-23_14.30.57
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.stats.csv@2023-03-23_12.57.36
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.stats.csv@2023-03-23_14.06.32
-    │   │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.stats.csv@2023-03-23_14.19.35
-    │   │   └── Spread_barabasi_albert_graph_prob_0.4_trial_0.stats.csv@2023-03-23_14.30.57
-    │   ├── Spread_barabasi_albert_graph_prob_0.4.dumped.yml
-    │   ├── Spread_barabasi_albert_graph_prob_0.4.sqlite
-    │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.csv
-    │   ├── Spread_barabasi_albert_graph_prob_0.4_trial_0.sqlite
-    │   └── Spread_barabasi_albert_graph_prob_0.4_trial_0.stats.csv
-    ├── [01;34mSpread_erdos_renyi_graph_prob_0.0[00m
-    │   ├── [01;34mbackup[00m
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.dumped.yml@2023-03-23_12.57.26
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.dumped.yml@2023-03-23_14.06.21
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.dumped.yml@2023-03-23_14.19.24
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.dumped.yml@2023-03-23_14.30.47
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.sqlite@2023-03-23_12.57.26
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.sqlite@2023-03-23_14.06.22
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.sqlite@2023-03-23_14.19.25
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0.sqlite@2023-03-23_14.30.47
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.csv@2023-03-23_12.57.26
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.csv@2023-03-23_14.06.22
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.csv@2023-03-23_14.19.25
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.csv@2023-03-23_14.30.47
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.sqlite@2023-03-23_12.57.26
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.sqlite@2023-03-23_14.06.22
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.sqlite@2023-03-23_14.19.25
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.sqlite@2023-03-23_14.30.47
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.stats.csv@2023-03-23_12.57.26
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.stats.csv@2023-03-23_14.06.22
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.stats.csv@2023-03-23_14.19.25
-    │   │   └── Spread_erdos_renyi_graph_prob_0.0_trial_0.stats.csv@2023-03-23_14.30.47
-    │   ├── Spread_erdos_renyi_graph_prob_0.0.dumped.yml
-    │   ├── Spread_erdos_renyi_graph_prob_0.0.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.csv
-    │   ├── Spread_erdos_renyi_graph_prob_0.0_trial_0.sqlite
-    │   └── Spread_erdos_renyi_graph_prob_0.0_trial_0.stats.csv
-    ├── [01;34mSpread_erdos_renyi_graph_prob_0.1[00m
-    │   ├── [01;34mbackup[00m
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.dumped.yml@2023-03-23_12.57.28
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.dumped.yml@2023-03-23_14.06.24
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.dumped.yml@2023-03-23_14.19.26
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.dumped.yml@2023-03-23_14.30.49
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.sqlite@2023-03-23_12.57.28
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.sqlite@2023-03-23_14.06.24
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.sqlite@2023-03-23_14.19.27
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1.sqlite@2023-03-23_14.30.49
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.csv@2023-03-23_12.57.28
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.csv@2023-03-23_14.06.24
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.csv@2023-03-23_14.19.27
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.csv@2023-03-23_14.30.49
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.sqlite@2023-03-23_12.57.28
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.sqlite@2023-03-23_14.06.24
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.sqlite@2023-03-23_14.19.27
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.sqlite@2023-03-23_14.30.49
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.stats.csv@2023-03-23_12.57.28
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.stats.csv@2023-03-23_14.06.24
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.stats.csv@2023-03-23_14.19.27
-    │   │   └── Spread_erdos_renyi_graph_prob_0.1_trial_0.stats.csv@2023-03-23_14.30.49
-    │   ├── Spread_erdos_renyi_graph_prob_0.1.dumped.yml
-    │   ├── Spread_erdos_renyi_graph_prob_0.1.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.csv
-    │   ├── Spread_erdos_renyi_graph_prob_0.1_trial_0.sqlite
-    │   └── Spread_erdos_renyi_graph_prob_0.1_trial_0.stats.csv
-    ├── [01;34mSpread_erdos_renyi_graph_prob_0.2[00m
-    │   ├── [01;34mbackup[00m
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.dumped.yml@2023-03-23_12.57.30
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.dumped.yml@2023-03-23_14.06.26
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.dumped.yml@2023-03-23_14.19.28
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.dumped.yml@2023-03-23_14.30.51
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.sqlite@2023-03-23_12.57.31
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.sqlite@2023-03-23_14.06.26
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.sqlite@2023-03-23_14.19.29
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2.sqlite@2023-03-23_14.30.51
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.csv@2023-03-23_12.57.31
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.csv@2023-03-23_14.06.26
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.csv@2023-03-23_14.19.29
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.csv@2023-03-23_14.30.51
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.sqlite@2023-03-23_12.57.31
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.sqlite@2023-03-23_14.06.26
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.sqlite@2023-03-23_14.19.29
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.sqlite@2023-03-23_14.30.51
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.stats.csv@2023-03-23_12.57.31
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.stats.csv@2023-03-23_14.06.26
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.stats.csv@2023-03-23_14.19.29
-    │   │   └── Spread_erdos_renyi_graph_prob_0.2_trial_0.stats.csv@2023-03-23_14.30.51
-    │   ├── Spread_erdos_renyi_graph_prob_0.2.dumped.yml
-    │   ├── Spread_erdos_renyi_graph_prob_0.2.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.csv
-    │   ├── Spread_erdos_renyi_graph_prob_0.2_trial_0.sqlite
-    │   └── Spread_erdos_renyi_graph_prob_0.2_trial_0.stats.csv
-    ├── [01;34mSpread_erdos_renyi_graph_prob_0.3[00m
-    │   ├── [01;34mbackup[00m
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.dumped.yml@2023-03-23_12.57.32
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.dumped.yml@2023-03-23_14.06.28
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.dumped.yml@2023-03-23_14.19.31
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.dumped.yml@2023-03-23_14.30.53
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.sqlite@2023-03-23_12.57.33
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.sqlite@2023-03-23_14.06.28
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.sqlite@2023-03-23_14.19.31
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3.sqlite@2023-03-23_14.30.53
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.csv@2023-03-23_12.57.33
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.csv@2023-03-23_14.06.28
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.csv@2023-03-23_14.19.31
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.csv@2023-03-23_14.30.53
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.sqlite@2023-03-23_12.57.33
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.sqlite@2023-03-23_14.06.28
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.sqlite@2023-03-23_14.19.31
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.sqlite@2023-03-23_14.30.53
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.stats.csv@2023-03-23_12.57.33
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.stats.csv@2023-03-23_14.06.28
-    │   │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.stats.csv@2023-03-23_14.19.31
-    │   │   └── Spread_erdos_renyi_graph_prob_0.3_trial_0.stats.csv@2023-03-23_14.30.53
-    │   ├── Spread_erdos_renyi_graph_prob_0.3.dumped.yml
-    │   ├── Spread_erdos_renyi_graph_prob_0.3.sqlite
-    │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.csv
-    │   ├── Spread_erdos_renyi_graph_prob_0.3_trial_0.sqlite
-    │   └── Spread_erdos_renyi_graph_prob_0.3_trial_0.stats.csv
-    └── [01;34mSpread_erdos_renyi_graph_prob_0.4[00m
-        ├── [01;34mbackup[00m
-        │   ├── Spread_erdos_renyi_graph_prob_0.4.dumped.yml@2023-03-23_12.57.34
-        │   ├── Spread_erdos_renyi_graph_prob_0.4.dumped.yml@2023-03-23_14.06.30
-        │   ├── Spread_erdos_renyi_graph_prob_0.4.dumped.yml@2023-03-23_14.19.33
-        │   ├── Spread_erdos_renyi_graph_prob_0.4.dumped.yml@2023-03-23_14.30.55
-        │   ├── Spread_erdos_renyi_graph_prob_0.4.sqlite@2023-03-23_12.57.35
-        │   ├── Spread_erdos_renyi_graph_prob_0.4.sqlite@2023-03-23_14.06.30
-        │   ├── Spread_erdos_renyi_graph_prob_0.4.sqlite@2023-03-23_14.19.33
-        │   ├── Spread_erdos_renyi_graph_prob_0.4.sqlite@2023-03-23_14.30.56
-        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.csv@2023-03-23_12.57.35
-        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.csv@2023-03-23_14.06.30
-        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.csv@2023-03-23_14.19.33
-        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.csv@2023-03-23_14.30.56
-        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.sqlite@2023-03-23_12.57.35
-        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.sqlite@2023-03-23_14.06.30
-        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.sqlite@2023-03-23_14.19.33
-        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.sqlite@2023-03-23_14.30.56
-        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.stats.csv@2023-03-23_12.57.35
-        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.stats.csv@2023-03-23_14.06.30
-        │   ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.stats.csv@2023-03-23_14.19.33
-        │   └── Spread_erdos_renyi_graph_prob_0.4_trial_0.stats.csv@2023-03-23_14.30.56
-        ├── Spread_erdos_renyi_graph_prob_0.4.dumped.yml
-        ├── Spread_erdos_renyi_graph_prob_0.4.sqlite
-        ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.csv
-        ├── Spread_erdos_renyi_graph_prob_0.4_trial_0.sqlite
-        └── Spread_erdos_renyi_graph_prob_0.4_trial_0.stats.csv
+    └── [01;34mnewspread[00m
+        ├── newspread_1681989837.124865.dumped.yml
+        ├── newspread_1681990513.1584163.dumped.yml
+        ├── newspread_1681990524.5204282.dumped.yml
+        ├── newspread_1681990796.858183.dumped.yml
+        ├── newspread_1682002299.544348.dumped.yml
+        ├── newspread_1682003721.597205.dumped.yml
+        ├── newspread_1682003784.1948986.dumped.yml
+        ├── newspread_1682003812.4626257.dumped.yml
+        ├── newspread_1682004020.182087.dumped.yml
+        ├── newspread_1682004044.6837814.dumped.yml
+        ├── newspread_1682004398.267355.dumped.yml
+        ├── newspread_1682004564.1052232.dumped.yml
+        └── newspread.sqlite
     
-    20 directories, 250 files
-    1.3M	soil_output/Spread_barabasi_albert_graph_prob_0.0/backup
-    1.7M	soil_output/Spread_barabasi_albert_graph_prob_0.0
-    1.3M	soil_output/Spread_barabasi_albert_graph_prob_0.1/backup
-    1.7M	soil_output/Spread_barabasi_albert_graph_prob_0.1
-    1.3M	soil_output/Spread_barabasi_albert_graph_prob_0.2/backup
-    1.6M	soil_output/Spread_barabasi_albert_graph_prob_0.2
-    1.3M	soil_output/Spread_barabasi_albert_graph_prob_0.3/backup
-    1.7M	soil_output/Spread_barabasi_albert_graph_prob_0.3
-    1.3M	soil_output/Spread_barabasi_albert_graph_prob_0.4/backup
-    1.7M	soil_output/Spread_barabasi_albert_graph_prob_0.4
-    2.7M	soil_output/Spread_erdos_renyi_graph_prob_0.0/backup
-    3.4M	soil_output/Spread_erdos_renyi_graph_prob_0.0
-    2.7M	soil_output/Spread_erdos_renyi_graph_prob_0.1/backup
-    3.4M	soil_output/Spread_erdos_renyi_graph_prob_0.1
-    2.7M	soil_output/Spread_erdos_renyi_graph_prob_0.2/backup
-    3.4M	soil_output/Spread_erdos_renyi_graph_prob_0.2
-    2.7M	soil_output/Spread_erdos_renyi_graph_prob_0.3/backup
-    3.4M	soil_output/Spread_erdos_renyi_graph_prob_0.3
-    2.7M	soil_output/Spread_erdos_renyi_graph_prob_0.4/backup
-    3.4M	soil_output/Spread_erdos_renyi_graph_prob_0.4
+    1 directory, 13 files
+    21M	soil_output/newspread
 
 
 Analysing the results
----------------------
+~~~~~~~~~~~~~~~~~~~~~
 
 Loading data
-~~~~~~~~~~~~
+^^^^^^^^^^^^
 
 Once the simulations are over, we can use soil to analyse the results.
 
-Soil allows you to load results for specific trials, or for a set of
-trials if you specify a pattern. The specific methods are:
+There are two main ways: directly using the iterations returned by the
+``run`` method, or loading up data from the results database. This is
+particularly useful to store data between sessions, and to accumulate
+results over multiple runs.
 
--  ``analysis.read_data(<directory pattern>)`` to load all the results
-   from a directory. e.g. \ ``read_data('my_simulation/')``. For each
-   trial it finds in each folder matching the pattern, it will return
-   the dumped configuration for the simulation, the results of the
-   trial, and the configuration itself. By default, it will try to load
-   data from the sqlite database.
--  ``analysis.read_csv(<csv_file>)`` to load all the results from a CSV
-   file.
-   e.g. \ ``read_csv('my_simulation/my_simulation_trial0.environment.csv')``
+The mainThe main method to load data from the database is ``read_sql``,
+which can be used in two ways:
+
 -  ``analysis.read_sql(<sqlite_file>)`` to load all the results from a
-   sqlite database .
-   e.g. \ ``read_sql('my_simulation/my_simulation_trial0.db.sqlite')``
+   sqlite database . e.g. \ ``read_sql('my_simulation/file.db.sqlite')``
+-  ``analysis.read_sql(name=<simulation name>)`` will look for the
+   default path for a simulation named ``<simulation name>``
+
+The result in both cases is a named tuple with four dataframes:
+
+-  ``configuration``, which contains configuration parameters per
+   simulation
+-  ``parameters``, which shows the parameters used **in every
+   iteration** of every simulation
+-  ``env``, with the data collected from the model in each iteration (as
+   specified in ``model_reporters``)
+-  ``agents``, like ``env``, but for ``agent_reporters``
 
 Let’s see it in action by loading the stored results into a pandas
 dataframe:
 
 .. code:: ipython3
 
-    from soil import analysis
-    import pandas as pd
-
-.. code:: ipython3
-
-    df = analysis.read_csv('soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0_trial_0.csv')
-    df
-
-
-
-
-.. raw:: html
-
-    <div>
-    <style scoped>
-        .dataframe tbody tr th:only-of-type {
-            vertical-align: middle;
-        }
-    
-        .dataframe tbody tr th {
-            vertical-align: top;
-        }
-    
-        .dataframe thead tr th {
-            text-align: left;
-        }
-    
-        .dataframe thead tr:last-of-type th {
-            text-align: right;
-        }
-    </style>
-    <table border="1" class="dataframe">
-      <thead>
-        <tr>
-          <th>key</th>
-          <th>SEED</th>
-          <th colspan="9" halign="left">alive</th>
-          <th>...</th>
-          <th colspan="10" halign="left">state_id</th>
-        </tr>
-        <tr>
-          <th>agent_id</th>
-          <th>env</th>
-          <th>0</th>
-          <th>1</th>
-          <th>10</th>
-          <th>100</th>
-          <th>101</th>
-          <th>102</th>
-          <th>103</th>
-          <th>104</th>
-          <th>105</th>
-          <th>...</th>
-          <th>90</th>
-          <th>91</th>
-          <th>92</th>
-          <th>93</th>
-          <th>94</th>
-          <th>95</th>
-          <th>96</th>
-          <th>97</th>
-          <th>98</th>
-          <th>99</th>
-        </tr>
-        <tr>
-          <th>t_step</th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <th>0.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>1.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>2.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>3.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>4.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>5.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>6.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>7.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>8.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>9.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>10.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>11.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>12.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>13.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>14.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>15.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>16.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>17.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>18.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>19.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-      </tbody>
-    </table>
-    <p>20 rows × 2507 columns</p>
-    </div>
-
-
-
-Soil can also process the data for us and split the results into
-environment attributes and agent attributes:
-
-.. code:: ipython3
-
-    env, agents = analysis.split_processed(df)
-
-.. code:: ipython3
-
-    agents
-
-
-
-
-.. raw:: html
-
-    <div>
-    <style scoped>
-        .dataframe tbody tr th:only-of-type {
-            vertical-align: middle;
-        }
-    
-        .dataframe tbody tr th {
-            vertical-align: top;
-        }
-    
-        .dataframe thead tr th {
-            text-align: left;
-        }
-    
-        .dataframe thead tr:last-of-type th {
-            text-align: right;
-        }
-    </style>
-    <table border="1" class="dataframe">
-      <thead>
-        <tr>
-          <th>key</th>
-          <th colspan="10" halign="left">alive</th>
-          <th>...</th>
-          <th colspan="10" halign="left">state_id</th>
-        </tr>
-        <tr>
-          <th>agent_id</th>
-          <th>0</th>
-          <th>1</th>
-          <th>10</th>
-          <th>100</th>
-          <th>101</th>
-          <th>102</th>
-          <th>103</th>
-          <th>104</th>
-          <th>105</th>
-          <th>106</th>
-          <th>...</th>
-          <th>90</th>
-          <th>91</th>
-          <th>92</th>
-          <th>93</th>
-          <th>94</th>
-          <th>95</th>
-          <th>96</th>
-          <th>97</th>
-          <th>98</th>
-          <th>99</th>
-        </tr>
-        <tr>
-          <th>t_step</th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <th>0.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>1.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>2.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>3.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>4.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>5.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>6.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>7.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>8.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>9.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>10.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>11.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>12.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>13.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>14.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>15.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>16.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>17.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>18.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>19.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-      </tbody>
-    </table>
-    <p>20 rows × 2504 columns</p>
-    </div>
-
-
-
-The index of the results are the simulation step. Hence, we can access
-the state of the simulation at a given step (e.g., 13):
-
-.. code:: ipython3
-
-    agents.loc[13, 'state_id']
-
-
-
-
-.. parsed-literal::
-
-    agent_id
-    0      infected
-    1      infected
-    10     infected
-    100    infected
-    101    infected
-             ...   
-    95     infected
-    96     infected
-    97     infected
-    98     infected
-    99     infected
-    Name: 13.0, Length: 500, dtype: object
-
-
-
-Or, we can perform more complex tasks such as showing the agents that
-have changed their state between two simulation steps (2 and 1):
-
-.. code:: ipython3
-
-    (agents.loc[2]['state_id'] != agents.loc[1]['state_id']).sum()
-
-
-
-
-.. parsed-literal::
-
-    2
-
-
-
-To focus on specific agents, we can swap the levels of the index:
-
-.. code:: ipython3
-
-    agents.swaplevel(axis=1)
-
-
-
-
-.. raw:: html
-
-    <div>
-    <style scoped>
-        .dataframe tbody tr th:only-of-type {
-            vertical-align: middle;
-        }
-    
-        .dataframe tbody tr th {
-            vertical-align: top;
-        }
-    
-        .dataframe thead tr th {
-            text-align: left;
-        }
-    
-        .dataframe thead tr:last-of-type th {
-            text-align: right;
-        }
-    </style>
-    <table border="1" class="dataframe">
-      <thead>
-        <tr>
-          <th>agent_id</th>
-          <th>0</th>
-          <th>1</th>
-          <th>10</th>
-          <th>100</th>
-          <th>101</th>
-          <th>102</th>
-          <th>103</th>
-          <th>104</th>
-          <th>105</th>
-          <th>106</th>
-          <th>...</th>
-          <th>90</th>
-          <th>91</th>
-          <th>92</th>
-          <th>93</th>
-          <th>94</th>
-          <th>95</th>
-          <th>96</th>
-          <th>97</th>
-          <th>98</th>
-          <th>99</th>
-        </tr>
-        <tr>
-          <th>key</th>
-          <th>alive</th>
-          <th>alive</th>
-          <th>alive</th>
-          <th>alive</th>
-          <th>alive</th>
-          <th>alive</th>
-          <th>alive</th>
-          <th>alive</th>
-          <th>alive</th>
-          <th>alive</th>
-          <th>...</th>
-          <th>state_id</th>
-          <th>state_id</th>
-          <th>state_id</th>
-          <th>state_id</th>
-          <th>state_id</th>
-          <th>state_id</th>
-          <th>state_id</th>
-          <th>state_id</th>
-          <th>state_id</th>
-          <th>state_id</th>
-        </tr>
-        <tr>
-          <th>t_step</th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <th>0.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>1.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>2.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>3.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>4.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>5.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>6.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>7.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>8.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>9.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>10.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>11.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>12.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>13.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>14.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>15.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>16.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>17.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>18.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>19.0</th>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-      </tbody>
-    </table>
-    <p>20 rows × 2504 columns</p>
-    </div>
-
-
+    res = soil.read_sql(name="newspread", include_agents=True)
 
 Plotting data
 ~~~~~~~~~~~~~
 
-If you don’t want to work with pandas, you can also use some pre-defined
-functions from soil to conveniently plot the results:
+Once we have loaded the results from the file, we can use them just like
+any other dataframe.
+
+Here is an example of plotting the ratio of infected users in each of
+our simulations:
 
 .. code:: ipython3
 
-    analysis.plot_all('soil_output/Spread_barabasi_albert_graph_prob_0.0/', analysis.get_count, 'state_id');
-
-
-
-.. image:: output_55_0.png
-
-
-.. code:: ipython3
-
-    analysis.plot_all('soil_output/Spread_barabasi_albert_graph_prob_0.3/', analysis.get_count, 'state_id');
-
-
-
-.. image:: output_56_0.png
-
-
-You can use wildcards in the results path:
-
-.. code:: ipython3
-
-    analysis.plot_all('soil_output/Spread_barabasi*/', analysis.get_count, 'state_id');
-
-
-
-.. image:: output_58_0.png
-
-
-
-.. image:: output_58_1.png
-
-
-
-.. image:: output_58_2.png
-
-
-
-.. image:: output_58_3.png
-
-
-
-.. image:: output_58_4.png
-
-
-If we compare these results to those of the other graph model (a
-fully-connected graph), we can see a stark difference:
-
-.. code:: ipython3
-
-    analysis.plot_all('soil_output/Spread_erdos*', analysis.get_count, 'state_id');
-
-
-
-.. image:: output_60_0.png
-
-
-
-.. image:: output_60_1.png
-
-
-
-.. image:: output_60_2.png
-
-
-
-.. image:: output_60_3.png
-
-
-
-.. image:: output_60_4.png
-
-
-The previous cells were using the ``count_value`` function for
-aggregation. There’s another function to plot numeral values:
-
-.. code:: ipython3
-
-    analysis.plot_all('soil_output/Spread_erdos*', analysis.get_value, 'prob_tv_spread');
-
-
-
-.. image:: output_62_0.png
-
-
-
-.. image:: output_62_1.png
-
-
-
-.. image:: output_62_2.png
-
-
-
-.. image:: output_62_3.png
-
-
-
-.. image:: output_62_4.png
-
-
-Manually plotting with pandas
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Although the simplest way to visualize the results of a simulation is to
-use the built-in methods in the analysis module, sometimes the setup is
-more complicated and we need to explore the data a little further.
-
-For that, we can use native pandas over the results.
-
-Soil provides some convenience methods to simplify common operations:
-
--  ``analysis.split_df`` to separate a history dataframe into
-   environment and agent parameters.
--  ``analysis.get_count`` to get a dataframe with the value counts for
-   different attributes during the simulation.
--  ``analysis.get_value`` to get the evolution of the value of an
-   attribute during the simulation.
-
-And, as we saw earlier, ``analysis.process`` can turn a dataframe in
-canonical form into a dataframe with a column per attribute.
-
-.. code:: ipython3
-
-    !ls soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0*
-
-
-.. parsed-literal::
-
-    soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0.dumped.yml
-    soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0.sqlite
-    soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0_trial_0.csv
-    soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0_trial_0.sqlite
-    soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0_trial_0.stats.csv
+    for (g, group) in res.env.dropna().groupby("params_id"):
+        params = res.parameters.query(f'params_id == "{g}"').iloc[0]
+        title = f"{params.generator.rstrip('_graph')} {params.prob_neighbor_spread}"
+        prob = group.groupby(by=["step"]).prob_neighbor_spread.mean()
+        line = "-"
+        if "barabasi" in params.generator:
+            line = "--"
+        prob.rename(title).fillna(0).plot(linestyle=line)
+    plt.title("Mean probability for each configuration")
+    plt.legend();
+
+
+
+.. image:: output_49_0.png
 
 
 .. code:: ipython3
 
-    df = analysis.read_sql('soil_output/Spread_barabasi_albert_graph_prob_0.0/Spread_barabasi_albert_graph_prob_0.0_trial_0.sqlite')
-    df
+    for (g, group) in res.agents.dropna().groupby("params_id"):
+        params = res.parameters.query(f'params_id == "{g}"').iloc[0]
+        title = f"{params.generator.rstrip('_graph')} {params.prob_neighbor_spread}"
+        counts = group.groupby(by=["step", "state_id"]).value_counts().unstack()
+        line = "-"
+        if "barabasi" in params.generator:
+            line = "--"
+        (counts.infected/counts.sum(axis=1)).rename(title).fillna(0).plot(linestyle=line)
+    plt.legend()
+    plt.xlim([9, None]);
+    plt.title("Ratio of infected users");
+
+
+
+.. image:: output_50_0.png
+
+
+Data format
+-----------
+
+Parameters
+~~~~~~~~~~
+
+The ``parameters`` dataframe has three keys:
+
+-  The identifier of the simulation. This will be shared by all
+   iterations launched in the same run
+-  The identifier of the parameters used in the simulation. This will be
+   shared by all iterations that have the exact same set of parameters.
+-  The identifier of the iteration. Each row should have a different
+   iteration identifier
+
+There will be a column per each parameter passed to the environment. In
+this case, that’s three: **generator**, **n** and
+**prob_neighbor_spread**.
+
+.. code:: ipython3
+
+    res.parameters.head()
 
 
 
@@ -2659,49 +1041,131 @@ canonical form into a dataframe with a column per attribute.
             vertical-align: top;
         }
     
-        .dataframe thead tr th {
-            text-align: left;
-        }
-    
-        .dataframe thead tr:last-of-type th {
+        .dataframe thead th {
             text-align: right;
         }
     </style>
     <table border="1" class="dataframe">
       <thead>
-        <tr>
+        <tr style="text-align: right;">
+          <th></th>
+          <th></th>
           <th>key</th>
-          <th>SEED</th>
-          <th colspan="9" halign="left">alive</th>
-          <th>...</th>
-          <th colspan="10" halign="left">state_id</th>
+          <th>generator</th>
+          <th>n</th>
+          <th>prob_neighbor_spread</th>
         </tr>
         <tr>
-          <th>dict_id</th>
-          <th>env</th>
-          <th>0</th>
-          <th>1</th>
-          <th>10</th>
-          <th>100</th>
-          <th>101</th>
-          <th>102</th>
-          <th>103</th>
-          <th>104</th>
-          <th>105</th>
-          <th>...</th>
-          <th>90</th>
-          <th>91</th>
-          <th>92</th>
-          <th>93</th>
-          <th>94</th>
-          <th>95</th>
-          <th>96</th>
-          <th>97</th>
-          <th>98</th>
-          <th>99</th>
+          <th>iteration_id</th>
+          <th>params_id</th>
+          <th>simulation_id</th>
+          <th></th>
+          <th></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th rowspan="5" valign="top">0</th>
+          <th>39063f8</th>
+          <th>newspread_1682002299.544348</th>
+          <td>erdos_renyi_graph</td>
+          <td>100</td>
+          <td>1.0</td>
         </tr>
         <tr>
-          <th>t_step</th>
+          <th>5db645d</th>
+          <th>newspread_1682002299.544348</th>
+          <td>barabasi_albert_graph</td>
+          <td>100</td>
+          <td>0.0</td>
+        </tr>
+        <tr>
+          <th>8f26adb</th>
+          <th>newspread_1682002299.544348</th>
+          <td>barabasi_albert_graph</td>
+          <td>100</td>
+          <td>0.5</td>
+        </tr>
+        <tr>
+          <th>cb3dbca</th>
+          <th>newspread_1682002299.544348</th>
+          <td>erdos_renyi_graph</td>
+          <td>100</td>
+          <td>0.5</td>
+        </tr>
+        <tr>
+          <th>d1fe9c1</th>
+          <th>newspread_1682002299.544348</th>
+          <td>barabasi_albert_graph</td>
+          <td>100</td>
+          <td>1.0</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
+
+Configuration
+~~~~~~~~~~~~~
+
+This dataset is indexed by the identifier of the simulation, and there
+will be a column per each attribute of the simulation. For instance,
+there is one for the number of processes used, another one for the path
+where the results were stored, etc.
+
+.. code:: ipython3
+
+    res.config.head()
+
+
+
+
+.. raw:: html
+
+    <div>
+    <style scoped>
+        .dataframe tbody tr th:only-of-type {
+            vertical-align: middle;
+        }
+    
+        .dataframe tbody tr th {
+            vertical-align: top;
+        }
+    
+        .dataframe thead th {
+            text-align: right;
+        }
+    </style>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>index</th>
+          <th>version</th>
+          <th>source_file</th>
+          <th>name</th>
+          <th>description</th>
+          <th>group</th>
+          <th>backup</th>
+          <th>overwrite</th>
+          <th>dry_run</th>
+          <th>dump</th>
+          <th>...</th>
+          <th>num_processes</th>
+          <th>exporters</th>
+          <th>model_reporters</th>
+          <th>agent_reporters</th>
+          <th>tables</th>
+          <th>outdir</th>
+          <th>exporter_params</th>
+          <th>level</th>
+          <th>skip_test</th>
+          <th>debug</th>
+        </tr>
+        <tr>
+          <th>simulation_id</th>
           <th></th>
           <th></th>
           <th></th>
@@ -2727,979 +1191,215 @@ canonical form into a dataframe with a column per attribute.
       </thead>
       <tbody>
         <tr>
-          <th>0.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
+          <th>newspread_1682002299.544348</th>
+          <td>0</td>
+          <td>2</td>
+          <td>None</td>
+          <td>newspread</td>
+          <td></td>
+          <td>None</td>
+          <td>False</td>
           <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>1.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
+          <td>False</td>
           <td>True</td>
           <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>2.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>3.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>4.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>5.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>6.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>7.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>8.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>9.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>10.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>neutral</td>
-        </tr>
-        <tr>
-          <th>11.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>neutral</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>12.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>13.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>14.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>15.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>16.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>17.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>18.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-        </tr>
-        <tr>
-          <th>19.0</th>
-          <td>Spread_barabasi_albert_graph_prob_0.0_trial_0</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>True</td>
-          <td>...</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
-          <td>infected</td>
+          <td>1</td>
+          <td>[&lt;class 'soil.exporters.default'&gt;]</td>
+          <td>{}</td>
+          <td>{}</td>
+          <td>{}</td>
+          <td>/mnt/data/home/j/git/lab.gsi/soil/soil/example...</td>
+          <td>{}</td>
+          <td>20</td>
+          <td>False</td>
+          <td>False</td>
         </tr>
       </tbody>
     </table>
-    <p>20 rows × 3008 columns</p>
+    <p>1 rows × 29 columns</p>
     </div>
 
 
 
-Let’s look at the evolution of agent parameters in the simulation
+Model reporters
+~~~~~~~~~~~~~~~
+
+The ``env`` dataframe includes the data collected from the model. The
+keys in this case are the same as ``parameters``, and an additional one:
+**step**.
 
 .. code:: ipython3
 
-    df.plot()
-
-
-
-
-.. parsed-literal::
-
-    <Axes: xlabel='t_step'>
-
-
-
-
-.. image:: output_68_1.png
-
-
-As we can see, ``event_time`` and ``interval`` are cluttering our
-results,
-
-.. code:: ipython3
-
-    del df['interval']
-    del df['event_time']
-    df.plot()
-
-
-
-
-.. parsed-literal::
-
-    <Axes: xlabel='t_step'>
-
-
-
-
-.. image:: output_70_1.png
-
-
-The ``soil.analysis`` module also provides convenient functions to count
-the number of agents in a given state:
-
-.. code:: ipython3
-
-    analysis.get_count(agents, 'state_id').plot();
-
-
-
-.. image:: output_72_0.png
-
-
-Dealing with bigger data
-------------------------
-
-.. code:: ipython3
-
-    from soil import analysis
-
-.. code:: ipython3
-
-    !du -xsh ../rabbits/soil_output/rabbits_example/
-
-
-.. parsed-literal::
-
-    1.1M	../rabbits/soil_output/rabbits_example/
-
-
-If we tried to load the entire history, we would probably run out of
-memory. Hence, it is recommended that you also specify the attributes
-you are interested in.
-
-.. code:: ipython3
-
-    p = analysis.plot_all('../rabbits/soil_output/rabbits_example/', analysis.get_count, 'state_id')
-
-
-
-.. image:: output_77_0.png
-
-
-.. code:: ipython3
-
-    !ls ../rabbits/soil_output/rabbits_example
-
-
-.. parsed-literal::
-
-    backup			    rabbits_example.sqlite
-    rabbits_example.dumped.yml  rabbits_example_trial_0.sqlite
-
-
-.. code:: ipython3
-
-    df = analysis.read_sql('../rabbits/soil_output/rabbits_example/rabbits_example_trial_0.sqlite', keys=['state_id', 'rabbits_alive'])
-
-.. code:: ipython3
-
-    df
-
-
-
-
-.. raw:: html
-
-    <div>
-    <style scoped>
-        .dataframe tbody tr th:only-of-type {
-            vertical-align: middle;
-        }
-    
-        .dataframe tbody tr th {
-            vertical-align: top;
-        }
-    
-        .dataframe thead tr th {
-            text-align: left;
-        }
-    
-        .dataframe thead tr:last-of-type th {
-            text-align: right;
-        }
-    </style>
-    <table border="1" class="dataframe">
-      <thead>
-        <tr>
-          <th>key</th>
-          <th>rabbits_alive</th>
-          <th colspan="20" halign="left">state_id</th>
-        </tr>
-        <tr>
-          <th>dict_id</th>
-          <th>env</th>
-          <th>0</th>
-          <th>1</th>
-          <th>10</th>
-          <th>100</th>
-          <th>101</th>
-          <th>102</th>
-          <th>103</th>
-          <th>104</th>
-          <th>105</th>
-          <th>...</th>
-          <th>90</th>
-          <th>91</th>
-          <th>92</th>
-          <th>93</th>
-          <th>94</th>
-          <th>95</th>
-          <th>96</th>
-          <th>97</th>
-          <th>98</th>
-          <th>99</th>
-        </tr>
-        <tr>
-          <th>t_step</th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <th>0.0</th>
-          <td>0</td>
-          <td>newborn</td>
-          <td>newborn</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>...</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-        </tr>
-        <tr>
-          <th>2.0</th>
-          <td>0</td>
-          <td>fertile</td>
-          <td>fertile</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>...</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-        </tr>
-        <tr>
-          <th>16.0</th>
-          <td>0</td>
-          <td>pregnant</td>
-          <td>fertile</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>...</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-        </tr>
-        <tr>
-          <th>49.0</th>
-          <td>8</td>
-          <td>fertile</td>
-          <td>fertile</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>...</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-        </tr>
-        <tr>
-          <th>51.0</th>
-          <td>8</td>
-          <td>fertile</td>
-          <td>fertile</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>...</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-          <td>nan</td>
-        </tr>
-        <tr>
-          <th>...</th>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-          <td>...</td>
-        </tr>
-        <tr>
-          <th>739.0</th>
-          <td>15</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>...</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-        </tr>
-        <tr>
-          <th>742.0</th>
-          <td>14</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>...</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-        </tr>
-        <tr>
-          <th>743.0</th>
-          <td>12</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>...</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-        </tr>
-        <tr>
-          <th>744.0</th>
-          <td>10</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>...</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-        </tr>
-        <tr>
-          <th>751.0</th>
-          <td>9</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>...</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>fertile</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-          <td>dead</td>
-        </tr>
-      </tbody>
-    </table>
-    <p>326 rows × 349 columns</p>
-    </div>
-
-
-
-.. code:: ipython3
-
-    states = analysis.get_count(df, 'state_id')
-    states.plot();
+    res.env.head()
 
 
 
 .. image:: output_81_0.png
 
+.. raw:: html
 
-.. code:: ipython3
+    <div>
+    <style scoped>
+        .dataframe tbody tr th:only-of-type {
+            vertical-align: middle;
+        }
+    
+        .dataframe tbody tr th {
+            vertical-align: top;
+        }
+    
+        .dataframe thead th {
+            text-align: right;
+        }
+    </style>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th>agent_count</th>
+          <th>time</th>
+          <th>prob_tv_spread</th>
+          <th>prob_neighbor_spread</th>
+        </tr>
+        <tr>
+          <th>simulation_id</th>
+          <th>params_id</th>
+          <th>iteration_id</th>
+          <th>step</th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th rowspan="5" valign="top">newspread_1682002299.544348</th>
+          <th rowspan="5" valign="top">fcfc955</th>
+          <th rowspan="5" valign="top">0</th>
+          <th>0</th>
+          <td>101</td>
+          <td>0</td>
+          <td>0.0</td>
+          <td>0.0</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>101</td>
+          <td>1</td>
+          <td>0.0</td>
+          <td>0.0</td>
+        </tr>
+        <tr>
+          <th>2</th>
+          <td>101</td>
+          <td>2</td>
+          <td>0.0</td>
+          <td>0.0</td>
+        </tr>
+        <tr>
+          <th>3</th>
+          <td>101</td>
+          <td>3</td>
+          <td>0.0</td>
+          <td>0.0</td>
+        </tr>
+        <tr>
+          <th>4</th>
+          <td>101</td>
+          <td>4</td>
+          <td>0.0</td>
+          <td>0.0</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
 
-    alive = analysis.get_value(df, 'rabbits_alive', aggfunc='sum').apply(pd.to_numeric)
-    alive.plot()
 
 
+Agent reporters
+~~~~~~~~~~~~~~~
 
+This dataframe reflects the data collected for all the agents in the
+simulation, in every step where data collection was invoked.
 
-.. parsed-literal::
+The key in this dataframe is similar to the one in the ``parameters``
+dataframe, but there will be two more keys: the ``step`` and the
+``agent_id``. There will be a column per each agent reporter added to
+the model. In our case, there is only one: ``state_id``.
 
     <Axes: xlabel='t_step'>
 
+    res.agents.head()
 
 
 
-.. image:: output_82_1.png
 
+.. raw:: html
 
-.. code:: ipython3
+    <div>
+    <style scoped>
+        .dataframe tbody tr th:only-of-type {
+            vertical-align: middle;
+        }
+    
+        .dataframe tbody tr th {
+            vertical-align: top;
+        }
+    
+        .dataframe thead th {
+            text-align: right;
+        }
+    </style>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th>state_id</th>
+        </tr>
+        <tr>
+          <th>simulation_id</th>
+          <th>params_id</th>
+          <th>iteration_id</th>
+          <th>step</th>
+          <th>agent_id</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th rowspan="5" valign="top">newspread_1682002299.544348</th>
+          <th rowspan="5" valign="top">fcfc955</th>
+          <th rowspan="5" valign="top">0</th>
+          <th rowspan="5" valign="top">0</th>
+          <th>0</th>
+          <td>None</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>2</th>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>3</th>
+          <td>neutral</td>
+        </tr>
+        <tr>
+          <th>4</th>
+          <td>neutral</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
 
-    h = pd.concat([alive, states]);
-    h.plot();
-
-
-
-.. image:: output_83_0.png
 

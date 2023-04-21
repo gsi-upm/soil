@@ -1,8 +1,7 @@
-import random
-from . import BaseAgent
+from . import Agent, state, default_state
 
 
-class IndependentCascadeModel(BaseAgent):
+class IndependentCascadeModel(Agent):
     """
     Settings:
         innovation_prob
@@ -10,40 +9,22 @@ class IndependentCascadeModel(BaseAgent):
         imitation_prob
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.innovation_prob = self.env.environment_params['innovation_prob']
-        self.imitation_prob = self.env.environment_params['imitation_prob']
-        self.state['time_awareness'] = 0
-        self.state['sentimentCorrelation'] = 0
+    time_awareness = 0
+    sentimentCorrelation = 0
 
-    def step(self):
-        self.behaviour()
+    # Outside effects
+    @default_state
+    @state
+    def outside(self):
+        if self.prob(self.model.innovation_prob):
+            self.sentimentCorrelation = 1
+            self.time_awareness = self.model.now # To know when they have been infected
+            return self.imitate
 
-    def behaviour(self):
-        aware_neighbors_1_time_step = []
-        # Outside effects
-        if random.random() < self.innovation_prob:
-            if self.state['id'] == 0:
-                self.state['id'] = 1
-                self.state['sentimentCorrelation'] = 1
-                self.state['time_awareness'] = self.env.now  # To know when they have been infected
-            else:
-                pass
+    @state
+    def imitate(self):
+        aware_neighbors = self.get_neighbors(state_id=1, time_awareness=self.now-1)
 
-            return
-
-        # Imitation effects
-        if self.state['id'] == 0:
-            aware_neighbors = self.get_neighboring_agents(state_id=1)
-            for x in aware_neighbors:
-                if x.state['time_awareness'] == (self.env.now-1):
-                    aware_neighbors_1_time_step.append(x)
-            num_neighbors_aware = len(aware_neighbors_1_time_step)
-            if random.random() < (self.imitation_prob*num_neighbors_aware):
-                self.state['id'] = 1
-                self.state['sentimentCorrelation'] = 1
-            else:
-                pass
-
-            return
+        if self.prob(self.model.imitation_prob * len(aware_neighbors)):
+            self.sentimentCorrelation = 1
+            return self.outside
