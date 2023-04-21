@@ -77,7 +77,7 @@ class MetaAgent(ABCMeta):
             else:
                 defaults[attr] = copy(func)
 
-        return super().__new__(mcls=mcls, name=name, bases=bases, namespace=new_nmspc)
+        return super().__new__(mcls, name, bases, new_nmspc)
 
 
 class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
