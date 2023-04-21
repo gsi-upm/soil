@@ -36,7 +36,6 @@ Follow our [tutorial](examples/tutorial/soil_tutorial.ipynb) to develop your own
 * A command line interface (`soil`), to quickly run simulations with different parameters
 * An integrated debugger (`soil --debug`) with custom functions to print agent states and break at specific states
 
-
 ## Mesa compatibility
 
 SOIL has been redesigned to integrate well with [Mesa](https://github.com/projectmesa/mesa).
