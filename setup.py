@@ -17,9 +17,9 @@ def parse_requirements(filename):
 install_reqs = parse_requirements("requirements.txt")
 test_reqs = parse_requirements("test-requirements.txt")
 extras_require={
-    'mesa': ['mesa>=0.8.9'],
     'geo': ['scipy>=1.3'],
-    'web': ['tornado']
+    'web': ['tornado'],
+    'ipython': ['ipython==8.12', 'nbformat==5.8'],
 }
 extras_require['all'] = [dep for package in extras_require.values() for dep in package]
 

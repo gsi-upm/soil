@@ -7,7 +7,7 @@ ROOT = os.path.abspath(os.path.dirname(__file__))
 
 class TestNotebooks(TestCase):
     def test_tutorial(self):
-        notebook = os.path.join(ROOT, "../examples/tutorial/soil_tutorial.ipynb")
+        notebook = os.path.join(ROOT, "../docs/tutorial/soil_tutorial.ipynb")
         with open(notebook) as f:
             nb = nbformat.read(f, as_version=4)
             ep = ExecutePreprocessor(timeout=60000, kernel_name='python3')

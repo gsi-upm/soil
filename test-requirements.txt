@@ -2,3 +2,5 @@ pytest
 pytest-profiling
 scipy>=1.3
 tornado
+nbconvert==7.3.1
+nbformat==5.8.0

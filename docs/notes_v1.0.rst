@@ -1,3 +1,6 @@
+Upgrading to Soil 1.0
+---------------------
+
 What are the main changes in version 1.0?
 #########################################
 

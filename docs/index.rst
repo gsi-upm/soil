@@ -2,19 +2,20 @@ Welcome to Soil's documentation!
 ================================
 
 Soil is an opinionated Agent-based Social Simulator in Python focused on Social Networks.
+To get started developing your own simulations and agent behaviors, check out our :doc:`Tutorial <soil_tutorial>` and the `examples on GitHub <https://github.com/gsi-upm/soil/tree/master/examples>`.
+
+Soil can be installed through pip (see more details in the :doc:`installation` page):.
 
 .. image:: soil.png
   :width: 80%
   :align: center
 
-Soil can be installed through pip (see more details in the :doc:`installation` page):
 
 .. code:: bash
 
     pip install soil
 
 
-To get started developing your own simulations and agent behaviors, check out our :doc:`Tutorial <soil_tutorial>` and the `examples on GitHub <https://github.com/gsi-upm/soil/tree/master/examples>.
 
 If you use Soil in your research, do not forget to cite this paper:
 
@@ -46,7 +47,8 @@ If you use Soil in your research, do not forget to cite this paper:
    :caption: Learn more about soil:
 
    installation
-   Tutorial <soil_tutorial>
+   Tutorial <tutorial/soil_tutorial>
+   notes_v1.0
 
 ..
 

@@ -216,10 +216,11 @@ class BaseEnvironment(Model):
 
     @classmethod
     def run(cls, *,
+            name=None,
             iterations=1,
             num_processes=1, **kwargs):
         from .simulation import Simulation
-        return Simulation(name=cls.__name__,
+        return Simulation(name=name or cls.__name__,
                           model=cls, iterations=iterations,
                           num_processes=num_processes, **kwargs).run()
 
