@@ -119,28 +119,23 @@ class Simulation:
         self.logger = logger.getChild(self.name)
         self.logger.setLevel(self.level)
 
-        if self.source_file:
-            source_file = self.source_file
-            if not os.path.isabs(source_file):
-                source_file = os.path.abspath(os.path.join(self.dir_path, source_file))
-            serialization.add_source_file(source_file)
-            self.source_file = source_file
+        if self.source_file and (not os.path.isabs(self.source_file)):
+            self.source_file = os.path.abspath(os.path.join(self.dir_path, self.source_file))
+        with serialization.with_source(self.source_file):
 
-        if isinstance(self.model, str):
-            self.model = serialization.deserialize(self.model)
+            if isinstance(self.model, str):
+                self.model = serialization.deserialize(self.model)
 
-        def deserialize_reporters(reporters):
-            for (k, v) in reporters.items():
-                if isinstance(v, str) and v.startswith("py:"):
-                    reporters[k] = serialization.deserialize(v.split(":", 1)[1])
-            return reporters
+            def deserialize_reporters(reporters):
+                for (k, v) in reporters.items():
+                    if isinstance(v, str) and v.startswith("py:"):
+                        reporters[k] = serialization.deserialize(v.split(":", 1)[1])
+                return reporters
 
-        self.agent_reporters = deserialize_reporters(self.agent_reporters)
-        self.model_reporters = deserialize_reporters(self.model_reporters)
-        self.tables = deserialize_reporters(self.tables)
-        if self.source_file:
-            serialization.remove_source_file(self.source_file)
-        self.id = f"{self.name}_{current_time()}"
+            self.agent_reporters = deserialize_reporters(self.agent_reporters)
+            self.model_reporters = deserialize_reporters(self.model_reporters)
+            self.tables = deserialize_reporters(self.tables)
+            self.id = f"{self.name}_{current_time()}"
 
     def run(self, **kwargs):
         """Run the simulation and return the list of resulting environments"""
@@ -217,10 +212,7 @@ class Simulation:
     ):
         """Run the simulation and yield the resulting environments."""
 
-        try:
-            if self.source_file:
-                serialization.add_source_file(self.source_file)
-
+        with serialization.with_source(self.source_file):
             with utils.timer(f"running for config {params}"):
                 if self.dry_run:
                     def func(*args, **kwargs):
@@ -237,9 +229,6 @@ class Simulation:
                         continue
 
                     yield env
-        finally:
-            if self.source_file:
-                serialization.remove_source_file(self.source_file)
 
     def _get_env(self, iteration_id, params):
         """Create an environment for a iteration of the simulation"""

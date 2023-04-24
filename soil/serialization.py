@@ -8,6 +8,8 @@ import importlib.machinery, importlib.util
 from glob import glob
 from itertools import product, chain
 
+from contextlib import contextmanager
+
 import yaml
 import networkx as nx
 
@@ -110,12 +112,12 @@ KNOWN_MODULES = {
 
 MODULE_FILES = {}
 
-def add_source_file(file):
+def _add_source_file(file):
     """Add a file to the list of known modules"""
     file = os.path.abspath(file)
     if file in MODULE_FILES:
         logger.warning(f"File {file} already added as module {MODULE_FILES[file]}. Reloading")
-        remove_source_file(file)
+        _remove_source_file(file)
     modname = f"imported_module_{len(MODULE_FILES)}"
     loader = importlib.machinery.SourceFileLoader(modname, file)
     spec = importlib.util.spec_from_loader(loader.name, loader)
@@ -124,7 +126,7 @@ def add_source_file(file):
     MODULE_FILES[file] = modname
     KNOWN_MODULES[modname] = my_module
 
-def remove_source_file(file):
+def _remove_source_file(file):
     """Remove a file from the list of known modules"""
     file = os.path.abspath(file)
     modname = None
@@ -133,6 +135,18 @@ def remove_source_file(file):
         KNOWN_MODULES.pop(modname)
     except KeyError as ex:
         raise ValueError(f"File {file} had not been added as a module: {ex}")
+
+
+@contextmanager
+def with_source(file=None):
+    """Add a file to the list of known modules, and remove it afterwards"""
+    if file:
+        _add_source_file(file)
+    try:
+        yield
+    finally:
+        if file:
+            _remove_source_file(file)
 
 def get_module(modname):
     """Get a module from the list of known modules"""
