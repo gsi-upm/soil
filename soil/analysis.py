@@ -1,12 +1,11 @@
 import os
+import sys
 import sqlalchemy
 import pandas as pd
 from collections import namedtuple
 
 def plot(env, agent_df=None, model_df=None, steps=False, ignore=["agent_count", ]):
     """Plot the model dataframe and agent dataframe together."""
-    if agent_df is None:
-        agent_df = env.agent_df()
     if model_df is None:
         model_df = env.model_df()
     ignore = list(ignore)
@@ -16,9 +15,15 @@ def plot(env, agent_df=None, model_df=None, steps=False, ignore=["agent_count", 
         ignore.append("time")
 
     ax = model_df.drop(ignore, axis='columns').plot();
-    if not agent_df.empty:
-        agent_df.unstack().apply(lambda x: x.value_counts(),
-                                 axis=1).fillna(0).plot(ax=ax, secondary_y=True);
+    if agent_df is None:
+        try:
+            agent_df = env.agent_df()
+        except UserWarning:
+            print("No agent dataframe provided and no agent reporters found. Skipping agent plot.", file=sys.stderr)
+            return
+    agent_df.unstack().apply(lambda x: x.value_counts(),
+                                axis=1).fillna(0).plot(ax=ax, secondary_y=True);
+
 
 Results = namedtuple("Results", ["config", "parameters", "env", "agents"])
 #TODO implement reading from CSV and SQLITE
