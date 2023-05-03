@@ -1,0 +1,24 @@
+from soil import BaseAgent, Environment, Simulation
+
+
+class NoopAgent(BaseAgent):
+    num_calls = 0
+
+    async def step(self):
+        while True:
+            self.num_calls += 1
+            await self.delay()
+
+
+class NoopEnvironment(Environment):
+    num_agents = 100
+
+    def init(self):
+        self.add_agents(NoopAgent, k=self.num_agents)
+        self.add_agent_reporter("num_calls")
+
+
+if __name__ == "__main__":
+    from _config import *
+
+    run_sim(model=NoopEnvironment)
