@@ -103,7 +103,13 @@ def load_config(cfg):
         yield from load_files(cfg)
 
 
-builtins = importlib.import_module("builtins")
+_BUILTINS = None
+
+def builtins():
+    global _BUILTINS
+    if not _BUILTINS:
+        _BUILTINS = importlib.import_module("builtins")
+    return _BUILTINS
 
 KNOWN_MODULES = {
     'soil': None,
@@ -163,7 +169,7 @@ def name(value, known_modules=KNOWN_MODULES):
     if not isinstance(value, type):  # Get the class name first
         value = type(value)
     tname = value.__name__
-    if hasattr(builtins, tname):
+    if hasattr(builtins(), tname):
         return tname
     modname = value.__module__
     if modname == "__main__":
@@ -178,7 +184,7 @@ def name(value, known_modules=KNOWN_MODULES):
 
 
 def serializer(type_):
-    if type_ != "str" and hasattr(builtins, type_):
+    if type_ != "str":
         return repr
     return lambda x: x
 
@@ -216,8 +222,8 @@ def deserializer(type_, known_modules=KNOWN_MODULES):
         return lambda x="": x
     if type_ == "None":
         return lambda x=None: None
-    if hasattr(builtins, type_):  # Check if it's a builtin type
-        cls = getattr(builtins, type_)
+    if hasattr(builtins(), type_):  # Check if it's a builtin type
+        cls = getattr(builtins(), type_)
         return lambda x=None: ast.literal_eval(x) if x is not None else cls()
     match = IS_CLASS.match(type_)
     if match:

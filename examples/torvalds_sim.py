@@ -21,5 +21,4 @@ class TorvaldsEnv(Environment):
 
 sim = Simulation(name='torvalds_example',
                  max_steps=10,
-                 interval=2,
                  model=TorvaldsEnv)

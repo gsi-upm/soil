@@ -23,7 +23,7 @@ import json
 
 
 from . import serialization, exporters, utils, basestring, agents
-from .environment import Environment
+from . import environment
 from .utils import logger, run_and_return_exceptions
 from .debugging import set_trace
 
@@ -49,8 +49,6 @@ def _iter_queued():
 
 
 # TODO: change documentation for simulation
-# TODO: rename iterations to iterations
-# TODO: make parameters a dict of iterable/any
 @dataclass
 class Simulation:
     """
@@ -68,7 +66,6 @@ class Simulation:
         dir_path: The directory path to use for the simulation.
         max_time: The maximum time to run the simulation.
         max_steps: The maximum number of steps to run the simulation.
-        interval: The interval to use for the simulation.
         iterations: The number of iterations (times) to run the simulation.
         num_processes: The number of processes to use for the simulation. If greater than one, simulations will be performed in parallel. This may make debugging and error handling difficult.
         tables: The tables to use in the simulation datacollector
@@ -96,7 +93,6 @@ class Simulation:
     dir_path: str = field(default_factory=lambda: os.getcwd())
     max_time: float = None
     max_steps: int = None
-    interval: int = 1
     iterations: int = 1
     num_processes: Optional[int] = 1
     exporters: Optional[List[str]] = field(default_factory=lambda: [exporters.default])
@@ -126,15 +122,9 @@ class Simulation:
             if isinstance(self.model, str):
                 self.model = serialization.deserialize(self.model)
 
-            def deserialize_reporters(reporters):
-                for (k, v) in reporters.items():
-                    if isinstance(v, str) and v.startswith("py:"):
-                        reporters[k] = serialization.deserialize(v.split(":", 1)[1])
-                return reporters
-
-            self.agent_reporters = deserialize_reporters(self.agent_reporters)
-            self.model_reporters = deserialize_reporters(self.model_reporters)
-            self.tables = deserialize_reporters(self.tables)
+            self.agent_reporters = self.agent_reporters
+            self.model_reporters = self.model_reporters
+            self.tables = self.tables
             self.id = f"{self.name}_{current_time()}"
 
     def run(self, **kwargs):
@@ -142,15 +132,6 @@ class Simulation:
         if kwargs:
             return replace(self, **kwargs).run()
 
-        self.logger.debug(
-            dedent(
-                """
-        Simulation:
-        ---
-        """
-            )
-            + self.to_yaml()
-        )
         param_combinations = self._collect_params(**kwargs)
         if _AVOID_RUNNING:
             _QUEUED.extend((self, param) for param in param_combinations)
@@ -244,7 +225,6 @@ class Simulation:
             id=iteration_id,
             seed=f"{self.seed}_iteration_{iteration_id}",
             dir_path=self.dir_path,
-            interval=self.interval,
             logger=self.logger.getChild(iteration_id),
             agent_reporters=agent_reporters,
             model_reporters=model_reporters,
@@ -359,8 +339,11 @@ def iter_from_py(pyfile, module_name='imported_file', **kwargs):
         for sim in _iter_queued():
             sims.append(sim)
         if not sims:
-            for (_name, sim) in inspect.getmembers(module, lambda x: inspect.isclass(x) and issubclass(x, Simulation)):
-                sims.append(sim(**kwargs))
+            for (_name, env) in inspect.getmembers(module,
+                                                   lambda x: inspect.isclass(x) and
+                                                   issubclass(x, environment.Environment) and
+                                                   (getattr(x, "__module__", None) != environment.__name__)):
+                sims.append(Simulation(model=env, **kwargs))
         del sys.modules[module_name]
     assert not _AVOID_RUNNING
     if not sims:

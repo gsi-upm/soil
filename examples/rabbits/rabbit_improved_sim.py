@@ -1,5 +1,4 @@
 from soil import FSM, state, default_state, BaseAgent, NetworkAgent, Environment, Simulation
-from soil.time import Delta
 from enum import Enum
 from collections import Counter
 import logging
@@ -35,7 +34,7 @@ class Rabbit(FSM, NetworkAgent):
         self.info("I am a newborn.")
         self.birth = self.now
         self.offspring = 0
-        return self.youngling, Delta(self.sexual_maturity - self.age)
+        return self.youngling.delay(self.sexual_maturity - self.age)
 
     @state
     def youngling(self):

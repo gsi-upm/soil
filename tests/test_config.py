@@ -29,15 +29,12 @@ class TestConfig(TestCase):
     def test_torvalds_config(self):
         sim = simulation.from_config(os.path.join(ROOT, "test_config.yml"))
         MAX_STEPS = 10
-        INTERVAL = 2
-        assert sim.interval == INTERVAL
         assert sim.max_steps == MAX_STEPS
         envs = sim.run()
         assert len(envs) == 1
         env = envs[0]
-        assert env.interval == 2
         assert env.count_agents() == 3
-        assert env.now == INTERVAL * MAX_STEPS 
+        assert env.now == MAX_STEPS 
 
 
 def make_example_test(path, cfg):

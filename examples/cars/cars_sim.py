@@ -86,7 +86,7 @@ class Driver(Evented, FSM):
     earnings = 0
 
     def on_receive(self, msg, sender):
-        """This is not a state. It will run (and block) every time check_messages is invoked"""
+        """This is not a state. It will run (and block) every time process_messages is invoked"""
         if self.journey is None and isinstance(msg, Journey) and msg.driver is None:
             msg.driver = self
             self.journey = msg
@@ -95,15 +95,14 @@ class Driver(Evented, FSM):
         """If there are no more passengers, stop forever"""
         c = self.count_agents(agent_class=Passenger)
         self.debug(f"Passengers left {c}")
-        if not c:
-            self.die("No more passengers")
+        return c
 
-    @default_state
-    @state
-    def wandering(self):
+    @state(default=True)
+    async def wandering(self):
         """Move around the city until a journey is accepted"""
         target = None
-        self.check_passengers()
+        if not self.check_passengers():
+            return self.die("No passengers left")
         self.journey = None
         while self.journey is None:  # No potential journeys detected (see on_receive)
             if target is None or not self.move_towards(target):
@@ -111,14 +110,15 @@ class Driver(Evented, FSM):
                     self.model.grid.get_neighborhood(self.pos, moore=False)
                 )
 
-            self.check_passengers()
+            if not self.check_passengers():
+                return self.die("No passengers left")
             # This will call on_receive behind the scenes, and the agent's status will be updated
-            self.check_messages()
-            yield Delta(30)  # Wait at least 30 seconds before checking again
+            self.process_messages()
+            await self.delay(30)  # Wait at least 30 seconds before checking again
 
         try:
             # Re-send the journey to the passenger, to confirm that we have been selected
-            self.journey = yield self.journey.passenger.ask(self.journey, timeout=60)
+            self.journey = await self.journey.passenger.ask(self.journey, timeout=60, delay=5)
         except events.TimedOut:
             # No journey has been accepted. Try again
             self.journey = None
@@ -127,18 +127,19 @@ class Driver(Evented, FSM):
         return self.driving
 
     @state
-    def driving(self):
+    async def driving(self):
         """The journey has been accepted. Pick them up and take them to their destination"""
         self.info(f"Driving towards Passenger {self.journey.passenger.unique_id}")
         while self.move_towards(self.journey.origin):
-            yield
+            await self.delay()
         self.info(f"Driving {self.journey.passenger.unique_id} from {self.journey.origin} to {self.journey.destination}")
         while self.move_towards(self.journey.destination, with_passenger=True):
-            yield
+            await self.delay()
         self.info("Arrived at destination")
         self.earnings += self.journey.tip
         self.model.total_earnings += self.journey.tip
-        self.check_passengers()
+        if not self.check_passengers():
+            return self.die("No passengers left")
         return self.wandering
 
     def move_towards(self, target, with_passenger=False):
@@ -167,7 +168,7 @@ class Passenger(Evented, FSM):
     pos = None
 
     def on_receive(self, msg, sender):
-        """This is not a state. It will be run synchronously every time `check_messages` is run"""
+        """This is not a state. It will be run synchronously every time `process_messages` is run"""
 
         if isinstance(msg, Journey):
             self.journey = msg
@@ -175,7 +176,7 @@ class Passenger(Evented, FSM):
 
     @default_state
     @state
-    def asking(self):
+    async def asking(self):
         destination = (
             self.random.randint(0, self.model.grid.height-1),
             self.random.randint(0, self.model.grid.width-1),
@@ -195,9 +196,9 @@ class Passenger(Evented, FSM):
         while not self.journey:
             self.debug(f"Waiting for responses at: { self.pos }")
             try:
-                # This will call check_messages behind the scenes, and the agent's status will be updated
+                # This will call process_messages behind the scenes, and the agent's status will be updated
                 # If you want to avoid that, you can call it with: check=False
-                yield self.received(expiration=expiration)
+                await self.received(expiration=expiration, delay=10)
             except events.TimedOut:
                 self.info(f"Still no response. Waiting at: { self.pos }")
                 self.model.broadcast(
@@ -208,13 +209,13 @@ class Passenger(Evented, FSM):
         return self.driving_home
 
     @state
-    def driving_home(self):
+    async def driving_home(self):
         while (
             self.pos[0] != self.journey.destination[0]
             or self.pos[1] != self.journey.destination[1]
         ):
             try:
-                yield self.received(timeout=60)
+                await self.received(timeout=60)
             except events.TimedOut:
                 pass
 

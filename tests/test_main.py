@@ -7,8 +7,6 @@ from functools import partial
 
 from os.path import join
 from soil import simulation, Environment, agents, network, serialization, utils, config, from_file
-from soil.time import Delta
-
 from mesa import Agent as MesaAgent
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
@@ -114,7 +112,6 @@ class TestMain(TestCase):
     def test_serialize_class(self):
         ser, name = serialization.serialize(agents.BaseAgent, known_modules=[])
         assert name == "soil.agents.BaseAgent"
-        assert ser == agents.BaseAgent
 
         ser, name = serialization.serialize(
             agents.BaseAgent,
@@ -123,11 +120,9 @@ class TestMain(TestCase):
             ],
         )
         assert name == "BaseAgent"
-        assert ser == agents.BaseAgent
 
         ser, name = serialization.serialize(CustomAgent)
         assert name == "test_main.CustomAgent"
-        assert ser == CustomAgent
         pickle.dumps(ser)
 
     def test_serialize_builtin_types(self):
@@ -168,7 +163,6 @@ class TestMain(TestCase):
 
     def test_fsm(self):
         """Basic state change"""
-
         class ToggleAgent(agents.FSM):
             @agents.default_state
             @agents.state
@@ -193,7 +187,7 @@ class TestMain(TestCase):
             @agents.default_state
             @agents.state
             def ping(self):
-                return self.pong, 2
+                return self.pong.delay(2)
 
             @agents.state
             def pong(self):
@@ -203,7 +197,7 @@ class TestMain(TestCase):
         when = a.step()
         assert when == 2
         when = a.step()
-        assert when == Delta(a.interval)
+        assert when == None
 
     def test_load_sim(self):
         """Make sure at least one of the examples can be loaded"""

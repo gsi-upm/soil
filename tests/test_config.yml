@@ -2,4 +2,3 @@
 source_file: "../examples/torvalds_sim.py"
 model: "TorvaldsEnv"
 max_steps: 10
-interval: 2

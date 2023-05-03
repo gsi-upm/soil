@@ -16,7 +16,6 @@ except NameError:
     basestring = str
 
 from pathlib import Path
-from .analysis import *
 from .agents import *
 from . import agents
 from .simulation import *

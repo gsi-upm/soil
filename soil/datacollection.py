@@ -9,7 +9,7 @@ class SoilCollector(MDC):
         if 'agent_count' not in model_reporters:
             model_reporters['agent_count'] = lambda m: m.schedule.get_agent_count()
         if 'time' not in model_reporters:
-            model_reporters['time'] = lambda m: m.now
+            model_reporters['time'] = lambda m: m.schedule.time
         # if 'state_id' not in agent_reporters:
         #     agent_reporters['state_id'] = lambda agent: getattr(agent, 'state_id', None)
 

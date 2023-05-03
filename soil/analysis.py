@@ -28,7 +28,8 @@ def plot(env, agent_df=None, model_df=None, steps=False, ignore=["agent_count", 
 
 
 Results = namedtuple("Results", ["config", "parameters", "env", "agents"])
-#TODO implement reading from CSV and SQLITE
+#TODO implement reading from CSV
+
 def read_sql(fpath=None, name=None, include_agents=False):
     if not (fpath is None) ^ (name is None):
         raise ValueError("Specify either a path or a simulation name")

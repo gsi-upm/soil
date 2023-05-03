@@ -1,5 +1,4 @@
 from soil.agents import FSM, state, default_state
-from soil.time import Delta
 
 
 class Fibonacci(FSM):
@@ -11,17 +10,17 @@ class Fibonacci(FSM):
     def counting(self):
         self.log("Stopping at {}".format(self.now))
         prev, self["prev"] = self["prev"], max([self.now, self["prev"]])
-        return None, Delta(prev)
+        return self.delay(prev)
+    
 
 
 class Odds(FSM):
     """Agent that only executes in odd t_steps"""
 
-    @default_state
-    @state
+    @state(default=True)
     def odds(self):
         self.log("Stopping at {}".format(self.now))
-        return None, Delta(1 + self.now % 2)
+        return self.delay(1 + (self.now % 2))
 
 
 from soil import Environment, Simulation
@@ -35,7 +34,7 @@ class TimeoutsEnv(Environment):
         self.add_agent(agent_class=Odds, node_id=1)
 
 
-sim = Simulation(model=TimeoutsEnv, max_steps=10, interval=1)
+sim = Simulation(model=TimeoutsEnv, max_steps=10)
 
 if __name__ == "__main__":
     sim.run(dump=False)

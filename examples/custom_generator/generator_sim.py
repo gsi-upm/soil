@@ -33,7 +33,7 @@ class GeneratorEnv(Environment):
         self.add_agents(CounterModel)
 
 
-sim = Simulation(model=GeneratorEnv, max_steps=10, interval=1)
+sim = Simulation(model=GeneratorEnv, max_steps=10)
 
 if __name__ == '__main__':
     sim.run(dump=False)

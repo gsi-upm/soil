@@ -88,7 +88,7 @@ class Exporters(TestCase):
             parameters=dict(
                 network_generator="complete_graph",
                 network_params={"n": n_nodes},
-                agent_class="CounterModel",
+                agent_class=agents.CounterModel,
                 agent_reporters={"times": "times"},
             ),
             max_time=max_time,

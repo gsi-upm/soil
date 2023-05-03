@@ -25,6 +25,35 @@ from .. import serialization, network, utils, time, config
 IGNORED_FIELDS = ("model", "logger")
 
 
+def decorate_generator_step(func, name):
+    @wraps(func)
+    def decorated(self):
+        while True:
+            if self._coroutine is None:
+                self._coroutine = func(self)
+            try:
+                if self._last_except:
+                    val = self._coroutine.throw(self._last_except)
+                else:
+                    val = self._coroutine.send(self._last_return)
+            except StopIteration as ex:
+                self._coroutine = None
+                val = ex.value
+            finally:
+                self._last_return = None
+                self._last_except = None
+            return float(val) if val is not None else val
+    return decorated
+
+
+def decorate_normal_func(func, name):
+    @wraps(func)
+    def decorated(self):
+        val = func(self)
+        return float(val) if val is not None else val
+    return decorated
+
+
 class MetaAgent(ABCMeta):
     def __new__(mcls, name, bases, namespace):
         defaults = {}
@@ -36,34 +65,23 @@ class MetaAgent(ABCMeta):
 
         new_nmspc = {
             "_defaults": defaults,
-            "_last_return": None,
-            "_last_except": None,
         }
 
         for attr, func in namespace.items():
-            if attr == "step" and inspect.isgeneratorfunction(func):
-                orig_func = func
-                new_nmspc["_coroutine"] = None
-
-                @wraps(func)
-                def func(self):
-                    while True:
-                        if not self._coroutine:
-                            self._coroutine = orig_func(self)
-                        try:
-                            if self._last_except:
-                                return self._coroutine.throw(self._last_except)
-                            else:
-                                return self._coroutine.send(self._last_return)
-                        except StopIteration as ex:
-                            self._coroutine = None
-                            return ex.value
-                        finally:
-                            self._last_return = None
-                            self._last_except = None
-
-                func.id = name or func.__name__
-                func.is_default = False
+            if attr == "step":
+                if inspect.isgeneratorfunction(func) or inspect.iscoroutinefunction(func):
+                    func = decorate_generator_step(func, attr)
+                    new_nmspc.update({
+                        "_last_return": None,
+                        "_last_except": None,
+                        "_coroutine": None,
+                    })
+                elif inspect.isasyncgenfunction(func):
+                    raise ValueError("Illegal step function: {}. It probably mixes both async/await and yield".format(func))
+                elif inspect.isfunction(func):
+                    func = decorate_normal_func(func, attr)
+                else:
+                    raise ValueError("Illegal step function: {}".format(func))
                 new_nmspc[attr] = func
             elif (
                 isinstance(func, types.FunctionType)
@@ -74,9 +92,13 @@ class MetaAgent(ABCMeta):
                 new_nmspc[attr] = func
             elif attr == "defaults":
                 defaults.update(func)
+            elif inspect.isfunction(func):
+                new_nmspc[attr] = func
             else:
                 defaults[attr] = copy(func)
 
+
+        # Add attributes for their use in the decorated functions
         return super().__new__(mcls, name, bases, new_nmspc)
 
 
@@ -92,7 +114,7 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
     Any attribute that is not preceded by an underscore (`_`) will also be added to its state.
     """
 
-    def __init__(self, unique_id, model, name=None, init=True, interval=None, **kwargs):
+    def __init__(self, unique_id, model, name=None, init=True, **kwargs):
         assert isinstance(unique_id, int)
         super().__init__(unique_id=unique_id, model=model)
 
@@ -102,7 +124,6 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
 
         self.alive = True
 
-        self.interval = interval or self.get("interval", 1)
         logger = utils.logger.getChild(getattr(self.model, "id", self.model)).getChild(
             self.name
         )
@@ -111,13 +132,18 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
         if hasattr(self, "level"):
             self.logger.setLevel(self.level)
 
+        for k in self._defaults:
+            v = getattr(model, k, None)
+            if v is not None:
+                setattr(self, k, v)
+
         for (k, v) in self._defaults.items():
             if not hasattr(self, k) or getattr(self, k) is None:
                 setattr(self, k, deepcopy(v))
 
         for (k, v) in kwargs.items():
-
             setattr(self, k, v)
+
         if init:
             self.init()
 
@@ -189,11 +215,13 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
         return it
 
     def get(self, key, default=None):
-        if key in self:
-            return self[key]
-        elif key in self.model:
-            return self.model[key]
-        return default
+        try:
+            return getattr(self, key)
+        except AttributeError:
+            try:
+                return getattr(self.model, key)
+            except AttributeError:
+                return default
 
     @property
     def now(self):
@@ -206,17 +234,18 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
     def die(self, msg=None):
         if msg:
             self.info("Agent dying:", msg)
-        self.debug(f"agent dying")
+        else:
+            self.debug(f"agent dying")
         self.alive = False
         try:
             self.model.schedule.remove(self)
         except KeyError:
             pass
-        return time.NEVER
+        return time.Delay(time.INFINITY)
 
     def step(self):
         raise NotImplementedError("Agent must implement step method")
-    
+
     def _check_alive(self):
         if not self.alive:
             raise time.DeadAgent(self.unique_id)
@@ -265,6 +294,12 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.unique_id})"
+    
+    def at(self, at):
+        return time.Delay(float(at) - self.now)
+    
+    def delay(self, delay=1):
+        return time.Delay(delay)
 
 
 def prob(prob, random):
@@ -450,8 +485,10 @@ def filter_agents(
     state = state or dict()
     state.update(kwargs)
 
-    for k, v in state.items():
-        f = filter(lambda agent: getattr(agent, k, None) == v, f)
+    for k, vs in state.items():
+        if not isinstance(vs, list):
+            vs = [vs]
+        f = filter(lambda agent: any(getattr(agent, k, None) == v for v in vs), f)
 
     if limit is not None:
         f = islice(f, limit)
@@ -656,15 +693,6 @@ from .BassModel import *
 from .IndependentCascadeModel import *
 from .SISaModel import *
 from .CounterModel import *
-
-
-try:
-    import scipy
-    from .Geo import Geo
-except ImportError:
-    import sys
-
-    print("Could not load the Geo Agent, scipy is not installed", file=sys.stderr)
 
 
 def custom(cls, **kwargs):

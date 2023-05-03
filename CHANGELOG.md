@@ -13,11 +13,13 @@ For an explanation of the general changes in version 1.0, please refer to the fi
 * Environments now have a class method to make them easier to use without a simulation`.run`. Notice that this is different from `run_model`, which is an instance method.
 * Ability to run simulations using mesa models
 * The `soil.exporters` module to export the results of datacollectors (`model.datacollector`) into files at the end of trials/simulations
-* Agents can now have generators as a step function or a state. They work similar to normal functions, with one caveat in the case of `FSM`: only `time` values (or None) can be yielded, not a state. This is because the state will not change, it will be resumed after the yield, at the appropriate time. The return value *can* be a state, or a `(state, time)` tuple, just like in normal states.
+* Agents can now have generators or async functions as their step or as states. They work similar to normal functions, with one caveat in the case of `FSM`: only time values (a float, int or None) can be awaited or yielded, not a state. This is because the state will not change, it will be resumed after the yield, at the appropriate time. To return to a different state, use the `delay` and `at` functions of the state.
 * Simulations can now specify a `matrix` with possible values for every simulation parameter. The final parameters will be calculated based on the `parameters` used and a cartesian product (i.e., all possible combinations) of each parameter.
 * Simple debugging capabilities in `soil.debugging`, with a custom `pdb.Debugger` subclass that exposes commands to list agents and their status and set breakpoints on states (for FSM agents). Try it with `soil --debug <simulation file>`
+* The `agent.after` and `agent.at` methods, to avoid having to return a time manually.
 ### Changed
 * Configuration schema (`Simulation`) is very simplified. All simulations should be checked
+* Agents that wish to 
 * Model / environment variables are expected (but not enforced) to be a single value. This is done to more closely align with mesa
 * `Exporter.iteration_end` now takes two parameters: `env` (same as before) and `params` (specific parameters for this environment). We considered including a `parameters` attribute in the environment, but this would not be compatible with mesa.
 * `num_trials` renamed to `iterations`
@@ -26,6 +28,7 @@ For an explanation of the general changes in version 1.0, please refer to the fi
 * Simulation results for every iteration of a simulation with the same name are stored in a single `sqlite` database
 
 ### Removed
+* The `time.When` and `time.Cond` classes are removed
 * Any `tsih` and `History` integration in the main classes. To record the state of environments/agents, just use a datacollector. In some cases this may be slower or consume more memory than the previous system. However, few cases actually used the full potential of the history, and it came at the cost of unnecessary complexity and worse performance for the majority of cases.
 
 ## [0.20.8]

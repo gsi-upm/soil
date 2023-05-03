@@ -2,11 +2,9 @@ import os
 import sys
 from time import time as current_time
 from io import BytesIO
-from sqlalchemy import create_engine
 from textwrap import dedent, indent
 
 
-import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 
@@ -124,6 +122,9 @@ class SQLite(Exporter):
         if not self.dump:
             logger.debug("NOT dumping results")
             return
+
+        from sqlalchemy import create_engine
+
         self.dbpath = os.path.join(self.outdir, f"{self.simulation.name}.sqlite")
         logger.info("Dumping results to %s", self.dbpath)
         if self.simulation.backup:
@@ -175,7 +176,6 @@ class csv(Exporter):
                     df.to_csv(f)
 
 
-# TODO: reimplement GEXF exporting without history
 class gexf(Exporter):
     def iteration_end(self, env, *args, **kwargs):
         if not self.dump:
@@ -186,8 +186,7 @@ class gexf(Exporter):
             "[GEXF] Dumping simulation {} iteration {}".format(self.simulation.name, env.id)
         ):
             with self.output("{}.gexf".format(env.id), mode="wb") as f:
-                network.dump_gexf(env.history_to_graph(), f)
-                self.dump_gexf(env, f)
+                nx.write_gexf(env.G, f)
 
 
 class dummy(Exporter):
@@ -210,6 +209,7 @@ class dummy(Exporter):
 
 class graphdrawing(Exporter):
     def iteration_end(self, env, *args, **kwargs):
+        import matplotlib.pyplot as plt
         # Outside effects
         f = plt.figure()
         nx.draw(

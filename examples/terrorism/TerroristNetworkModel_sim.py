@@ -1,5 +1,6 @@
 import networkx as nx
-from soil.agents import Geo, NetworkAgent, FSM, custom, state, default_state
+from soil.agents import NetworkAgent, FSM, custom, state, default_state
+from soil.agents.geo import Geo
 from soil import Environment, Simulation
 from soil.parameters import *
 from soil.utils import int_seed
@@ -39,8 +40,8 @@ class TerroristEnvironment(Environment):
             HavenModel
         ], [self.ratio_civil, self.ratio_leader, self.ratio_training, self.ratio_haven])
 
-    def generator(self, *args, **kwargs):
-        return nx.random_geometric_graph(*args, **kwargs, seed=int_seed(self._seed))
+    def generator(self, *args, seed=None, **kwargs):
+        return nx.random_geometric_graph(*args, **kwargs, seed=seed or int_seed(self._seed))
 
 class TerroristSpreadModel(FSM, Geo):
     """

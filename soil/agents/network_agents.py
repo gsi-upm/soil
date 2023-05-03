@@ -6,7 +6,7 @@ class NetworkAgent(BaseAgent):
         super().__init__(*args, init=False, **kwargs)
 
         self.G = topology or self.model.G
-        assert self.G
+        assert self.G is not None, "Network agents should have a network"
         if node_id is None:
             nodes = self.random.choices(list(self.G.nodes), k=len(self.G))
             for n_id in nodes:
@@ -25,8 +25,6 @@ class NetworkAgent(BaseAgent):
 
     def count_neighbors(self, state_id=None, **kwargs):
         return len(self.get_neighbors(state_id=state_id, **kwargs))
-        if init:
-            self.init()
 
     def iter_neighbors(self, **kwargs):
         return self.iter_agents(limit_neighbors=True, **kwargs)

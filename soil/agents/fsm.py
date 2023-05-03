@@ -1,8 +1,57 @@
 from . import MetaAgent, BaseAgent
-from ..time import Delta
-
+from .. import time
+from types import coroutine
 from functools import partial, wraps
 import inspect
+
+
+class State:
+    __slots__ = ("awaitable", "f", "generator", "name", "default")
+
+    def __init__(self, f, name, default, generator, awaitable):
+        self.f = f
+        self.name = name
+        self.generator = generator
+        self.awaitable = awaitable
+        self.default = default
+
+    @coroutine
+    def step(self, obj):
+        if self.generator or self.awaitable:
+            f = self.f
+            next_state = yield from f(obj)
+            return next_state
+
+        else:
+            return self.f(obj)
+
+    @property
+    def id(self):
+        return self.name
+
+    def __call__(self, *args, **kwargs):
+        raise Exception("States should not be called directly")
+
+class UnboundState(State):
+
+    def bind(self, obj):
+        bs = BoundState(self.f, self.name, self.default, self.generator, self.awaitable, obj=obj)
+        setattr(obj, self.name, bs)
+        return bs
+
+
+class BoundState(State):
+    __slots__ = ("obj", )
+
+    def __init__(self, *args, obj):
+        super().__init__(*args)
+        self.obj = obj
+    
+    def delay(self, delta=0):
+        return self, self.obj.delay(delta)
+    
+    def at(self, when):
+        return self, self.obj.at(when)
 
 
 def state(name=None, default=False):
@@ -10,38 +59,11 @@ def state(name=None, default=False):
         """
         A state function should return either a state id, or a tuple (state_id, when)
         The default value for state_id is the current state id.
-        The default value for when is the interval defined in the environment.
         """
-        if inspect.isgeneratorfunction(func):
-            orig_func = func
-
-            @wraps(func)
-            def func(self):
-                while True:
-                    if not self._coroutine:
-                        self._coroutine = orig_func(self)
-
-                    try:
-                        if self._last_except:
-                            n = self._coroutine.throw(self._last_except)
-                        else:
-                            n = self._coroutine.send(self._last_return)
-                        if n:
-                            return None, n
-                        return n
-                    except StopIteration as ex:
-                        self._coroutine = None
-                        next_state = ex.value
-                        if next_state is not None:
-                            self._set_state(next_state)
-                        return next_state
-                    finally:
-                        self._last_return = None
-                        self._last_except = None
-
-        func.id = name or func.__name__
-        func.is_default = default
-        return func
+        name = name or func.__name__
+        generator = inspect.isgeneratorfunction(func)
+        awaitable = inspect.iscoroutinefunction(func) or inspect.isasyncgen(func)
+        return UnboundState(func, name, default, generator, awaitable)
 
     if callable(name):
         return decorator(name)
@@ -50,7 +72,7 @@ def state(name=None, default=False):
 
 
 def default_state(func):
-    func.is_default = True
+    func.default = True
     return func
 
 
@@ -62,42 +84,45 @@ class MetaFSM(MetaAgent):
         for i in bases:
             if isinstance(i, MetaFSM):
                 for state_id, state in i._states.items():
-                    if state.is_default:
+                    if state.default:
                         default_state = state
                     states[state_id] = state
 
         # Add new states
         for attr, func in namespace.items():
-            if hasattr(func, "id"):
-                if func.is_default:
+            if isinstance(func, State):
+                if func.default:
                     default_state = func
-                states[func.id] = func
+                states[func.name] = func
 
         namespace.update(
             {
-                "_default_state": default_state,
+                "_state": default_state,
                 "_states": states,
             }
         )
 
-        return super(MetaFSM, mcls).__new__(
+        cls = super(MetaFSM, mcls).__new__(
             mcls=mcls, name=name, bases=bases, namespace=namespace
         )
+        for (k, v) in states.items():
+            setattr(cls, k, v)
+        return cls
 
 
 class FSM(BaseAgent, metaclass=MetaFSM):
-    def __init__(self, init=True, **kwargs):
+    def __init__(self, init=True, state_id=None, **kwargs):
         super().__init__(**kwargs, init=False)
-        if not hasattr(self, "state_id"):
-            if not self._default_state:
-                raise ValueError(
-                    "No default state specified for {}".format(self.unique_id)
-                )
-            self.state_id = self._default_state.id
+        if state_id is not None:
+            self._set_state(state_id)
+        # If more than "dead" state is defined, but no default state
+        if len(self._states) > 1 and not self._state:
+            raise ValueError(
+                f"No default state specified for {type(self)}({self.unique_id})"
+            )
+        for (k, v) in self._states.items():
+            setattr(self, k, v.bind(self))
 
-        self._coroutine = None
-        self.default_interval = Delta(self.model.interval)
-        self._set_state(self.state_id)
         if init:
             self.init()
 
@@ -105,44 +130,46 @@ class FSM(BaseAgent, metaclass=MetaFSM):
     def states(cls):
         return list(cls._states.keys())
 
+    @property
+    def state_id(self):
+        return self._state.name
+    
+    def set_state(self, value):
+        if self.now > 0:
+            raise ValueError("Cannot change state after init")
+        self._set_state(value)
+
     def step(self):
-        self.debug(f"Agent {self.unique_id} @ state {self.state_id}")
-
         self._check_alive()
-        next_state = self._states[self.state_id](self)
+        next_state = yield from self._state.step(self)
 
-        when = None
         try:
-            next_state, *when = next_state
-            if not when:
-                when = None
-            elif len(when) == 1:
-                when = when[0]
-            else:
-                raise ValueError(
-                    "Too many values returned. Only state (and time) allowed"
-                )
-        except TypeError:
-            pass
+            next_state, when = next_state
+        except (TypeError, ValueError) as ex:
+            try:
+                self._set_state(next_state)
+                return None
+            except ValueError:
+                return next_state
 
-        if next_state is not None:
-            self._set_state(next_state)
+        self._set_state(next_state)
+        return when
 
-        return when or self.default_interval
-
-    def _set_state(self, state, when=None):
-        if hasattr(state, "id"):
-            state = state.id
-        if state not in self._states:
+    def _set_state(self, state):
+        if state is None:
+            return
+        if isinstance(state, str):
+            if state not in self._states:
+                raise ValueError("{} is not a valid state".format(state))
+            state = self._states[state]
+        if not isinstance(state, State):
             raise ValueError("{} is not a valid state".format(state))
-        self.state_id = state
-        if when is not None:
-            self.model.schedule.add(self, when=when)
-        return state
+        self._state = state
 
     def die(self, *args, **kwargs):
-        return self.dead, super().die(*args, **kwargs)
+        super().die(*args, **kwargs)
+        return self.dead.at(time.INFINITY)
 
     @state
     def dead(self):
-        return self.die()
+        return time.INFINITY

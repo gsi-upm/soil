@@ -16,7 +16,7 @@ import networkx as nx
 
 from mesa import Model, Agent
 
-from . import agents as agentmod, datacollection, serialization, utils, time, network, events
+from . import agents as agentmod, datacollection, utils, time, network, events
 
 
 # TODO: maybe add metaclass to read attributes of a model
@@ -35,6 +35,7 @@ class BaseEnvironment(Model):
     """
 
     collector_class = datacollection.SoilCollector
+    schedule_class = time.TimedActivation
 
     def __new__(cls,
                 *args: Any,
@@ -49,7 +50,6 @@ class BaseEnvironment(Model):
         self = super().__new__(cls, *args, seed=seed, **kwargs)
         self.dir_path = dir_path or os.getcwd()
         collector_class = collector_class or cls.collector_class
-        collector_class = serialization.deserialize(collector_class)
         self.datacollector = collector_class(
             model_reporters=model_reporters,
             agent_reporters=agent_reporters,
@@ -60,7 +60,7 @@ class BaseEnvironment(Model):
             if isinstance(v, property):
                 v = v.fget
             if getattr(v, "add_to_report", False):
-                self.add_model_reporter(k, v)
+                self.add_model_reporter(k, k)
 
         return self
 
@@ -70,8 +70,8 @@ class BaseEnvironment(Model):
         id="unnamed_env",
         seed="default",
         dir_path=None,
-        schedule_class=time.TimedActivation,
-        interval=1,
+        schedule=None,
+        schedule_class=None,
         logger = None,
         agents: Optional[Dict] = None,
         collector_class: type = datacollection.SoilCollector,
@@ -94,13 +94,11 @@ class BaseEnvironment(Model):
         else:
             self.logger = utils.logger.getChild(self.id)
 
-        if schedule_class is None:
-            schedule_class = time.TimedActivation
-        else:
-            schedule_class = serialization.deserialize(schedule_class)
-
-        self.interval = interval
-        self.schedule = schedule_class(self)
+        self.schedule = schedule
+        if schedule is None:
+            if schedule_class is None:
+                schedule_class = self.schedule_class
+            self.schedule = schedule_class(self)
 
         for (k, v) in env_params.items():
             self[k] = v
@@ -161,7 +159,7 @@ class BaseEnvironment(Model):
         if unique_id is None:
             unique_id = self.next_id()
 
-        a = serialization.deserialize(agent_class)(unique_id=unique_id, model=self, **agent)
+        a = agent_class(unique_id=unique_id, model=self, **agent)
 
         self.schedule.add(a)
         return a
@@ -204,14 +202,14 @@ class BaseEnvironment(Model):
 
     def add_model_reporter(self, name, func=None):
         if not func:
-            func = lambda env: getattr(env, name)
+            func = name
         self.datacollector._new_model_reporter(name, func)
 
-    def add_agent_reporter(self, name, agent_type=None):
-        if agent_type:
-            reporter = lambda a: getattr(a, name) if isinstance(a, agent_type) else None
-        else:
-            reporter = lambda a: getattr(a, name, None)
+    def add_agent_reporter(self, name, reporter=None, agent_type=None):
+        if not agent_type and not reporter:
+            reporter = name
+        elif agent_type:
+            reporter = lambda a: reporter(a) if isinstance(a, agent_type) else None
         self.datacollector._new_agent_reporter(name, reporter)
 
     @classmethod
@@ -278,8 +276,6 @@ class NetworkEnvironment(BaseEnvironment):
         super().__init__(*args, **kwargs, init=False)
 
         self.agent_class = agent_class
-        if agent_class:
-            self.agent_class = serialization.deserialize(agent_class)
         if self.agent_class:
             self.populate_network(self.agent_class)
         self._check_agent_nodes()
@@ -309,7 +305,15 @@ class NetworkEnvironment(BaseEnvironment):
         elif path is not None:
             topology = network.from_topology(path, dir_path=self.dir_path)
         elif generator is not None:
-            topology = network.from_params(generator=generator, dir_path=self.dir_path, **network_params)
+            params = dict(generator=generator,
+                                           dir_path=self.dir_path,
+                                           seed=self.random,
+                                           **network_params)
+            try:
+                topology = network.from_params(**params)
+            except TypeError:
+                del params["seed"]
+                topology = network.from_params(**params)
         else:
             raise ValueError("topology must be a networkx.Graph or a string, or network_generator must be provided")
         self.G = topology
