@@ -1,5 +1,5 @@
 import networkx as nx
-from soil.agents import NetworkAgent, FSM, custom, state, default_state
+from soil.agents import FSM, state, default_state
 from soil.agents.geo import Geo
 from soil import Environment, Simulation
 from soil.parameters import *

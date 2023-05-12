@@ -158,3 +158,23 @@ def run_parallel(func, iterable, num_processes=1, **kwargs):
 
 def int_seed(seed: str):
     return int.from_bytes(seed.encode(), "little")
+
+
+def prob(prob, random):
+    """
+    A true/False uniform distribution with a given probability.
+    To be used like this:
+
+    .. code-block:: python
+
+          if prob(0.3):
+              do_something()
+
+    """
+    r = random.random()
+    return r < prob
+
+
+def custom(cls, **kwargs):
+    """Create a new class from a template class and keyword arguments"""
+    return type(cls.__name__, (cls,), kwargs)

@@ -135,9 +135,9 @@ class TestMain(TestCase):
 
     def test_serialize_agent_class(self):
         """A class from soil.agents should be serialized without the module part"""
-        ser = agents._serialize_type(CustomAgent)
+        ser = serialization.serialize(CustomAgent, known_modules=["soil.agents"])[1]
         assert ser == "test_main.CustomAgent"
-        ser = agents._serialize_type(agents.BaseAgent)
+        ser = serialization.serialize(agents.BaseAgent, known_modules=["soil.agents"])[1]
         assert ser == "BaseAgent"
         pickle.dumps(ser)
 
@@ -227,3 +227,29 @@ class TestMain(TestCase):
         for i in a:
             for j in b:
                 assert {"a": i, "b": j} in configs
+    
+    def test_agent_reporters(self):
+        """An environment should be able to set its own reporters"""
+        class Noop2(agents.Noop):
+            pass
+
+        e = Environment()
+        e.add_agent(agents.Noop)
+        e.add_agent(Noop2)
+        e.add_agent_reporter("now")
+        e.add_agent_reporter("base", lambda a: "base", agent_class=agents.Noop)
+        e.add_agent_reporter("subclass", lambda a:"subclass", agent_class=Noop2)
+        e.step()
+
+        # Step 0 is not present because we added the reporters
+        # after initialization.
+        df = e.agent_df()
+        assert "now" in df.columns
+        assert "base" in df.columns
+        assert "subclass" in df.columns
+        assert df["now"][(0,0)] == 1
+        assert df["now"][(0,1)] == 1
+        assert df["base"][(0,0)] == "base"
+        assert df["base"][(0,1)] == "base"
+        assert df["subclass"][(0,0)] is None
+        assert df["subclass"][(0,1)] == "subclass"

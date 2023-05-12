@@ -1,4 +1,4 @@
-from soil.agents import FSM, NetworkAgent, state, default_state, prob
+from soil.agents import FSM, NetworkAgent, state, default_state
 from soil.parameters import *
 import logging
 

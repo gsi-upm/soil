@@ -81,7 +81,8 @@ class Exporters(TestCase):
             model=ConstantEnv,
             name="exporter_sim",
             exporters=[
-                exporters.default,
+                exporters.YAML,
+                exporters.SQLite,
                 exporters.csv,
             ],
             exporter_params={"copy_to": output},

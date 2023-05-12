@@ -19,7 +19,7 @@ from pathlib import Path
 from .agents import *
 from . import agents
 from .simulation import *
-from .environment import Environment, EventedEnvironment
+from .environment import Environment
 from .datacollection import SoilCollector
 from . import serialization
 from .utils import logger
@@ -117,13 +117,13 @@ def main(
     )
     parser.add_argument(
         "--max_time",
-        default="-1",
+        default="",
         help="Set maximum time for the simulation to run. ",
     )
 
     parser.add_argument(
         "--max_steps",
-        default="-1",
+        default="",
         help="Set maximum number of steps for the simulation to run.",
     )
 
@@ -249,9 +249,12 @@ def main(
             if args.only_convert:
                 print(sim.to_yaml())
                 continue
-            max_time = float(args.max_time) if args.max_time != "-1" else None
-            max_steps = float(args.max_steps) if args.max_steps != "-1" else None
-            res.append(sim.run(max_time=max_time, max_steps=max_steps))
+            d = {}
+            if args.max_time:
+                d["max_time"] = float(args.max_time) 
+            if args.max_steps:
+                d["max_steps"] = int(args.max_steps)
+            res.append(sim.run(**d))
 
     except Exception as ex:
         if args.pdb:

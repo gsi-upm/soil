@@ -140,20 +140,25 @@ class FSM(BaseAgent, metaclass=MetaFSM):
         self._set_state(value)
 
     def step(self):
+        if self._state is None:
+            if len(self._states) == 1:
+                raise Exception("Agent class has no valid states: {}. Make sure to define states or define a custom step function".format(self.__class__.__name__))
+            else:
+                raise Exception("Invalid state (None) for agent {}".format(self))
+
         self._check_alive()
         next_state = yield from self._state.step(self)
 
         try:
             next_state, when = next_state
+            self._set_state(next_state)
+            return when
         except (TypeError, ValueError) as ex:
             try:
                 self._set_state(next_state)
                 return None
             except ValueError:
                 return next_state
-
-        self._set_state(next_state)
-        return when
 
     def _set_state(self, state):
         if state is None:

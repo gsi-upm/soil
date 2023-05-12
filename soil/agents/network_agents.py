@@ -1,9 +1,11 @@
 from . import BaseAgent
+from .. import environment
 
 
 class NetworkAgent(BaseAgent):
     def __init__(self, *args, topology=None, init=True, node_id=None, **kwargs):
         super().__init__(*args, init=False, **kwargs)
+        assert isinstance(self.model, environment.NetworkEnvironment), "NetworkAgent requires a NetworkEnvironment"
 
         self.G = topology or self.model.G
         assert self.G is not None, "Network agents should have a network"
@@ -16,7 +18,7 @@ class NetworkAgent(BaseAgent):
             else:
                 node_id = len(self.G)
                 self.info(f"All nodes ({len(self.G)}) have an agent assigned, adding a new node to the graph for agent {self.unique_id}")
-                self.G.add_node(node_id)
+                self.G.add_node(node_id, find_unassigned=True)
         assert node_id is not None
         self.G.nodes[node_id]["agent"] = self
         self.node_id = node_id

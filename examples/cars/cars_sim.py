@@ -43,7 +43,7 @@ class Journey:
     driver: Optional[Driver] = None
 
 
-class City(EventedEnvironment):
+class City(Environment):
     """
     An environment with a grid where drivers and passengers will be placed.
 
@@ -85,11 +85,12 @@ class Driver(Evented, FSM):
     journey = None
     earnings = 0
 
-    def on_receive(self, msg, sender):
-        """This is not a state. It will run (and block) every time process_messages is invoked"""
-        if self.journey is None and isinstance(msg, Journey) and msg.driver is None:
-            msg.driver = self
-            self.journey = msg
+    # TODO: remove
+    # def on_receive(self, msg, sender):
+    #     """This is not a state. It will run (and block) every time process_messages is invoked"""
+    #     if self.journey is None and isinstance(msg, Journey) and msg.driver is None:
+    #         msg.driver = self
+    #         self.journey = msg
 
     def check_passengers(self):
         """If there are no more passengers, stop forever"""
@@ -104,7 +105,7 @@ class Driver(Evented, FSM):
         if not self.check_passengers():
             return self.die("No passengers left")
         self.journey = None
-        while self.journey is None:  # No potential journeys detected (see on_receive)
+        while self.journey is None:  # No potential journeys detected
             if target is None or not self.move_towards(target):
                 target = self.random.choice(
                     self.model.grid.get_neighborhood(self.pos, moore=False)
@@ -113,7 +114,7 @@ class Driver(Evented, FSM):
             if not self.check_passengers():
                 return self.die("No passengers left")
             # This will call on_receive behind the scenes, and the agent's status will be updated
-            self.process_messages()
+
             await self.delay(30)  # Wait at least 30 seconds before checking again
 
         try:
@@ -167,12 +168,13 @@ class Driver(Evented, FSM):
 class Passenger(Evented, FSM):
     pos = None
 
-    def on_receive(self, msg, sender):
-        """This is not a state. It will be run synchronously every time `process_messages` is run"""
+    # TODO: Remove
+    # def on_receive(self, msg, sender):
+    #     """This is not a state. It will be run synchronously every time `process_messages` is run"""
 
-        if isinstance(msg, Journey):
-            self.journey = msg
-            return msg
+    #     if isinstance(msg, Journey):
+    #         self.journey = msg
+    #         return msg
 
     @default_state
     @state
@@ -192,17 +194,34 @@ class Passenger(Evented, FSM):
         timeout = 60
         expiration = self.now + timeout
         self.info(f"Asking for journey at: { self.pos }")
-        self.model.broadcast(journey, ttl=timeout, sender=self, agent_class=Driver)
+        self.broadcast(journey, ttl=timeout, agent_class=Driver)
         while not self.journey:
             self.debug(f"Waiting for responses at: { self.pos }")
             try:
-                # This will call process_messages behind the scenes, and the agent's status will be updated
-                # If you want to avoid that, you can call it with: check=False
-                await self.received(expiration=expiration, delay=10)
+                offers = await self.received(expiration=expiration, delay=10)
+                accepted = None
+                for event in offers:
+                    offer = event.payload
+                    if isinstance(offer, Journey):
+                        self.journey = offer
+                    assert isinstance(event.sender, Driver)
+                    try:
+                        answer = await event.sender.ask(True, sender=self, timeout=60, delay=5)
+                        if answer:
+                            accepted = offer
+                            self.journey = offer
+                            break
+                    except events.TimedOut:
+                        pass
+                if accepted:
+                    for event in offers:
+                        if event.payload != accepted:
+                            event.sender.tell(False, timeout=60, delay=5)
+
             except events.TimedOut:
                 self.info(f"Still no response. Waiting at: { self.pos }")
-                self.model.broadcast(
-                    journey, ttl=timeout, sender=self, agent_class=Driver
+                self.broadcast(
+                    journey, ttl=timeout, agent_class=Driver
                 )
                 expiration = self.now + timeout
         self.info(f"Got a response! Waiting for driver")

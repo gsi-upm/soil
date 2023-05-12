@@ -1,20 +1,16 @@
 from __future__ import annotations
 
 import os
-import sqlite3
-import math
+import sys
 import logging
-import inspect
 
 from typing import Any, Callable, Dict, Optional, Union, List, Type
-from collections import namedtuple
-from time import time as current_time
-from copy import deepcopy
-
+from types import coroutine
 
 import networkx as nx
 
-from mesa import Model, Agent
+
+from mesa import Model
 
 from . import agents as agentmod, datacollection, utils, time, network, events
 
@@ -114,14 +110,14 @@ class BaseEnvironment(Model):
 
     @property
     def agents(self):
-        return agentmod.AgentView(self.schedule._agents)
+        return agentmod.AgentView(self.schedule._agents, getattr(self.schedule, "agents_by_type", None))
 
     def agent(self, *args, **kwargs):
-        return agentmod.AgentView(self.schedule._agents).one(*args, **kwargs)
+        return agentmod.AgentView(self.schedule._agents, self.schedule.agents_by_type).one(*args, **kwargs)
 
     def count_agents(self, *args, **kwargs):
         return sum(1 for i in self.agents(*args, **kwargs))
-    
+
     def agent_df(self, steps=False):
         df = self.datacollector.get_agent_vars_dataframe()
         if steps:
@@ -205,11 +201,18 @@ class BaseEnvironment(Model):
             func = name
         self.datacollector._new_model_reporter(name, func)
 
-    def add_agent_reporter(self, name, reporter=None, agent_type=None):
-        if not agent_type and not reporter:
+    def add_agent_reporter(self, name, reporter=None, agent_class=None, *, agent_type=None):
+        if agent_type:
+            print("agent_type is deprecated, use agent_class instead", file=sys.stderr)
+        agent_class = agent_type or agent_class
+        if not reporter and not agent_class:
             reporter = name
-        elif agent_type:
-            reporter = lambda a: reporter(a) if isinstance(a, agent_type) else None
+        if agent_class:
+            if reporter:
+                _orig = reporter
+            else:
+                _orig = lambda a: getattr(a, name)
+            reporter = lambda a: (_orig(a) if isinstance(a, agent_class) else None)
         self.datacollector._new_agent_reporter(name, reporter)
 
     @classmethod
@@ -331,15 +334,16 @@ class NetworkEnvironment(BaseEnvironment):
                 if getattr(agent, "alive", True):
                     yield agent
 
-    def add_node(self, agent_class, unique_id=None, node_id=None, **kwargs):
+    def add_node(self, agent_class, unique_id=None, node_id=None, find_unassigned=False, **kwargs):
         if unique_id is None:
             unique_id = self.next_id()
         if node_id is None:
-            node_id = network.find_unassigned(
-                G=self.G, shuffle=True, random=self.random
-            )
+            if find_unassigned:
+                node_id = network.find_unassigned(
+                    G=self.G, shuffle=True, random=self.random
+                )
             if node_id is None:
-                node_id = f"node_for_{unique_id}"
+                node_id = f"Node_for_agent_{unique_id}"
 
         if node_id not in self.G.nodes:
             self.G.add_node(node_id)
@@ -409,27 +413,84 @@ class NetworkEnvironment(BaseEnvironment):
 
 
 class EventedEnvironment(BaseEnvironment):
-    def broadcast(self, msg, sender=None, expiration=None, ttl=None, **kwargs):
-        for agent in self.agents(**kwargs):
-            if agent == sender:
+
+    def __init__(self, *args, **kwargs):
+        self._inbox = dict()
+        super().__init__(*args, **kwargs)
+    
+    def register(self, agent):
+        self._inbox[agent.unique_id] = []
+
+    def inbox_for(self, agent):
+        try:
+            return self._inbox[agent.unique_id]
+        except KeyError:
+            raise ValueError(f"Trying to access inbox for unregistered agent: {agent} (class: {type(agent)}). "
+                            "Make sure your agent is of type EventedAgent and it is registered with the environment.")
+
+    @coroutine
+    def received(self, agent, expiration=None, timeout=60, delay=1):
+        if not expiration:
+            expiration = self.now + timeout
+        inbox = self.inbox_for(agent)
+        if inbox:
+            return self.process_messages(inbox)
+        while self.now < expiration:
+            # TODO: this wakes the agent up at every step. It would be better to wait until timeout (or inf)
+            # and if a message is received before that, reschedule the agent when
+            if inbox:
+                return self.process_messages(inbox)
+            yield time.Delay(delay)
+        raise events.TimedOut("No message received")
+
+    def tell(self, msg, sender, recipient, expiration=None, timeout=None, **kwargs):
+        if expiration is None:
+            expiration = float("inf") if timeout is None else self.now + timeout
+        self.inbox_for(recipient).append(
+            events.Tell(timestamp=self.now,
+                        payload=msg,
+                        sender=sender,
+                        expiration=expiration,
+                        **kwargs))
+
+    def broadcast(self, msg, sender, ttl=None, expiration=None, agent_class=None):
+        expiration = expiration if ttl is None else self.now + ttl
+        # This only works for Soil environments. Mesa agents do not have an `agents` method
+        sender_id = sender.unique_id
+        for (agent_id, inbox) in self._inbox.items():
+            if agent_id == sender_id:
                 continue
-            self.logger.debug(f"Telling {repr(agent)}: {msg} ttl={ttl}")
-            try:
-                inbox = agent._inbox
-            except AttributeError:
-                self.logger.info(
-                    f"Agent {agent.unique_id} cannot receive events because it does not have an inbox"
-                )
+            if agent_class and not isinstance(self.agents(unique_id=agent_id), agent_class):
                 continue
-            # Allow for AttributeError exceptions in this part of the code
+            self.logger.debug(f"Telling {agent_id}: {msg} ttl={ttl}")
             inbox.append(
                 events.Tell(
                     payload=msg,
                     sender=sender,
-                    expiration=expiration if ttl is None else self.now + ttl,
+                    expiration=expiration,
                 )
             )
 
+    @coroutine
+    def ask(self, msg, recipient, sender=None, expiration=None, timeout=None, delay=1):
+        ask = events.Ask(timestamp=self.now, payload=msg, sender=sender)
+        self.inbox_for(recipient).append(ask)
+        expiration = float("inf") if timeout is None else self.now + timeout
+        while self.now < expiration:
+            if ask.reply:
+                return ask.reply
+            yield time.Delay(delay)
+        raise events.TimedOut("No reply received")
 
-class Environment(NetworkEnvironment, EventedEnvironment):
-    """Default environment class, has both network and event capabilities"""
+    def process_messages(self, inbox):
+        valid = list()
+        for msg in inbox:
+            if msg.expired(self.now):
+                continue
+            valid.append(msg)
+        inbox.clear()
+        return valid
+
+
+class Environment(EventedEnvironment, NetworkEnvironment):
+    pass

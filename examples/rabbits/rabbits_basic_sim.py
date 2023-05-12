@@ -1,11 +1,9 @@
-from soil import FSM, state, default_state, BaseAgent, NetworkAgent, Environment, Simulation, report, parameters as params
-from collections import Counter
-import logging
+from soil import FSM, state, default_state, BaseAgent, NetworkAgent, Environment, report, parameters as params
 import math
 
 
 class RabbitEnv(Environment):
-    prob_death: params.probability = 1e-100
+    prob_death: params.probability = 1e-3
 
     def init(self):
         a1 = self.add_node(Male)
@@ -37,7 +35,7 @@ class Rabbit(NetworkAgent, FSM):
     @default_state
     @state
     def newborn(self):
-        self.info("I am a newborn.")
+        self.debug("I am a newborn.")
         self.age = 0
         self.offspring = 0
         return self.youngling
@@ -46,7 +44,7 @@ class Rabbit(NetworkAgent, FSM):
     def youngling(self):
         self.age += 1
         if self.age >= self.sexual_maturity:
-            self.info(f"I am fertile! My age is {self.age}")
+            self.debug(f"I am fertile! My age is {self.age}")
             return self.fertile
 
     @state
@@ -60,7 +58,7 @@ class Rabbit(NetworkAgent, FSM):
 
 class Male(Rabbit):
     max_females = 5
-    mating_prob = 0.001
+    mating_prob = 0.005
 
     @state
     def fertile(self):
@@ -70,9 +68,8 @@ class Male(Rabbit):
             return self.dead
 
         # Males try to mate
-        for f in self.model.agents(
-            agent_class=Female, state_id=Female.fertile.id, limit=self.max_females
-        ):
+        for f in self.model.agents.filter(
+            agent_class=Female, state_id=Female.fertile.id).limit(self.max_females):
             self.debug("FOUND A FEMALE: ", repr(f), self.mating_prob)
             if self.prob(self["mating_prob"]):
                 f.impregnate(self)
@@ -93,14 +90,14 @@ class Female(Rabbit):
             return self.pregnant
 
     def impregnate(self, male):
-        self.info(f"impregnated by {repr(male)}")
+        self.debug(f"impregnated by {repr(male)}")
         self.mate = male
         self.pregnancy = 0
         self.number_of_babies = int(8 + 4 * self.random.random())
 
     @state
     def pregnant(self):
-        self.info("I am pregnant")
+        self.debug("I am pregnant")
         self.age += 1
 
         if self.age >= self.life_expectancy:
@@ -110,7 +107,7 @@ class Female(Rabbit):
             self.pregnancy += 1
             return
 
-        self.info("Having {} babies".format(self.number_of_babies))
+        self.debug("Having {} babies".format(self.number_of_babies))
         for i in range(self.number_of_babies):
             state = {}
             agent_class = self.random.choice([Male, Female])
@@ -129,33 +126,30 @@ class Female(Rabbit):
 
     def die(self):
         if "pregnancy" in self and self["pregnancy"] > -1:
-            self.info("A mother has died carrying a baby!!")
+            self.debug("A mother has died carrying a baby!!")
         return super().die()
 
 
 class RandomAccident(BaseAgent):
+    prob_death = None
     def step(self):
-        rabbits_alive = self.model.G.number_of_nodes()
+        alive = self.get_agents(agent_class=Rabbit, alive=True)
 
-        if not rabbits_alive:
-            return self.die()
+        if not alive:
+            return self.die("No more rabbits to kill")
 
-        prob_death = self.model.prob_death * math.floor(
-            math.log10(max(1, rabbits_alive))
-        )
+        num_alive = len(alive)
+        prob_death = min(1, self.prob_death * num_alive/10)
         self.debug("Killing some rabbits with prob={}!".format(prob_death))
+
         for i in self.get_agents(agent_class=Rabbit):
             if i.state_id == i.dead.id:
                 continue
             if self.prob(prob_death):
-                self.info("I killed a rabbit: {}".format(i.id))
-                rabbits_alive -= 1
+                self.debug("I killed a rabbit: {}".format(i.unique_id))
+                num_alive -= 1
                 i.die()
-        self.debug("Rabbits alive: {}".format(rabbits_alive))
+        self.debug("Rabbits alive: {}".format(num_alive))
 
 
-
-sim = Simulation(model=RabbitEnv, max_time=100, seed="MySeed", iterations=1)
-
-if __name__ == "__main__":
-    sim.run()
+RabbitEnv.run(max_time=1000, seed="MySeed", iterations=1)

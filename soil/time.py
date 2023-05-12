@@ -1,7 +1,7 @@
 from mesa.time import BaseScheduler
 from queue import Empty
 from heapq import heappush, heappop, heapreplace
-from collections import deque
+from collections import deque, defaultdict
 import math
 import logging
 
@@ -27,6 +27,12 @@ class Delay:
     def __await__(self):
         return (yield self.delta)
 
+class When:
+    def __init__(self, when):
+        raise Exception("The use of When is deprecated. Use the `Agent.at` and `Agent.delay` methods instead")
+class Delta:
+    def __init__(self, delta):
+        raise Exception("The use of Delay is deprecated. Use the `Agent.at` and `Agent.delay` methods instead")
 
 class DeadAgent(Exception):
     pass
@@ -46,27 +52,39 @@ class PQueueActivation(BaseScheduler):
         self._shuffle = shuffle
         self.logger = getattr(self.model, "logger", logger).getChild(f"time_{ self.model }")
         self.next_time = self.time
+        self.agents_by_type = defaultdict(dict)
 
     def add(self, agent: MesaAgent, when=None):
         if when is None:
             when = self.time
         else:
             when = float(when)
-
-        self._schedule(agent, None, when)
+        agent_class = type(agent)
+        self.agents_by_type[agent_class][agent.unique_id] = agent
         super().add(agent)
-
-    def _schedule(self, agent, when=None, replace=False):
+        self.add_callback(agent.step, when)
+    
+    def add_callback(self, callback, when=None, replace=False):
         if when is None:
             when = self.time
+        else:
+            when = float(when)
         if self._shuffle:
             key = (when, self.model.random.random())
         else:
-            key = (when, agent.unique_id)
+            key = when
         if replace:
-            heapreplace(self._queue, (key, agent))
+            heapreplace(self._queue, (key, callback))
         else:
-            heappush(self._queue, (key, agent))
+            heappush(self._queue, (key, callback))
+
+    def remove(self, agent):
+        del self._agents[agent.unique_id]
+        del self._agents[type(agent)][agent.unique_id]
+        for i, (key, callback) in enumerate(self._queue):
+            if callback == agent.step:
+                del self._queue[i]
+                break
 
     def step(self) -> None:
         """
@@ -87,18 +105,14 @@ class PQueueActivation(BaseScheduler):
                 next_time = when
                 break
 
-            try:
-                when = agent.step() or 1
-                when += now
-            except DeadAgent:
-                heappop(self._queue)
-                continue
+            when = agent.step() or 1
 
             if when == INFINITY:
                 heappop(self._queue)
                 continue
+            when += now
 
-            self._schedule(agent, when, replace=True)
+            self.add_callback(agent, when, replace=True)
 
         self.steps += 1
 
@@ -117,26 +131,42 @@ class TimedActivation(BaseScheduler):
         self._shuffle = shuffle
         self.logger = getattr(self.model, "logger", logger).getChild(f"time_{ self.model }")
         self.next_time = self.time
+        self.agents_by_type = defaultdict(dict)
 
     def add(self, agent: MesaAgent, when=None):
+        self.add_callback(agent.step, when)
+        agent_class = type(agent)
+        self.agents_by_type[agent_class][agent.unique_id] = agent
+        super().add(agent)
+    
+    def _find_loc(self, when=None):
         if when is None:
             when = self.time
         else:
             when = float(when)
-        self._schedule(agent, None, when)
-        super().add(agent)
-
-    def _schedule(self, agent, when=None, replace=False):
         when = when or self.time
         pos = len(self._queue)
         for (ix, l) in enumerate(self._queue):
             if l[0] == when:
-                l[1].append(agent)
-                return
+                return l[1]
             if l[0] > when:
                 pos = ix
                 break
-        self._queue.insert(pos, (when, [agent]))
+        lst = []
+        self._queue.insert(pos, (when, lst))
+        return lst
+
+    def add_callback(self, func, when=None, replace=False):
+        lst = self._find_loc(when)
+        lst.append(func)
+    
+    def add_bulk(self, funcs, when=None):
+        lst = self._find_loc(when)
+        lst.extend(funcs)
+
+    def remove(self, agent):
+        del self._agents[agent.unique_id]
+        del self.agents_by_type[type(agent)][agent.unique_id]
 
     def step(self) -> None:
         """
@@ -157,20 +187,22 @@ class TimedActivation(BaseScheduler):
         bucket = self._queue.popleft()[1]
         if self._shuffle:
             self.model.random.shuffle(bucket)
-        for agent in bucket:
-            try:
-                when = agent.step() or 1
-                when += now
-            except DeadAgent:
-                continue
+        next_batch = defaultdict(list)
+        for func in bucket:
+            when = func() or 1
 
             if when != INFINITY:
-                self._schedule(agent, when, replace=True)
+                when += now
+                next_batch[when].append(func) 
+        
+        for (when, bucket) in next_batch.items():
+            self.add_bulk(bucket, when)
 
         self.steps += 1
         if self._queue:
             self.time = self._queue[0][0]
         else:
+            self.model.running = False
             self.time = INFINITY
 
 

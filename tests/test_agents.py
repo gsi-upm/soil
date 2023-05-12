@@ -20,13 +20,14 @@ class TestAgents(TestCase):
         assert ret == stime.INFINITY
 
     def test_die_raises_exception(self):
-        """A dead agent should raise an exception if it is stepped after death"""
+        """A dead agent should continue returning INFINITY after death"""
         d = Dead(unique_id=0, model=environment.Environment())
         assert d.alive
         d.step()
         assert not d.alive
-        with pytest.raises(stime.DeadAgent):
-            d.step()
+        when = d.step()
+        assert not d.alive
+        assert when == stime.INFINITY
 
     def test_agent_generator(self):
         """
@@ -79,30 +80,28 @@ class TestAgents(TestCase):
         """
 
         class BCast(agents.Evented):
-            pings_received = 0
+            pings_received = []
 
-            def step(self):
-                print(self.model.broadcast)
-                try:
-                    self.model.broadcast("PING")
-                except Exception as ex:
-                    print(ex)
+            async def step(self):
+                self.broadcast("PING")
+                print("PING sent")
                 while True:
-                    self.process_messages()
-                    yield
+                    msgs = await self.received()
+                    self.pings_received += msgs
 
-            def on_receive(self, msg, sender=None):
-                self.pings_received += 1
+        e = environment.Environment()
 
-        e = environment.EventedEnvironment()
-
-        for i in range(10):
+        num_agents = 10
+        for i in range(num_agents):
             e.add_agent(agent_class=BCast)
         e.step()
-        pings_received = lambda: [a.pings_received for a in e.agents]
-        assert sorted(pings_received()) == list(range(1, 11))
+        # Agents are executed in order, so the first agent should have not received any messages
+        pings_received = lambda: [len(a.pings_received) for a in e.agents]
+        assert sorted(pings_received()) == list(range(0, num_agents))
         e.step()
-        assert all(x == 10 for x in pings_received())
+        # After the second step, every agent should have received a broadcast from every other agent
+        received = pings_received()
+        assert all(x == (num_agents - 1) for x in received)
 
     def test_ask_messages(self):
         """
@@ -140,17 +139,16 @@ class TestAgents(TestCase):
                         print("NOT sending ping")
                     print("Checking msgs")
                     # Do not block if we have already received a PING
-                    if not self.process_messages():
-                        yield from self.received()
-                print("done")
+                    msgs = yield from self.received()
+                    for ping in msgs:
+                        if ping.payload == "PING":
+                            ping.reply = "PONG"
+                            pongs.append(self.now)
+                        else:
+                            raise Exception("This should never happen")
 
-            def on_receive(self, msg, sender=None):
-                if msg == "PING":
-                    pongs.append(self.now)
-                    return "PONG"
-                raise Exception("This should never happen")
 
-        e = environment.EventedEnvironment(schedule_class=stime.OrderedTimedActivation)
+        e = environment.Environment(schedule_class=stime.OrderedTimedActivation)
         for i in range(2):
             e.add_agent(agent_class=Ping)
         assert e.now == 0
@@ -373,3 +371,23 @@ class TestAgents(TestCase):
         model.step()
         assert a.now == 17
         assert a.my_state == 5
+    
+    def test_send_nonevent(self):
+        '''
+        Sending a non-event should raise an error.
+        '''
+        model = environment.Environment()
+        a = model.add_agent(agents.Noop)
+        class TestAgent(agents.Agent):
+            @agents.state(default=True)
+            def one(self):
+                try:
+                    a.tell(b, 1)
+                    raise AssertionError('Should have raised an error.')
+                except AttributeError:
+                    self.model.tell(1, sender=self, recipient=a)
+
+        model.add_agent(TestAgent)
+
+        with pytest.raises(ValueError):
+            model.step()

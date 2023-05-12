@@ -43,15 +43,14 @@ def read_sql(fpath=None, name=None, include_agents=False):
     with engine.connect() as conn:
         env = pd.read_sql_table("env", con=conn,
                                 index_col="step").reset_index().set_index([
-                                    "simulation_id", "params_id",
-                                    "iteration_id", "step"
+                                    "params_id", "iteration_id", "step"
                                 ])
-        agents = pd.read_sql_table("agents", con=conn, index_col=["simulation_id", "params_id", "iteration_id", "step", "agent_id"])
+        agents = pd.read_sql_table("agents", con=conn, index_col=["params_id", "iteration_id", "step", "agent_id"])
         config = pd.read_sql_table("configuration", con=conn, index_col="simulation_id")
-        parameters = pd.read_sql_table("parameters", con=conn, index_col=["iteration_id", "params_id", "simulation_id"])
-        try:
-            parameters = parameters.pivot(columns="key", values="value")
-        except Exception as e:
-            print(f"warning: coult not pivot parameters: {e}")
+        parameters = pd.read_sql_table("parameters", con=conn, index_col=["simulation_id", "params_id", "iteration_id"])
+        # try:
+        #     parameters = parameters.pivot(columns="key", values="value")
+        # except Exception as e:
+        #     print(f"warning: coult not pivot parameters: {e}")
 
         return Results(config, parameters, env, agents)

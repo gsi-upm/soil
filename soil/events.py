@@ -18,7 +18,6 @@ class Message:
     def expired(self, when):
         return self.expiration is not None and self.expiration < when
 
-
 class Reply(Message):
     source: Message
 
@@ -28,7 +27,9 @@ class Ask(Message):
 
 
 class Tell(Message):
-    pass
+    def __post_init__(self):
+        assert self.sender is not None, "Tell requires a sender"
+
 
 
 class TimedOut(Exception):

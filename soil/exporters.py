@@ -1,6 +1,7 @@
 import os
 import sys
 from time import time as current_time
+from datetime import datetime
 from io import BytesIO
 from textwrap import dedent, indent
 
@@ -86,20 +87,21 @@ class Exporter:
                 pass
         return open_or_reuse(f, mode=mode, backup=self.simulation.backup, **kwargs)
 
-    def get_dfs(self, env, **kwargs):
+    def get_dfs(self, env, params_id, **kwargs):
         yield from get_dc_dfs(env.datacollector,
-                              simulation_id=self.simulation.id,
+                              params_id,
                               iteration_id=env.id,
                               **kwargs)
 
 
-def get_dc_dfs(dc, **kwargs):
+def get_dc_dfs(dc, params_id, **kwargs):
     dfs = {}
     dfe = dc.get_model_vars_dataframe()
     dfe.index.rename("step", inplace=True)
     dfs["env"] = dfe
+    kwargs["params_id"] = params_id
     try:
-        dfa = dc.get_agent_vars_dataframe() 
+        dfa = dc.get_agent_vars_dataframe()
         dfa.index.rename(["step", "agent_id"], inplace=True)
         dfs["agents"] = dfa
     except UserWarning:
@@ -108,9 +110,13 @@ def get_dc_dfs(dc, **kwargs):
         dfs[table_name] = dc.get_table_dataframe(table_name)
     for (name, df) in dfs.items():
         for (k, v) in kwargs.items():
-            df[k] = v
-        df.set_index(["simulation_id", "iteration_id"], append=True, inplace=True)
-    
+            if v:
+                df[k] = v
+            else:
+                df[k] = pd.Series(dtype="object")
+        df.reset_index(inplace=True)
+        df.set_index(["params_id", "iteration_id"], inplace=True)
+
     yield from dfs.items()
 
 
@@ -129,17 +135,21 @@ class SQLite(Exporter):
         logger.info("Dumping results to %s", self.dbpath)
         if self.simulation.backup:
             try_backup(self.dbpath, remove=True)
-        
+
         if self.simulation.overwrite:
             if os.path.exists(self.dbpath):
                 os.remove(self.dbpath)
-        
+
+        outdir = os.path.dirname(self.dbpath)
+        if outdir and not os.path.exists(outdir):
+            os.makedirs(outdir)
+
         self.engine = create_engine(f"sqlite:///{self.dbpath}", echo=False)
 
         sim_dict = {k: serialize(v)[0] for (k,v) in self.simulation.to_dict().items()}
         sim_dict["simulation_id"] = self.simulation.id
         df = pd.DataFrame([sim_dict])
-        df.to_sql("configuration", con=self.engine, if_exists="append")
+        df.reset_index().to_sql("configuration", con=self.engine, if_exists="append", index=False)
 
     def iteration_end(self, env, params, params_id, *args, **kwargs):
         if not self.dump:
@@ -149,15 +159,28 @@ class SQLite(Exporter):
         with timer(
             "Dumping simulation {} iteration {}".format(self.simulation.name, env.id)
         ):
-
-            pd.DataFrame([{"simulation_id": self.simulation.id,
+            d = {"simulation_id": self.simulation.id,
                            "params_id": params_id,
                            "iteration_id": env.id,
-                           "key": k,
-                           "value": serialize(v)[0]} for (k,v) in params.items()]).to_sql("parameters", con=self.engine, if_exists="append")
+            }
+            for (k,v) in params.items():
+                d[k] = serialize(v)[0]
+
+            pd.DataFrame([d]).reset_index().to_sql("parameters",
+                                                   con=self.engine,
+                                                   if_exists="append",
+                                                   index=False)
+            pd.DataFrame([{
+                "simulation_id": self.simulation.id,
+                "params_id": params_id,
+                "iteration_id": env.id,
+            }]).reset_index().to_sql("iterations",
+                                     con=self.engine,
+                                     if_exists="append",
+                                     index=False)
 
             for (t, df) in self.get_dfs(env, params_id=params_id):
-                df.to_sql(t, con=self.engine, if_exists="append")
+                df.reset_index().to_sql(t, con=self.engine, if_exists="append", index=False)
 
 class csv(Exporter):
     """Export the state of each environment (and its agents) a CSV file for the simulation"""
@@ -226,9 +249,9 @@ class graphdrawing(Exporter):
 class summary(Exporter):
     """Print a summary of each iteration to sys.stdout"""
 
-    def iteration_end(self, env, *args, **kwargs):
+    def iteration_end(self, env, params_id, *args, **kwargs):
         msg = ""
-        for (t, df) in self.get_dfs(env):
+        for (t, df) in self.get_dfs(env, params_id):
             if not len(df):
                 continue
             tabs = "\t" * 2
@@ -262,21 +285,5 @@ class YAML(Exporter):
             logger.info(f"Dumping simulation configuration to {self.outdir}")
             f.write(self.simulation.to_yaml())
 
-class default(Exporter):
-    """Default exporter. Writes sqlite results, as well as the simulation YAML"""
 
-    def __init__(self, *args, exporter_cls=[], **kwargs):
-        exporter_cls = exporter_cls or [YAML, SQLite]
-        self.inner = [cls(*args, **kwargs) for cls in exporter_cls]
-
-    def sim_start(self, *args, **kwargs):
-        for exporter in self.inner:
-            exporter.sim_start(*args, **kwargs)
-
-    def sim_end(self, *args, **kwargs):
-        for exporter in self.inner:
-            exporter.sim_end(*args, **kwargs)
-
-    def iteration_end(self, *args, **kwargs):
-        for exporter in self.inner:
-            exporter.iteration_end(*args, **kwargs)
+default = SQLite
