@@ -10,3 +10,4 @@ build/*
 dist/*
 prof
 backup
+*.egg-info

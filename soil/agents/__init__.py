@@ -138,10 +138,6 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
         else:
             self.debug(f"agent dying")
         self.alive = False
-        try:
-            self.model.schedule.remove(self)
-        except KeyError:
-            pass
         return time.Delay(time.INFINITY)
 
     def step(self):

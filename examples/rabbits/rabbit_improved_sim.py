@@ -1,12 +1,9 @@
 from soil import Evented, FSM, state, default_state, BaseAgent, NetworkAgent, Environment, parameters, report, TimedOut
 import math
 
-from soilent import Scheduler
-
 
 class RabbitsImprovedEnv(Environment):
     prob_death: parameters.probability = 1e-3
-    schedule_class = Scheduler
 
     def init(self):
         a1 = self.add_node(Male)
