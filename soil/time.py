@@ -24,7 +24,10 @@ class Delay:
 
     def __float__(self):
         return self.delta
-    
+
+    def __eq__(self, other):
+        return float(self) == float(other)
+
     def __await__(self):
         return (yield self.delta)
 
@@ -87,6 +90,9 @@ class PQueueSchedule:
                 del self._queue[i]
                 break
 
+    def __len__(self):
+        return len(self._queue)
+
     def step(self) -> None:
         """
         Executes events in order, one at a time. After each step,
@@ -107,7 +113,8 @@ class PQueueSchedule:
                 next_time = when
                 break
 
-            when = event.func() or 1
+            when = event.func() 
+            when = float(when) if when is not None else 1.0
 
             if when == INFINITY:
                 heappop(self._queue)
@@ -153,12 +160,18 @@ class Schedule:
         return lst
 
     def insert(self, when, func, replace=False):
+        if when == INFINITY:
+            return
         lst = self._find_loc(when)
         lst.append(func)
     
     def add_bulk(self, funcs, when=None):
         lst = self._find_loc(when)
+        n = len(funcs)
+        #TODO: remove for performance
+        before = len(self)
         lst.extend(funcs)
+        assert len(self) == before + n
 
     def remove(self, func):
         for bucket in self._queue:
@@ -166,6 +179,9 @@ class Schedule:
                 if e == func:
                     bucket.remove(ix)
                     return
+
+    def __len__(self):
+        return sum(len(bucket[1]) for bucket in self._queue)
 
     def step(self) -> None:
         """
@@ -188,11 +204,14 @@ class Schedule:
             self.random.shuffle(bucket)
         next_batch = defaultdict(list)
         for func in bucket:
-            when = func() or 1
+            when = func()
+            when = float(when) if when is not None else 1
 
-            if when != INFINITY:
-                when += now
-                next_batch[when].append(func) 
+            if when == INFINITY:
+                continue
+
+            when += now
+            next_batch[when].append(func) 
         
         for (when, bucket) in next_batch.items():
             self.add_bulk(bucket, when)
@@ -229,6 +248,12 @@ class InnerActivation(BaseScheduler):
         self.agents_by_type[agent_class][agent.unique_id] = agent
         super().add(agent)
     
+    def add_callback(self, when, cb):
+        self.inner.insert(when, cb)
+
+    def remove_callback(self, when, cb):
+        self.inner.remove(cb)
+    
     def remove(self, agent):
         del self._agents[agent.unique_id]
         del self.agents_by_type[type(agent)][agent.unique_id]
@@ -241,6 +266,9 @@ class InnerActivation(BaseScheduler):
         """
         self.inner.step()
 
+    def __len__(self):
+        return len(self.inner)
+
 
 class BucketTimedActivation(InnerActivation):
     inner_class = Schedule
@@ -250,16 +278,19 @@ class PQueueActivation(InnerActivation):
     inner_class = PQueueSchedule
 
 
-# Set the bucket implementation as default
+#Set the bucket implementation as default
+TimedActivation = BucketTimedActivation
+
 try:
-    from soilent.soilent import BucketScheduler
+    from soilent.soilent import BucketScheduler, PQueueScheduler
 
-    class SoilBucketActivation(InnerActivation):
+    class SoilentActivation(InnerActivation):
         inner_class = BucketScheduler
+    class SoilentPQueueActivation(InnerActivation):
+        inner_class = PQueueScheduler
 
-    TimedActivation = SoilBucketActivation
+    # TimedActivation = SoilentBucketActivation
 except ImportError:
-    TimedActivation = BucketTimedActivation
     pass
 
 

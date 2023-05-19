@@ -6,7 +6,7 @@ import networkx as nx
 from functools import partial
 
 from os.path import join
-from soil import simulation, Environment, agents, network, serialization, utils, config, from_file
+from soil import simulation, Environment, agents, serialization, from_file, time
 from mesa import Agent as MesaAgent
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
@@ -194,7 +194,7 @@ class TestMain(TestCase):
                 return self.ping
 
         a = ToggleAgent(unique_id=1, model=Environment())
-        when = a.step()
+        when = float(a.step())
         assert when == 2
         when = a.step()
         assert when == None
@@ -253,3 +253,33 @@ class TestMain(TestCase):
         assert df["base"][(0,1)] == "base"
         assert df["subclass"][(0,0)] is None
         assert df["subclass"][(0,1)] == "subclass"
+    
+    def test_remove_agent(self):
+        """An agent that is scheduled should be removed from the schedule"""
+        model = Environment()
+        model.add_agent(agents.Noop)
+        model.step()
+        model.remove_agent(model.agents[0])
+        assert not model.agents
+        when = model.step()
+        assert when == None
+        assert not model.running
+
+    def test_remove_agent(self):
+        """An agent that is scheduled should be removed from the schedule"""
+
+        allagents = []
+        class Removed(agents.BaseAgent):
+            def step(self):
+                nonlocal allagents
+                assert self.alive
+                assert self in self.model.agents
+                for agent in allagents:
+                    self.model.remove_agent(agent)
+
+        model = Environment()
+        a1 = model.add_agent(Removed)
+        a2 = model.add_agent(Removed)
+        allagents = [a1, a2]
+        model.step()
+        assert not model.agents

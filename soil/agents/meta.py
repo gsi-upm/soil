@@ -2,44 +2,14 @@ from abc import ABCMeta
 from copy import copy
 from functools import wraps
 from .. import time
+from ..decorators import syncify, while_alive
 
 import types
 import inspect
 
-def decorate_generator_step(func, name):
-    @wraps(func)
-    def decorated(self):
-        if not self.alive:
-            return time.INFINITY
 
-        if self._coroutine is None:
-            self._coroutine = func(self)
-        try:
-            if self._last_except:
-                val = self._coroutine.throw(self._last_except)
-            else:
-                val = self._coroutine.send(self._last_return)
-        except StopIteration as ex:
-            self._coroutine = None
-            val = ex.value
-        finally:
-            self._last_return = None
-            self._last_except = None
-        return float(val) if val is not None else val
-    return decorated
-
-
-def decorate_normal_step(func, name):
-    @wraps(func)
-    def decorated(self):
-        # if not self.alive:
-        #     return time.INFINITY
-        val = func(self)
-        return float(val) if val is not None else val
-    return decorated
-
-
-class MetaAgent(ABCMeta):
+class MetaAnnotations(ABCMeta):
+    """This metaclass sets default values for agents based on class attributes"""
     def __new__(mcls, name, bases, namespace):
         defaults = {}
 
@@ -53,22 +23,7 @@ class MetaAgent(ABCMeta):
         }
 
         for attr, func in namespace.items():
-            if attr == "step":
-                if inspect.isgeneratorfunction(func) or inspect.iscoroutinefunction(func):
-                    func = decorate_generator_step(func, attr)
-                    new_nmspc.update({
-                        "_last_return": None,
-                        "_last_except": None,
-                        "_coroutine": None,
-                    })
-                elif inspect.isasyncgenfunction(func):
-                    raise ValueError("Illegal step function: {}. It probably mixes both async/await and yield".format(func))
-                elif inspect.isfunction(func):
-                    func = decorate_normal_step(func, attr)
-                else:
-                    raise ValueError("Illegal step function: {}".format(func))
-                new_nmspc[attr] = func
-            elif (
+            if (
                 isinstance(func, types.FunctionType)
                 or isinstance(func, property)
                 or isinstance(func, classmethod)
@@ -82,6 +37,28 @@ class MetaAgent(ABCMeta):
             else:
                 defaults[attr] = copy(func)
 
+        return super().__new__(mcls, name, bases, new_nmspc)
+
+
+class AutoAgent(ABCMeta):
+    def __new__(mcls, name, bases, namespace):
+        if "step" in namespace:
+            func = namespace["step"]
+            namespace["_orig_step"] = func
+            if inspect.isfunction(func):
+                if inspect.isgeneratorfunction(func) or inspect.iscoroutinefunction(func):
+                    func = syncify(func, method=True)
+                namespace["step"] = while_alive(func)
+            elif inspect.isasyncgenfunction(func):
+                raise ValueError("Illegal step function: {}. It probably mixes both async/await and yield".format(func))
+            else:
+                raise ValueError("Illegal step function: {}".format(func))
 
         # Add attributes for their use in the decorated functions
-        return super().__new__(mcls, name, bases, new_nmspc)
+        return super().__new__(mcls, name, bases, namespace)
+
+
+class MetaAgent(AutoAgent, MetaAnnotations):
+    """This metaclass sets default values for agents based on class attributes"""
+    pass
+

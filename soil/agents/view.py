@@ -1,5 +1,6 @@
 from collections.abc import Mapping, Set
 from itertools import islice
+from mesa import Agent
 
 
 class AgentView(Mapping, Set):
@@ -55,6 +56,8 @@ class AgentView(Mapping, Set):
         return list(self.filter(*args, **kwargs))
 
     def __contains__(self, agent_id):
+        if isinstance(agent_id, Agent):
+            agent_id = agent_id.unique_id
         return agent_id in self._agents
 
     def __str__(self):

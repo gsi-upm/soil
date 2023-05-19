@@ -259,7 +259,6 @@ def main(
     except Exception as ex:
         if args.pdb:
             from .debugging import post_mortem
-
             print(traceback.format_exc())
             post_mortem()
         else:

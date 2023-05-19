@@ -16,7 +16,7 @@ class EventedAgent(BaseAgent):
         self.model.register(self)
 
     def received(self, **kwargs):
-        return self.model.received(self, **kwargs)
+        return self.model.received(agent=self, **kwargs)
 
     def tell(self, msg, **kwargs):
         return self.model.tell(msg, recipient=self, **kwargs)

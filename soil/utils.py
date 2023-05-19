@@ -93,15 +93,12 @@ def flatten_dict(d):
 
 def _flatten_dict(d, prefix=""):
     if not isinstance(d, dict):
-        # print('END:', prefix, d)
         yield prefix, d
         return
     if prefix:
         prefix = prefix + "."
     for k, v in d.items():
-        # print(k, v)
         res = list(_flatten_dict(v, prefix="{}{}".format(prefix, k)))
-        # print('RES:', res)
         yield from res
 
 
@@ -142,6 +139,7 @@ def run_and_return_exceptions(func, *args, **kwargs):
 
 def run_parallel(func, iterable, num_processes=1, **kwargs):
     if num_processes > 1 and not os.environ.get("SOIL_DEBUG", None):
+        logger.info("Running simulations in {} processes".format(num_processes))
         if num_processes < 1:
             num_processes = cpu_count() - num_processes
         p = Pool(processes=num_processes)

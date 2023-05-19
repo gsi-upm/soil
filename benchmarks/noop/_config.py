@@ -11,6 +11,7 @@ def run_sim(model, **kwargs):
                 dump=False,
                 num_processes=1,
                 parameters={'num_agents': NUM_AGENTS},
+                seed="",
                 max_steps=MAX_STEPS,
                 iterations=NUM_ITERS)
     opts.update(kwargs)

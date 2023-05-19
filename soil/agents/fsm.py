@@ -6,38 +6,37 @@ import inspect
 
 
 class State:
-    __slots__ = ("awaitable", "f", "generator", "name", "default")
+    __slots__ = ("awaitable", "f", "attribute", "generator", "name", "default")
 
     def __init__(self, f, name, default, generator, awaitable):
         self.f = f
         self.name = name
+        self.attribute = "_{}".format(name)
         self.generator = generator
         self.awaitable = awaitable
         self.default = default
 
-    @coroutine
-    def step(self, obj):
-        if self.generator or self.awaitable:
-            f = self.f
-            next_state = yield from f(obj)
-            return next_state
-
-        else:
-            return self.f(obj)
-
     @property
     def id(self):
         return self.name
-
-    def __call__(self, *args, **kwargs):
-        raise Exception("States should not be called directly")
-
-class UnboundState(State):
+    
+    def __get__(self, obj, owner=None):
+        if obj is None:
+            return self
+        try:
+            return getattr(obj, self.attribute)
+        except AttributeError:
+            b = self.bind(obj)
+            setattr(obj, self.attribute, b)
+            return b
 
     def bind(self, obj):
         bs = BoundState(self.f, self.name, self.default, self.generator, self.awaitable, obj=obj)
         setattr(obj, self.name, bs)
         return bs
+
+    def __call__(self, *args, **kwargs):
+        raise Exception("States should not be called directly")
 
 
 class BoundState(State):
@@ -46,10 +45,21 @@ class BoundState(State):
     def __init__(self, *args, obj):
         super().__init__(*args)
         self.obj = obj
-    
+
+    @coroutine
+    def __call__(self):
+        if self.generator or self.awaitable:
+            f = self.f
+            next_state = yield from f(self.obj)
+            return next_state
+
+        else:
+            return self.f(self.obj)
+
+
     def delay(self, delta=0):
         return self, self.obj.delay(delta)
-    
+
     def at(self, when):
         return self, self.obj.at(when)
 
@@ -63,7 +73,7 @@ def state(name=None, default=False):
         name = name or func.__name__
         generator = inspect.isgeneratorfunction(func)
         awaitable = inspect.iscoroutinefunction(func) or inspect.isasyncgen(func)
-        return UnboundState(func, name, default, generator, awaitable)
+        return State(func, name, default, generator, awaitable)
 
     if callable(name):
         return decorator(name)
@@ -113,15 +123,24 @@ class MetaFSM(MetaAgent):
 class FSM(BaseAgent, metaclass=MetaFSM):
     def __init__(self, init=True, state_id=None, **kwargs):
         super().__init__(**kwargs, init=False)
+        bound_states = {}
+        for (k, v) in list(self._states.items()):
+            if isinstance(v, State):
+                v = v.bind(self)
+            bound_states[k] = v
+            setattr(self, k, v)
+
+        self._states = bound_states
+
         if state_id is not None:
             self._set_state(state_id)
+        else:
+            self._set_state(self._state)
         # If more than "dead" state is defined, but no default state
         if len(self._states) > 1 and not self._state:
             raise ValueError(
                 f"No default state specified for {type(self)}({self.unique_id})"
             )
-        for (k, v) in self._states.items():
-            setattr(self, k, v.bind(self))
 
         if init:
             self.init()
@@ -139,6 +158,7 @@ class FSM(BaseAgent, metaclass=MetaFSM):
             raise ValueError("Cannot change state after init")
         self._set_state(value)
 
+    @coroutine
     def step(self):
         if self._state is None:
             if len(self._states) == 1:
@@ -146,8 +166,7 @@ class FSM(BaseAgent, metaclass=MetaFSM):
             else:
                 raise Exception("Invalid state (None) for agent {}".format(self))
 
-        self._check_alive()
-        next_state = yield from self._state.step(self)
+        next_state = yield from self._state()
 
         try:
             next_state, when = next_state
@@ -167,7 +186,9 @@ class FSM(BaseAgent, metaclass=MetaFSM):
             if state not in self._states:
                 raise ValueError("{} is not a valid state".format(state))
             state = self._states[state]
-        if not isinstance(state, State):
+        if isinstance(state, State):
+            state = state.bind(self)
+        elif not isinstance(state, BoundState):
             raise ValueError("{} is not a valid state".format(state))
         self._state = state
 

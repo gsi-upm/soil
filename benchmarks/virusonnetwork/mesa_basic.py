@@ -100,6 +100,7 @@ class VirusOnNetwork(mesa.Model):
     def number_infected(self):
         return number_infected(self)
 
+    @property
     def resistant_susceptible_ratio(self):
         try:
             return number_state(self, State.RESISTANT) / number_state(
@@ -176,5 +177,4 @@ class VirusAgent(mesa.Agent):
 
 
 from _config import run_sim
-
 run_sim(model=VirusOnNetwork)

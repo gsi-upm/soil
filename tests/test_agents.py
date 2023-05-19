@@ -1,7 +1,7 @@
 from unittest import TestCase
 import pytest
 
-from soil import agents, environment
+from soil import agents, events, environment
 from soil import time as stime
 
 
@@ -25,7 +25,7 @@ class TestAgents(TestCase):
         assert d.alive
         d.step()
         assert not d.alive
-        when = d.step()
+        when = float(d.step())
         assert not d.alive
         assert when == stime.INFINITY
 
@@ -63,6 +63,7 @@ class TestAgents(TestCase):
             def other(self):
                 self.times_run += 1
 
+        assert MyAgent.other.id == "other"
         e = environment.Environment()
         a = e.add_agent(MyAgent)
         e.step()
@@ -72,6 +73,53 @@ class TestAgents(TestCase):
         assert a.state_id == MyAgent.other.id
         a.step()
         assert a.times_run == 2
+
+    def test_state_decorator_multiple(self):
+        class MyAgent(agents.FSM):
+            times_run = 0
+
+            @agents.state(default=True)
+            def one(self):
+                return self.two
+
+            @agents.state
+            def two(self):
+                return self.one
+
+        e = environment.Environment()
+        first = e.add_agent(MyAgent, state_id=MyAgent.one)
+        second = e.add_agent(MyAgent, state_id=MyAgent.two)
+        assert first.state_id == MyAgent.one.id
+        assert second.state_id == MyAgent.two.id
+        e.step()
+        assert first.state_id == MyAgent.two.id
+        assert second.state_id == MyAgent.one.id
+
+    def test_state_decorator_multiple_async(self):
+        class MyAgent(agents.FSM):
+            times_run = 0
+
+            @agents.state(default=True)
+            def one(self):
+                yield self.delay(1)
+                return self.two
+
+            @agents.state
+            def two(self):
+                yield self.delay(1)
+                return self.one
+
+        e = environment.Environment()
+        first = e.add_agent(MyAgent, state_id=MyAgent.one)
+        second = e.add_agent(MyAgent, state_id=MyAgent.two)
+        for i in range(2):
+            assert first.state_id == MyAgent.one.id
+            assert second.state_id == MyAgent.two.id
+            e.step()
+        for i in range(2):
+            assert first.state_id == MyAgent.two.id
+            assert second.state_id == MyAgent.one.id
+            e.step()
 
     def test_broadcast(self):
         """
@@ -372,22 +420,105 @@ class TestAgents(TestCase):
         assert a.now == 17
         assert a.my_state == 5
     
-    def test_send_nonevent(self):
+    def test_receive(self):
         '''
-        Sending a non-event should raise an error.
+        An agent should be able to receive a message after waiting
         '''
         model = environment.Environment()
-        a = model.add_agent(agents.Noop)
+        class TestAgent(agents.Agent):
+            sent = False
+            woken = 0
+            def step(self):
+                self.woken += 1
+                return super().step()
+
+            @agents.state(default=True)
+            async def one(self):
+                try:
+                    self.sent = await self.received(timeout=15)
+                    return self.two.at(20)
+                except events.TimedOut:
+                    pass
+            @agents.state
+            def two(self):
+                return self.die()
+
+        a = model.add_agent(TestAgent)
+
+        class Sender(agents.Agent):
+            async def step(self):
+                await self.delay(10)
+                a.tell(1)
+                return stime.INFINITY
+
+        b = model.add_agent(Sender)
+
+        # Start and wait
+        model.step()
+        assert model.now == 10
+        assert a.woken == 1
+        assert not a.sent
+
+        # Sending the message
+        model.step()
+        assert model.now == 10
+        assert a.woken == 1
+        assert not a.sent
+
+        # The receiver callback
+        model.step()
+        assert model.now == 15
+        assert a.woken == 2
+        assert a.sent[0].payload == 1
+
+        # The timeout
+        model.step()
+        assert model.now == 20
+        assert a.woken == 2
+
+        # The last state of the agent
+        model.step()
+        assert a.woken == 3
+        assert model.now == float('inf')
+
+    def test_receive_timeout(self):
+        '''
+        A timeout should be raised if no messages are received after an expiration time
+        '''
+        model = environment.Environment()
+        timedout = False
         class TestAgent(agents.Agent):
             @agents.state(default=True)
             def one(self):
                 try:
-                    a.tell(b, 1)
+                    yield from self.received(timeout=10)
                     raise AssertionError('Should have raised an error.')
-                except AttributeError:
-                    self.model.tell(1, sender=self, recipient=a)
+                except events.TimedOut:
+                    nonlocal timedout
+                    timedout = True
 
-        model.add_agent(TestAgent)
+        a = model.add_agent(TestAgent)
 
-        with pytest.raises(ValueError):
-            model.step()
+        model.step()
+        assert model.now == 10
+        model.step()
+        # Wake up the callback
+        assert model.now == 10
+        assert not timedout
+        # The actual timeout
+        model.step()
+        assert model.now == 11
+        assert timedout
+
+    def test_attributes(self):
+        """Attributes should be individual per agent"""
+
+        class MyAgent(agents.Agent):
+            my_attribute = 0
+        
+        model = environment.Environment()
+        a = MyAgent(model=model)
+        assert a.my_attribute == 0
+        b = MyAgent(model=model, my_attribute=1)
+        assert b.my_attribute == 1
+        assert a.my_attribute == 0

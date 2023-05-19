@@ -38,6 +38,7 @@ class VirusOnNetwork(Environment):
         assert self.number_infected == self.initial_outbreak_size
 
     @report
+    @property
     def resistant_susceptible_ratio(self):
         try:
             return self.number_resistant / self.number_susceptible
@@ -99,6 +100,5 @@ class VirusAgent(Agent):
 
 
 
-if __name__ == "__main__":
-    from _config import run_sim
-    run_sim(model=VirusOnNetwork)
+from _config import run_sim
+run_sim(model=VirusOnNetwork)

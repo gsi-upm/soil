@@ -44,8 +44,8 @@ def do_not_run():
 
 def _iter_queued():
     while _QUEUED:
-        (cls, params) = _QUEUED.pop(0)
-        yield replace(cls, parameters=params)
+        slf = _QUEUED.pop(0)
+        yield slf
 
 
 # TODO: change documentation for simulation
@@ -130,11 +130,11 @@ class Simulation:
     def run(self, **kwargs):
         """Run the simulation and return the list of resulting environments"""
         if kwargs:
-            return replace(self, **kwargs).run()
+            res = replace(self, **kwargs)
+            return res.run()
 
-        param_combinations = self._collect_params(**kwargs)
         if _AVOID_RUNNING:
-            _QUEUED.extend((self, param) for param in param_combinations)
+            _QUEUED.append(self)
             return []
 
         self.logger.debug("Using exporters: %s", self.exporters or [])
@@ -153,6 +153,8 @@ class Simulation:
         results = []
         for exporter in exporters:
             exporter.sim_start()
+
+        param_combinations = self._collect_params(**kwargs)
 
         for params in tqdm(param_combinations, desc=self.name, unit="configuration"):
             for (k, v) in params.items():
@@ -204,6 +206,7 @@ class Simulation:
                 for env in tqdm(utils.run_parallel(
                     func=func,
                     iterable=range(self.iterations),
+                    num_processes=self.num_processes,
                     **params,
                 ), total=self.iterations, leave=False):
                     if env is None and self.dry_run:
@@ -338,12 +341,13 @@ def iter_from_py(pyfile, module_name='imported_file', **kwargs):
             sims.append(sim)
         for sim in _iter_queued():
             sims.append(sim)
+        # Try to find environments to run, because we did not import a script that ran simulations
         if not sims:
             for (_name, env) in inspect.getmembers(module,
-                                                   lambda x: inspect.isclass(x) and
-                                                   issubclass(x, environment.Environment) and
-                                                   (getattr(x, "__module__", None) != environment.__name__)):
-                sims.append(Simulation(model=env, **kwargs))
+                                                lambda x: inspect.isclass(x) and
+                                                issubclass(x, environment.Environment) and
+                                                (getattr(x, "__module__", None) != environment.__name__)):
+                    sims.append(Simulation(model=env, **kwargs))
         del sys.modules[module_name]
     assert not _AVOID_RUNNING
     if not sims:

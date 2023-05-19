@@ -30,8 +30,11 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
     Any attribute that is not preceded by an underscore (`_`) will also be added to its state.
     """
 
-    def __init__(self, unique_id, model, name=None, init=True, **kwargs):
-        assert isinstance(unique_id, int)
+    def __init__(self, unique_id=None, model=None, name=None, init=True, **kwargs):
+        # Ideally, model should be the first argument, but Mesa's Agent class has unique_id first
+        assert not (model is None), "Must provide a model"
+        if unique_id is None:
+            unique_id = model.next_id()
         super().__init__(unique_id=unique_id, model=model)
 
         self.name = (
@@ -191,23 +194,23 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.unique_id})"
-    
+
     def at(self, at):
         return time.Delay(float(at) - self.now)
-    
+
     def delay(self, delay=1):
         return time.Delay(delay)
-
-
-class Noop(BaseAgent):
-    def step(self):
-        return
 
 
 from .network_agents import *
 from .fsm import *
 from .evented import *
 from .view import *
+
+
+class Noop(EventedAgent, BaseAgent):
+    def step(self):
+        return
 
 
 class Agent(FSM, EventedAgent, NetworkAgent):

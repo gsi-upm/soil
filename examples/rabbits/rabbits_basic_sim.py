@@ -142,13 +142,15 @@ class RandomAccident(BaseAgent):
         prob_death = min(1, self.prob_death * num_alive/10)
         self.debug("Killing some rabbits with prob={}!".format(prob_death))
 
-        for i in self.get_agents(agent_class=Rabbit):
+        for i in alive:
             if i.state_id == i.dead.id:
                 continue
             if self.prob(prob_death):
                 self.debug("I killed a rabbit: {}".format(i.unique_id))
                 num_alive -= 1
-                i.die()
+                self.model.remove_agent(i)
+                i.alive = False
+                i.killed = True
         self.debug("Rabbits alive: {}".format(num_alive))
 
 

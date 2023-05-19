@@ -1,8 +1,9 @@
 import os
+from soil import simulation
 
 NUM_AGENTS = int(os.environ.get('NUM_AGENTS', 100))
 NUM_ITERS = int(os.environ.get('NUM_ITERS', 10))
-MAX_STEPS = int(os.environ.get('MAX_STEPS', 1000))
+MAX_STEPS = int(os.environ.get('MAX_STEPS', 500))
 
 
 def run_sim(model, **kwargs):
@@ -22,11 +23,16 @@ def run_sim(model, **kwargs):
                 iterations=NUM_ITERS)
     opts.update(kwargs)
     its = Simulation(**opts).run()
+    assert len(its) == NUM_ITERS
 
-    assert all(it.schedule.steps == MAX_STEPS for it in its)
-    ratios = list(it.resistant_susceptible_ratio() for it in its)
-    print("Max - Avg - Min ratio:", max(ratios), sum(ratios)/len(ratios), min(ratios))
-    assert all(sum([it.number_susceptible,
-                    it.number_infected,
-                    it.number_resistant]) == NUM_AGENTS for it in its)
+    if not simulation._AVOID_RUNNING:
+        ratios = list(it.resistant_susceptible_ratio for it in its)
+        print("Max - Avg - Min ratio:", max(ratios), sum(ratios)/len(ratios), min(ratios))
+        infected = list(it.number_infected for it in its)
+        print("Max - Avg - Min infected:", max(infected), sum(infected)/len(infected), min(infected))
+
+        assert all((it.schedule.steps == MAX_STEPS or it.number_infected == 0) for it in its)
+        assert all(sum([it.number_susceptible,
+                        it.number_infected,
+                        it.number_resistant]) == NUM_AGENTS for it in its)
     return its

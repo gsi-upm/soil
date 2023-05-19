@@ -167,7 +167,7 @@ class RandomAccident(BaseAgent):
             if self.prob(prob_death):
                 self.debug("I killed a rabbit: {}".format(i.unique_id))
                 num_alive -= 1
-                i.die()
+                self.model.remove_agent(i)
         self.debug("Rabbits alive: {}".format(num_alive))
 
 

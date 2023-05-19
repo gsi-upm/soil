@@ -1,10 +1,11 @@
-from soil import Agent, Environment, Simulation
+from soil import Agent, Environment, Simulation, state
 
 
 class NoopAgent(Agent):
     num_calls = 0
 
-    def step(self):
+    @state(default=True)
+    def unique(self):
         self.num_calls += 1
 
 class NoopEnvironment(Environment):

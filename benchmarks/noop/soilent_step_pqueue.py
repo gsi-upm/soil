@@ -1,5 +1,5 @@
 from soil import BaseAgent, Environment, Simulation
-from soilent import PQueueScheduler
+from soil.time import SoilentPQueueActivation
 
 
 class NoopAgent(BaseAgent):
@@ -10,7 +10,7 @@ class NoopAgent(BaseAgent):
 
 class NoopEnvironment(Environment):
     num_agents = 100
-    schedule_class = PQueueScheduler
+    schedule_class = SoilentPQueueActivation
 
     def init(self):
         self.add_agents(NoopAgent, k=self.num_agents)
@@ -21,4 +21,4 @@ if __name__ == "__main__":
     from _config import *
     res = run_sim(model=NoopEnvironment)
     for r in res:
-        assert isinstance(r.schedule, PQueueScheduler)
+        assert isinstance(r.schedule, SoilentPqueueActivation)

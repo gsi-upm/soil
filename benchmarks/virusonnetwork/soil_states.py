@@ -30,8 +30,12 @@ class VirusOnNetwork(Environment):
         for a in self.agents(node_id=infected_nodes):
             a.set_state(VirusAgent.infected)
         assert self.number_infected == self.initial_outbreak_size
+    
+    def step(self):
+        super().step()
 
     @report
+    @property
     def resistant_susceptible_ratio(self):
         try:
             return self.number_resistant / self.number_susceptible
@@ -59,34 +63,29 @@ class VirusAgent(Agent):
     virus_check_frequency = None # Inherit from model
     recovery_chance = None # Inherit from model
     gain_resistance_chance = None # Inherit from model
-    just_been_infected = False
 
     @state(default=True)
-    def susceptible(self):
-        if self.just_been_infected:
-            self.just_been_infected = False
-            return self.infected
+    async def susceptible(self):
+        await self.received()
+        return self.infected
 
     @state
     def infected(self):
         susceptible_neighbors = self.get_neighbors(state_id=self.susceptible.id)
         for a in susceptible_neighbors:
             if self.prob(self.virus_spread_chance):
-                a.just_been_infected = True
+                a.tell(True, sender=self)
         if self.prob(self.virus_check_frequency):
             if self.prob(self.recovery_chance):
                 if self.prob(self.gain_resistance_chance):
                     return self.resistant
                 else:
                     return self.susceptible
-            else:
-                return self.infected
 
     @state
     def resistant(self):
         return self.at(INFINITY)
 
 
-if __name__ == "__main__":
-    from _config import run_sim
-    run_sim(model=VirusOnNetwork)
+from _config import run_sim
+run_sim(model=VirusOnNetwork)

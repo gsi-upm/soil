@@ -75,6 +75,13 @@ class Exporter:
     def iteration_end(self, env, params, params_id):
         """Method to call when a iteration ends"""
         pass
+    
+    def env_id(self, env):
+        try:
+            return env.id
+        except AttributeError:
+            return f"{env.__class__.__name__}_{current_time()}"
+
 
     def output(self, f, mode="w", **kwargs):
         if not self.dump:
@@ -90,7 +97,7 @@ class Exporter:
     def get_dfs(self, env, params_id, **kwargs):
         yield from get_dc_dfs(env.datacollector,
                               params_id,
-                              iteration_id=env.id,
+                              iteration_id=self.env_id(env),
                               **kwargs)
 
 
@@ -157,11 +164,11 @@ class SQLite(Exporter):
             return
 
         with timer(
-            "Dumping simulation {} iteration {}".format(self.simulation.name, env.id)
+            "Dumping simulation {} iteration {}".format(self.simulation.name, self.env_id(env))
         ):
             d = {"simulation_id": self.simulation.id,
                            "params_id": params_id,
-                           "iteration_id": env.id,
+                           "iteration_id": self.env_id(env),
             }
             for (k,v) in params.items():
                 d[k] = serialize(v)[0]
@@ -173,7 +180,7 @@ class SQLite(Exporter):
             pd.DataFrame([{
                 "simulation_id": self.simulation.id,
                 "params_id": params_id,
-                "iteration_id": env.id,
+                "iteration_id": self.env_id(env),
             }]).reset_index().to_sql("iterations",
                                      con=self.engine,
                                      if_exists="append",
@@ -191,11 +198,11 @@ class csv(Exporter):
     def iteration_end(self, env, params, params_id, *args, **kwargs):
         with timer(
             "[CSV] Dumping simulation {} iteration {} @ dir {}".format(
-                self.simulation.name, env.id, self.outdir
+                self.simulation.name, self.env_id(env), self.outdir
             )
         ):
             for (df_name, df) in self.get_dfs(env, params_id=params_id):
-                with self.output("{}.{}.csv".format(env.id, df_name), mode="a") as f:
+                with self.output("{}.{}.csv".format(self.env_id(env), df_name), mode="a") as f:
                     df.to_csv(f)
 
 
@@ -206,9 +213,9 @@ class gexf(Exporter):
             return
 
         with timer(
-            "[GEXF] Dumping simulation {} iteration {}".format(self.simulation.name, env.id)
+            "[GEXF] Dumping simulation {} iteration {}".format(self.simulation.name, self.env_id(env))
         ):
-            with self.output("{}.gexf".format(env.id), mode="wb") as f:
+            with self.output("{}.gexf".format(self.env_id(env)), mode="wb") as f:
                 nx.write_gexf(env.G, f)
 
 
@@ -242,7 +249,7 @@ class graphdrawing(Exporter):
             pos=nx.spring_layout(env.G, scale=100),
             ax=f.add_subplot(111),
         )
-        with open("graph-{}.png".format(env.id)) as f:
+        with open("graph-{}.png".format(self.env_id(env))) as f:
             f.savefig(f)
 
 

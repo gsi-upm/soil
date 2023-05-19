@@ -8,7 +8,6 @@ class NoopAgent(Agent):
         self.num_calls = 0
 
     def step(self):
-        # import pdb;pdb.set_trace()
         self.num_calls += 1 
 
 

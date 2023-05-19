@@ -19,7 +19,8 @@ def plot(env, agent_df=None, model_df=None, steps=False, ignore=["agent_count", 
         try:
             agent_df = env.agent_df()
         except UserWarning:
-            print("No agent dataframe provided and no agent reporters found. Skipping agent plot.", file=sys.stderr)
+            print("No agent dataframe provided and no agent reporters found. "
+                  "Skipping agent plot.", file=sys.stderr)
             return
     if not agent_df.empty:
         agent_df.unstack().apply(lambda x: x.value_counts(),
@@ -48,9 +49,5 @@ def read_sql(fpath=None, name=None, include_agents=False):
         agents = pd.read_sql_table("agents", con=conn, index_col=["params_id", "iteration_id", "step", "agent_id"])
         config = pd.read_sql_table("configuration", con=conn, index_col="simulation_id")
         parameters = pd.read_sql_table("parameters", con=conn, index_col=["simulation_id", "params_id", "iteration_id"])
-        # try:
-        #     parameters = parameters.pivot(columns="key", values="value")
-        # except Exception as e:
-        #     print(f"warning: coult not pivot parameters: {e}")
 
         return Results(config, parameters, env, agents)

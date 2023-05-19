@@ -11,6 +11,7 @@ import networkx as nx
 
 
 from mesa import Model
+from time import time as current_time
 
 from . import agents as agentmod, datacollection, utils, time, network, events
 
@@ -43,6 +44,7 @@ class BaseEnvironment(Model):
                 tables: Optional[Any] = None,
                 **kwargs: Any) -> Any:
         """Create a new model with a default seed value"""
+        seed = seed or str(current_time())
         self = super().__new__(cls, *args, seed=seed, **kwargs)
         self.dir_path = dir_path or os.getcwd()
         collector_class = collector_class or cls.collector_class
@@ -136,7 +138,7 @@ class BaseEnvironment(Model):
 
     @property
     def now(self):
-        if self.schedule:
+        if self.schedule is not None:
             return self.schedule.time
         raise Exception(
             "The environment has not been scheduled, so it has no sense of time"
@@ -159,6 +161,10 @@ class BaseEnvironment(Model):
 
         self.schedule.add(a)
         return a
+
+    def remove_agent(self, agent):
+        agent.alive = False
+        self.schedule.remove(agent)
 
     def add_agents(self, agent_classes: List[type], k, weights: Optional[List[float]] = None, **kwargs):
         if isinstance(agent_classes, type):
@@ -188,12 +194,15 @@ class BaseEnvironment(Model):
         super().step()
         self.schedule.step()
         self.datacollector.collect(self)
+        if self.now == time.INFINITY:
+            self.running = False
 
         if self.logger.isEnabledFor(logging.DEBUG):
             msg = "Model data:\n"
             max_width = max(len(k) for k in self.datacollector.model_vars.keys())
             for (k, v) in self.datacollector.model_vars.items():
-                msg += f"\t{k:<{max_width}}: {v[-1]:>6}\n"
+                # msg += f"\t{k:<{max_width}}"
+                msg += f"\t{k:<{max_width}}: {v[-1]}\n"
             self.logger.debug(f"--- Steps: {self.schedule.steps:^5} - Time: {self.now:^5} --- " + msg)
 
     def add_model_reporter(self, name, func=None):
@@ -297,6 +306,11 @@ class NetworkEnvironment(BaseEnvironment):
         self.G.nodes[node_id]["agent"] = a
         return a
 
+    def remove_agent(self, agent, remove_node=True):
+        super().remove_agent(agent)
+        if remove_node and hasattr(agent, "remove_node"):
+            agent.remove_node()
+
     def add_agents(self, *args, k=None, **kwargs):
         if not k and not self.G:
             raise ValueError("Cannot add agents to an empty network")
@@ -344,6 +358,7 @@ class NetworkEnvironment(BaseEnvironment):
                 )
             if node_id is None:
                 node_id = f"Node_for_agent_{unique_id}"
+            assert node_id not in self.G.nodes
 
         if node_id not in self.G.nodes:
             self.G.add_node(node_id)
@@ -417,7 +432,10 @@ class EventedEnvironment(BaseEnvironment):
     def __init__(self, *args, **kwargs):
         self._inbox = dict()
         super().__init__(*args, **kwargs)
-    
+        self._can_reschedule = hasattr(self.schedule, "add_callback") and hasattr(self.schedule, "remove_callback")
+        self._can_reschedule = True
+        self._callbacks = {}
+
     def register(self, agent):
         self._inbox[agent.unique_id] = []
 
@@ -429,24 +447,47 @@ class EventedEnvironment(BaseEnvironment):
                             "Make sure your agent is of type EventedAgent and it is registered with the environment.")
 
     @coroutine
-    def received(self, agent, expiration=None, timeout=60, delay=1):
-        if not expiration:
-            expiration = self.now + timeout
+    def _polling_callback(self, agent, expiration, delay):
+        # this wakes the agent up at every step. It is better to wait until timeout (or inf)
+        # and if a message is received before that, reschedule the agent
+        # (That is implemented in the `received` method)
         inbox = self.inbox_for(agent)
-        if inbox:
-            return self.process_messages(inbox)
         while self.now < expiration:
-            # TODO: this wakes the agent up at every step. It would be better to wait until timeout (or inf)
-            # and if a message is received before that, reschedule the agent when
             if inbox:
                 return self.process_messages(inbox)
             yield time.Delay(delay)
         raise events.TimedOut("No message received")
 
-    def tell(self, msg, sender, recipient, expiration=None, timeout=None, **kwargs):
+    @coroutine
+    def received(self, agent, expiration=None, timeout=None, delay=1):
+        if not expiration:
+            if timeout:
+                expiration = self.now + timeout
+            else:
+                expiration = float("inf")
+        inbox = self.inbox_for(agent)
+        if inbox:
+            return self.process_messages(inbox)
+
+        if self._can_reschedule:
+            checked = False
+            def cb():
+                nonlocal checked
+                if checked:
+                    return time.INFINITY
+                checked = True
+                self.schedule.add_callback(self.now, agent.step)
+            self.schedule.add_callback(expiration, cb)
+            self._callbacks[agent.unique_id] = cb
+            yield time.INFINITY
+        res = yield from self._polling_callback(agent, expiration, delay)
+        return res
+
+
+    def tell(self, msg, recipient, sender=None, expiration=None, timeout=None, **kwargs):
         if expiration is None:
             expiration = float("inf") if timeout is None else self.now + timeout
-        self.inbox_for(recipient).append(
+        self._add_to_inbox(recipient.unique_id,
             events.Tell(timestamp=self.now,
                         payload=msg,
                         sender=sender,
@@ -463,18 +504,23 @@ class EventedEnvironment(BaseEnvironment):
             if agent_class and not isinstance(self.agents(unique_id=agent_id), agent_class):
                 continue
             self.logger.debug(f"Telling {agent_id}: {msg} ttl={ttl}")
-            inbox.append(
+            self._add_to_inbox(agent_id,
                 events.Tell(
                     payload=msg,
                     sender=sender,
                     expiration=expiration,
                 )
             )
+    def _add_to_inbox(self, inbox_id, msg):
+        self._inbox[inbox_id].append(msg)
+        if inbox_id in self._callbacks:
+            cb = self._callbacks.pop(inbox_id)
+            cb()
 
     @coroutine
     def ask(self, msg, recipient, sender=None, expiration=None, timeout=None, delay=1):
         ask = events.Ask(timestamp=self.now, payload=msg, sender=sender)
-        self.inbox_for(recipient).append(ask)
+        self._add_to_inbox(recipient.unique_id, ask)
         expiration = float("inf") if timeout is None else self.now + timeout
         while self.now < expiration:
             if ask.reply:
