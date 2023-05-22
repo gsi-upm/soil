@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 import logging
+from datetime import datetime
 
 from typing import Any, Callable, Dict, Optional, Union, List, Type
 from types import coroutine
@@ -33,6 +34,8 @@ class BaseEnvironment(Model):
 
     collector_class = datacollection.SoilCollector
     schedule_class = time.TimedActivation
+    start_time = 0
+    time_format = "%Y-%m-%d %H:%M:%S"
 
     def __new__(cls,
                 *args: Any,
@@ -75,6 +78,8 @@ class BaseEnvironment(Model):
         collector_class: type = datacollection.SoilCollector,
         agent_reporters: Optional[Any] = None,
         model_reporters: Optional[Any] = None,
+        start_time=None,
+        time_format=None,
         tables: Optional[Any] = None,
         init: bool = True,
         **env_params,
@@ -91,12 +96,21 @@ class BaseEnvironment(Model):
             self.logger = logger
         else:
             self.logger = utils.logger.getChild(self.id)
+        if start_time is not None:
+            self.start_time = start_time
+        if time_format is not None:
+            self.time_format = time_format
+
+        if isinstance(self.start_time, str):
+            self.start_time = datetime.strptime(self.start_time, self.time_format)
+        if isinstance(self.start_time, datetime):
+            self.start_time = self.start_time.timestamp()
 
         self.schedule = schedule
         if schedule is None:
             if schedule_class is None:
                 schedule_class = self.schedule_class
-            self.schedule = schedule_class(self)
+            self.schedule = schedule_class(self, time=self.start_time)
 
         for (k, v) in env_params.items():
             self[k] = v

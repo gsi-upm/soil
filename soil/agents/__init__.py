@@ -87,6 +87,13 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
         print(msg, file=sys.stderr)
         return self.unique_id
 
+    @property
+    def env(self):
+        msg = "This attribute is deprecated. Use `model` instead"
+        warnings.warn(msg, DeprecationWarning)
+        print(msg, file=sys.stderr)
+        return self.model
+
     def __getitem__(self, key):
         try:
             return getattr(self, key)

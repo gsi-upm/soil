@@ -62,10 +62,10 @@ class PQueueSchedule:
     If no delay is returned, a default of 1 is used.
     """
 
-    def __init__(self, shuffle=True, seed=None, **kwargs):
+    def __init__(self, shuffle=True, seed=None, time=0, **kwargs):
         self._queue = []
         self._shuffle = shuffle
-        self.time = 0
+        self.time = time
         self.steps = 0
         self.random = random_std.Random(seed)
         self.next_time = self.time
@@ -134,10 +134,10 @@ class PQueueSchedule:
 
 
 class Schedule:
-    def __init__(self, shuffle=True, seed=None, **kwargs):
+    def __init__(self, shuffle=True, seed=None, time=0, **kwargs):
         self._queue = deque()
         self._shuffle = shuffle
-        self.time = 0
+        self.time = time
         self.steps = 0
         self.random = random_std.Random(seed)
         self.next_time = self.time
@@ -226,12 +226,12 @@ class Schedule:
 class InnerActivation(BaseScheduler):
     inner_class = Schedule
 
-    def __init__(self, model, shuffle=True, **kwargs):
+    def __init__(self, model, shuffle=True, time=0, **kwargs):
         self.model = model
         self.logger = getattr(self.model, "logger", logger).getChild(f"time_{ self.model }")
         self._agents = {}
         self.agents_by_type = defaultdict(dict)
-        self.inner = self.inner_class(shuffle=shuffle, seed=self.model._seed)
+        self.inner = self.inner_class(shuffle=shuffle, seed=self.model._seed, time=time)
 
     @property
     def steps(self):
