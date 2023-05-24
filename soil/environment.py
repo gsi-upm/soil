@@ -136,12 +136,13 @@ class BaseEnvironment(Model):
 
     def agent_df(self, steps=False):
         df = self.datacollector.get_agent_vars_dataframe()
+        df.index.rename(["step", "agent_id"], inplace=True)
         if steps:
-            df.index.rename(["step", "agent_id"], inplace=True)
             return df
+        df = df.reset_index()
         model_df = self.datacollector.get_model_vars_dataframe()
-        df.index = df.index.set_levels(model_df.time, level=0).rename(["time", "agent_id"])
-        return df
+        df['time'] = df.apply(lambda row: model_df.loc[row.step].time, axis=1)
+        return df.groupby(["time", "agent_id"]).last()
 
     def model_df(self, steps=False):
         df = self.datacollector.get_model_vars_dataframe()

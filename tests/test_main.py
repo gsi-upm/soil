@@ -227,7 +227,7 @@ class TestMain(TestCase):
         for i in a:
             for j in b:
                 assert {"a": i, "b": j} in configs
-    
+
     def test_agent_reporters(self):
         """An environment should be able to set its own reporters"""
         class Noop2(agents.Noop):
@@ -247,13 +247,13 @@ class TestMain(TestCase):
         assert "now" in df.columns
         assert "base" in df.columns
         assert "subclass" in df.columns
-        assert df["now"][(0,0)] == 1
-        assert df["now"][(0,1)] == 1
-        assert df["base"][(0,0)] == "base"
-        assert df["base"][(0,1)] == "base"
-        assert df["subclass"][(0,0)] is None
-        assert df["subclass"][(0,1)] == "subclass"
-    
+        assert df["now"][(1,0)] == 1
+        assert df["now"][(1,1)] == 1
+        assert df["base"][(1,0)] == "base"
+        assert df["base"][(1,1)] == "base"
+        assert df["subclass"][(1,0)] is None
+        assert df["subclass"][(1,1)] == "subclass"
+
     def test_remove_agent(self):
         """An agent that is scheduled should be removed from the schedule"""
         model = Environment()
@@ -283,3 +283,30 @@ class TestMain(TestCase):
         allagents = [a1, a2]
         model.step()
         assert not model.agents
+
+    def test_agent_df(self):
+        '''The agent dataframe should have the right columns'''
+
+        class PeterPan(agents.BaseAgent):
+            steps = 0
+
+            def step(self):
+                self.steps += 1
+                return self.delay(0)
+
+        class AgentDF(Environment):
+            def init(self):
+                self.add_agent(PeterPan)
+                self.add_agent_reporter("steps")
+
+        e = AgentDF()
+        df = e.agent_df()
+        assert df["steps"][(0,0)] == 0
+        e.step()
+        df = e.agent_df()
+        assert len(df) == 1
+        assert df["steps"][(0,0)] == 1
+        e.step()
+        df = e.agent_df()
+        assert len(df) == 1
+        assert df["steps"][(0,0)] == 2
