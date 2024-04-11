@@ -124,9 +124,7 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
 
         self.alive = True
 
-        logger = utils.logger.getChild(getattr(self.model, "id", self.model)).getChild(
-            self.name
-        )
+        logger = model.logger.getChild(self.name)
         self.logger = logging.LoggerAdapter(logger, {"agent_name": self.name})
 
         if hasattr(self, "level"):
@@ -233,7 +231,7 @@ class BaseAgent(MesaAgent, MutableMapping, metaclass=MetaAgent):
 
     def die(self, msg=None):
         if msg:
-            self.info("Agent dying:", msg)
+            self.debug("Agent dying:", msg)
         else:
             self.debug(f"agent dying")
         self.alive = False
@@ -437,7 +435,6 @@ def filter_agents(
     unique_id=None,
     state_id=None,
     agent_class=None,
-    ignore=None,
     state=None,
     limit=None,
     **kwargs,
@@ -445,7 +442,6 @@ def filter_agents(
     """
     Filter agents given as a dict, by the criteria given as arguments (e.g., certain type or state id).
     """
-    assert isinstance(agents, dict)
 
     ids = []
 
@@ -459,9 +455,9 @@ def filter_agents(
         ids += id_args
 
     if ids:
-        f = (agents[aid] for aid in ids if aid in agents)
+        f = (agent for agent in agents if agent.unique_id in ids)
     else:
-        f = agents.values()
+        f = agents
 
     if state_id is not None and not isinstance(state_id, (tuple, list)):
         state_id = tuple([state_id])
@@ -472,9 +468,6 @@ def filter_agents(
             agent_class = tuple(agent_class)
         except TypeError:
             agent_class = tuple([agent_class])
-
-    if ignore:
-        f = filter(lambda x: x not in ignore, f)
 
     if state_id is not None:
         f = filter(lambda agent: agent.get("state_id", None) in state_id, f)

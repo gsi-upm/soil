@@ -63,11 +63,11 @@ class City(EventedEnvironment):
 
     def init(self):
         self.grid = MultiGrid(width=self.width, height=self.height, torus=False)
-        if not self.agents:
+        if not self.get_agents():
             self.add_agents(Driver, k=self.n_cars)
             self.add_agents(Passenger, k=self.n_passengers)
 
-        for agent in self.agents:
+        for agent in self.get_agents():
             self.grid.place_agent(agent, (0, 0))
             self.grid.move_to_empty(agent)
         

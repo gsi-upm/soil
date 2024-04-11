@@ -70,7 +70,7 @@ class Male(Rabbit):
             return self.dead
 
         # Males try to mate
-        for f in self.model.agents(
+        for f in self.model.get_agents(
             agent_class=Female, state_id=Female.fertile.id, limit=self.max_females
         ):
             self.debug("FOUND A FEMALE: ", repr(f), self.mating_prob)

@@ -32,7 +32,15 @@ class DeadAgent(Exception):
     pass
 
 
-class PQueueActivation(BaseScheduler):
+class DiscreteActivation(BaseScheduler):
+    default_interval = 1
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if hasattr(self.model, 'default_interval'):
+            self.default_interval = self.model.interval
+
+
+class PQueueActivation(DiscreteActivation):
     """
     A scheduler which activates each agent with a delay returned by the agent's step method.
     If no delay is returned, a default of 1 is used.
@@ -88,7 +96,7 @@ class PQueueActivation(BaseScheduler):
                 break
 
             try:
-                when = agent.step() or 1
+                when = agent.step() or self.default_interval
                 when += now
             except DeadAgent:
                 heappop(self._queue)
@@ -110,7 +118,8 @@ class PQueueActivation(BaseScheduler):
             return
 
 
-class TimedActivation(BaseScheduler):
+class TimedActivation(DiscreteActivation):
+    '''A discrete-time scheduler that has time buckets with agents that should be woken at the same time instant.'''
     def __init__(self, *args, shuffle=True, **kwargs):
         super().__init__(*args, **kwargs)
         self._queue = deque()
@@ -159,7 +168,7 @@ class TimedActivation(BaseScheduler):
             self.model.random.shuffle(bucket)
         for agent in bucket:
             try:
-                when = agent.step() or 1
+                when = agent.step() or self.default_interval
                 when += now
             except DeadAgent:
                 continue
@@ -175,12 +184,45 @@ class TimedActivation(BaseScheduler):
 
 
 class ShuffledTimedActivation(TimedActivation):
+    '''
+    A TimedActivation scheduler that processes events in random order.
+    '''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, shuffle=True, **kwargs)
 
 
 class OrderedTimedActivation(TimedActivation):
+    '''
+    A TimedActivation scheduler that always processes events in
+    the same order.
+    '''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, shuffle=False, **kwargs)
 
 
+Scheduler = TimedActivation
+
+    
+class Lockstepper:
+    '''
+    A wrapper class to produce discrete-event schedulers that behave like
+    fixed-time schedulers.
+    '''
+    
+    def  __init__(self, scheduler: BaseScheduler, interval=1):
+        self.scheduler = scheduler
+        self.default_interval = interval
+        self.time = scheduler.time
+        self.steps = 0
+
+    def step(self):
+        end_time = self.time + self.default_interval
+        res = None
+        while self.scheduler.time < end_time:
+            res = self.scheduler.step()
+        self.time = end_time
+        self.steps += 1
+        return res
+
+    def __getattr__(self, name):
+        return getattr(self.scheduler, name)

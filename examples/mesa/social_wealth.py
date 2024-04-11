@@ -7,7 +7,7 @@ from mesa.space import MultiGrid
 
 # from mesa.time import RandomActivation
 from mesa.datacollection import DataCollector
-from mesa.batchrunner import BatchRunner
+from mesa.batchrunner import batch_run
 
 import networkx as nx
 
@@ -101,7 +101,7 @@ class MoneyEnv(Environment):
         self.populate_network(agent_class=agent_class)
 
         # Create agents
-        for agent in self.agents:
+        for agent in self.get_agents():
             x = self.random.randrange(self.grid.width)
             y = self.random.randrange(self.grid.height)
             self.grid.place_agent(agent, (x, y))
@@ -122,16 +122,14 @@ if __name__ == "__main__":
 
     variable_params = {"N": range(10, 100, 10)}
 
-    batch_run = BatchRunner(
+    results = batch_run(
         MoneyEnv,
         variable_parameters=variable_params,
         fixed_parameters=fixed_params,
         iterations=5,
-        max_steps=100,
-        model_reporters={"Gini": compute_gini},
-    )
-    batch_run.run_all()
+        max_steps=100
+    )  
 
-    run_data = batch_run.get_model_vars_dataframe()
-    run_data.head()
+    run_data = pd.DataFrame(results)
+    print(run_data.head())
     print(run_data.Gini)

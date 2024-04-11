@@ -49,7 +49,7 @@ class Debug(pdb.Pdb):
 
     @staticmethod
     def _soil_agents(model, attrs=None, pretty=True, **kwargs):
-        for agent in model.agents(**kwargs):
+        for agent in model.get_agents(**kwargs):
             d = agent
             print(" - " + indent(agent.to_str(keys=attrs, pretty=pretty), "  "))
 

@@ -155,8 +155,9 @@ class Simulation:
             exporter.sim_start()
 
         for params in tqdm(param_combinations, desc=self.name, unit="configuration"):
+            tqdm.write("- Running for parameters: ")
             for (k, v) in params.items():
-                tqdm.write(f"{k} = {v}")
+                tqdm.write(f"  {k} = {v}")
             sha = hashlib.sha256()
             sha.update(repr(sorted(params.items())).encode())
             params_id = sha.hexdigest()[:7]

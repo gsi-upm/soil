@@ -33,7 +33,7 @@ class VirusOnNetwork(Environment):
 
         # Infect some nodes
         infected_nodes = self.random.sample(list(self.G), self.initial_outbreak_size)
-        for a in self.agents(node_id=infected_nodes):
+        for a in self.get_agents(node_id=infected_nodes):
             a.status = State.INFECTED
         assert self.number_infected == self.initial_outbreak_size
 

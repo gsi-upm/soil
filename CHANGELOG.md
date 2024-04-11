@@ -3,9 +3,9 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0 UNRELEASED]
+## [1.0.0 UNRELEASED]
 
-Version 1.0 introduced multiple changes, especially on the `Simulation` class and anything related to how configuration is handled.
+Version 1.0 will introduce multiple changes, especially on the `Simulation` class and anything related to how configuration is handled.
 For an explanation of the general changes in version 1.0, please refer to the file `docs/notes_v1.0.rst`.
 
 ### Added
@@ -19,7 +19,6 @@ For an explanation of the general changes in version 1.0, please refer to the fi
 * The `agent.after` and `agent.at` methods, to avoid having to return a time manually.
 ### Changed
 * Configuration schema (`Simulation`) is very simplified. All simulations should be checked
-* Agents that wish to 
 * Model / environment variables are expected (but not enforced) to be a single value. This is done to more closely align with mesa
 * `Exporter.iteration_end` now takes two parameters: `env` (same as before) and `params` (specific parameters for this environment). We considered including a `parameters` attribute in the environment, but this would not be compatible with mesa.
 * `num_trials` renamed to `iterations`

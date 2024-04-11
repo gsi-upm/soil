@@ -170,12 +170,12 @@ class TestAgents(TestCase):
         e = environment.Environment()
         e.add_agent(agent_class=agents.BaseAgent)
         e.add_agent(agent_class=agents.Evented)
-        base = list(e.agents(agent_class=agents.BaseAgent))
+        base = list(e.get_agents(agent_class=agents.BaseAgent))
         assert len(base) == 2
-        ev = list(e.agents(agent_class=agents.Evented))
+        ev = list(e.get_agents(agent_class=agents.Evented))
         assert len(ev) == 1
         assert ev[0].unique_id == 1
-        null = list(e.agents(unique_ids=[0, 1], agent_class=agents.NetworkAgent))
+        null = list(e.get_agents(unique_ids=[0, 1], agent_class=agents.NetworkAgent))
         assert not null
 
     def test_agent_return(self):

@@ -24,7 +24,7 @@ consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     handlers=[
         consoleHandler,
     ],

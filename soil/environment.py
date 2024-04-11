@@ -113,14 +113,14 @@ class BaseEnvironment(Model):
         pass
 
     @property
-    def agents(self):
-        return agentmod.AgentView(self.schedule._agents)
+    def get_agents(self):
+        return agentmod.AgentView(self.schedule.agents)
 
     def agent(self, *args, **kwargs):
-        return agentmod.AgentView(self.schedule._agents).one(*args, **kwargs)
+        return agentmod.AgentView(self.schedule.agents).one(*args, **kwargs)
 
     def count_agents(self, *args, **kwargs):
-        return sum(1 for i in self.agents(*args, **kwargs))
+        return sum(1 for i in self.get_agents(*args, **kwargs))
     
     def agent_df(self, steps=False):
         df = self.datacollector.get_agent_vars_dataframe()
@@ -145,6 +145,7 @@ class BaseEnvironment(Model):
         raise Exception(
             "The environment has not been scheduled, so it has no sense of time"
         )
+
     def init_agents(self):
         pass
 
@@ -244,7 +245,7 @@ class BaseEnvironment(Model):
         return sum(1 for n in self.keys())
 
     def __iter__(self):
-        return iter(self.agents())
+        return iter(self.get_agents())
 
     def get(self, key, default=None):
         return self[key] if key in self else default
@@ -362,11 +363,11 @@ class NetworkEnvironment(BaseEnvironment):
         """
         for (id, data) in self.G.nodes(data=True):
             if "agent_id" in data:
-                agent = self.agents(data["agent_id"])
+                agent = self.get_agents(data["agent_id"])
                 self.G.nodes[id]["agent"] = agent
                 assert not getattr(agent, "node_id", None) or agent.node_id == id
                 agent.node_id = id
-        for agent in self.agents():
+        for agent in self.get_agents():
             if hasattr(agent, "node_id"):
                 node_id = agent["node_id"]
                 if node_id not in self.G.nodes:
@@ -410,7 +411,7 @@ class NetworkEnvironment(BaseEnvironment):
 
 class EventedEnvironment(BaseEnvironment):
     def broadcast(self, msg, sender=None, expiration=None, ttl=None, **kwargs):
-        for agent in self.agents(**kwargs):
+        for agent in self.get_agents(**kwargs):
             if agent == sender:
                 continue
             self.logger.debug(f"Telling {repr(agent)}: {msg} ttl={ttl}")
